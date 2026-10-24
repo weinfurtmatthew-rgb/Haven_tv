@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:'Inter';src:url('fonts/Inter-opsz.woff2') format('woff2');font-weight:100 900;font-style:normal}
+@font-face{font-family:'Bricolage';src:url('fonts/Bricolage-800.ttf') format('truetype');font-weight:800}
+html,body{margin:0;background:#000;width:1920px;height:1080px;overflow:hidden;font-family:Inter,sans-serif;color:#F4F6F9;-webkit-font-smoothing:antialiased}
+#host{position:absolute;inset:0}
+.ov{position:absolute;pointer-events:none;will-change:opacity,transform}
+#vig{inset:0;background:radial-gradient(ellipse 75% 70% at 50% 46%,rgba(0,0,0,0) 55%,rgba(0,0,0,0.38) 100%)}
+#scrim{left:0;bottom:0;width:1300px;height:520px;background:radial-gradient(ellipse 70% 80% at 0% 100%,rgba(5,7,12,0.62) 0%,rgba(5,7,12,0.32) 45%,rgba(5,7,12,0) 75%)}
+#topscrim{left:0;top:0;width:900px;height:260px;background:radial-gradient(ellipse 70% 90% at 0% 0%,rgba(5,7,12,0.45) 0%,rgba(5,7,12,0) 70%)}
+#stamp{left:96px;top:70px;display:flex;align-items:center;gap:16px;height:64px;padding:0 28px 0 22px;border-radius:32px;background:rgba(18,22,30,0.42);backdrop-filter:blur(18px) saturate(1.3);border:1px solid rgba(255,255,255,0.16)}
+#stamp svg{width:30px;height:30px}
+#stampTime{font-size:30px;font-weight:650;letter-spacing:0.2px;font-variant-numeric:tabular-nums}
+#stampDay{font-size:24px;font-weight:500;opacity:.72}
+#cap{left:96px;bottom:96px;width:1400px}
+#capH{font-size:70px;font-weight:680;letter-spacing:-1.4px;line-height:1.05;text-shadow:0 2px 30px rgba(0,0,0,0.35)}
+#capS{margin-top:16px;font-size:32px;font-weight:460;opacity:.86;text-shadow:0 2px 20px rgba(0,0,0,0.4)}
+#title{left:0;right:0;top:96px;text-align:center}
+#titleA{font-size:28px;font-weight:600;letter-spacing:9px;opacity:.85}
+#titleB{font-family:Bricolage;font-weight:800;font-size:230px;letter-spacing:-6px;line-height:1;margin-top:6px;text-shadow:0 10px 60px rgba(0,0,0,0.35)}
+#end{left:0;right:0;top:84px;text-align:center}
+#endB{font-family:Bricolage;font-weight:800;font-size:210px;letter-spacing:-6px;line-height:1;text-shadow:0 10px 60px rgba(0,0,0,0.45)}
+#endS{font-size:46px;font-weight:500;opacity:.85;margin-top:14px}
+#endF{position:absolute;left:0;right:0;top:900px;font-size:22px;font-weight:650;letter-spacing:6px;opacity:.5}
+.nt{right:72px;width:600px;border-radius:34px;background:rgba(24,27,36,0.52);backdrop-filter:blur(28px) saturate(1.5);border:1px solid rgba(255,255,255,0.18);box-shadow:0 20px 60px rgba(0,0,0,0.35);display:flex;gap:20px;padding:22px 24px;box-sizing:border-box;align-items:center}
+.nt .ic{flex:none;width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,#7DD3FC,#8B6CF0)}
+.nt .ic svg{width:36px;height:36px}
+.nt .tx{flex:1;min-width:0}
+.nt .row{display:flex;justify-content:space-between;font-size:19px;font-weight:650;letter-spacing:1.5px;opacity:.7}
+.nt .tt{font-size:28px;font-weight:650;margin-top:4px;display:flex;align-items:center;gap:10px}
+.nt .tt svg{width:26px;height:26px}
+.nt .bd{font-size:23px;font-weight:450;opacity:.86;margin-top:3px;line-height:1.25}
+.nt canvas{flex:none;width:150px;height:112px;border-radius:16px}
+</style></head>
+<body>
+<div id="host"></div>
+<div class="ov" id="vig"></div>
+<div class="ov" id="scrim"></div>
+<div class="ov" id="topscrim"></div>
+<div class="ov" id="stamp"><span id="stampIc"></span><span id="stampTime">6:28 AM</span><span id="stampDay">Wednesday</span></div>
+<div class="ov" id="cap"><div id="capH"></div><div id="capS"></div></div>
+<div class="ov" id="title"><div id="titleA">A DAY WITH</div><div id="titleB">Haven</div></div>
+<div class="ov" id="end"><div id="endB">Haven</div><div id="endS">Your house. Your TV.</div><div id="endF">CONCEPT FILM &nbsp;·&nbsp; WORKING NAME</div></div>
+<div id="notifs"></div>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<script type="module" src="./js/main.js"></script>
+</body></html>

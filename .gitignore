@@ -1,0 +1,23 @@
+# Android / Gradle
+.gradle/
+build/
+/local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Concept renders and scratch output (see concept/README.md)
+node_modules/
+__pycache__/
+*.pyc
+*.mp4
+*.wav
+*.log
+concept/films/3d-day/chunks/
+concept/films/2d/test/
+concept/films/2d/test5/
+concept/**/*.png
+!concept/mockups/**/*.png

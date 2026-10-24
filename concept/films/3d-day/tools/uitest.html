@@ -1,0 +1,11 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face{font-family:'Inter';src:url('../fonts/Inter-opsz.woff2') format('woff2');font-weight:100 900;font-style:normal}
+html,body{margin:0;background:#222;width:1920px;height:1080px;overflow:hidden}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script type="module">
+import { SCREENS } from '../js/ui.js';
+const g = document.getElementById('c').getContext('2d');
+await document.fonts.load('500 40px Inter'); await document.fonts.load('200 40px Inter'); await document.fonts.load('800 40px Inter');
+window.draw = (name, lt, extra) => { g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,1920,1080); const args = extra ? JSON.parse(extra) : []; if (name === 'movie') SCREENS.movie(g, lt, args[0] || {}); else SCREENS[name](g, lt, ...args); return true; };
+window.ready = true;
+</script></body></html>

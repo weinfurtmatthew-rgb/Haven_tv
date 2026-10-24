@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#FF0D1014" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#FF171C23" android:pathData="M0,150h320v30h-320z" />
+    <!-- house mark -->
+    <path
+        android:pathData="M42,92l34,-30 34,30M50,88v34h52v-34M70,122v-18h12v18"
+        android:strokeWidth="6"
+        android:strokeColor="#FF7DD3FC"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- HAVEN -->
+    <path android:fillColor="#FFEEF1F5" android:pathData="M130,70h7v16h14v-16h7v40h-7v-17h-14v17h-7z" />
+    <path android:fillColor="#FFEEF1F5" android:fillType="evenOdd" android:pathData="M164,110l11,-40h8l11,40h-7l-3,-10h-10l-3,10zM175.5,94h7l-3.5,-13z" />
+    <path android:fillColor="#FFEEF1F5" android:pathData="M198,70h7l8,30 8,-30h7l-11,40h-8z" />
+    <path android:fillColor="#FFEEF1F5" android:pathData="M234,70h22v7h-15v9h13v7h-13v10h15v7h-22z" />
+    <path android:fillColor="#FFEEF1F5" android:pathData="M262,70h7l14,26v-26h7v40h-7l-14,-26v26h-7z" />
+</vector>

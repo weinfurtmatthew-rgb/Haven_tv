@@ -1,0 +1,293 @@
+package app.haven.launcher.ui
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.unit.dp
+
+/** Lucide icons (ISC license), generated from lucide-static 0.460.0. Stroked on a 24x24 grid like the mockups. */
+object Icons {
+    private fun icon(vararg paths: String): ImageVector =
+        ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
+            .apply {
+                for (d in paths) {
+                    addPath(
+                        pathData = addPathNodes(d),
+                        stroke = SolidColor(Color.White),
+                        strokeLineWidth = 1.7f,
+                        strokeLineCap = StrokeCap.Round,
+                        strokeLineJoin = StrokeJoin.Round,
+                    )
+                }
+            }
+            .build()
+
+    val House = icon(
+        "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8",
+        "M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+    )
+    val Sun = icon(
+        "M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0Z",
+        "M12 2v2",
+        "M12 20v2",
+        "m4.93 4.93 1.41 1.41",
+        "m17.66 17.66 1.41 1.41",
+        "M2 12h2",
+        "M20 12h2",
+        "m6.34 17.66-1.41 1.41",
+        "m19.07 4.93-1.41 1.41",
+    )
+    val Moon = icon(
+        "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z",
+    )
+    val Cloud = icon(
+        "M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z",
+    )
+    val CloudSun = icon(
+        "M12 2v2",
+        "m4.93 4.93 1.41 1.41",
+        "M20 12h2",
+        "m19.07 4.93-1.41 1.41",
+        "M15.947 12.65a4 4 0 0 0-5.925-4.128",
+        "M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z",
+    )
+    val CloudMoon = icon(
+        "M10.188 8.5A6 6 0 0 1 16 4a1 1 0 0 0 6 6 6 6 0 0 1-3 5.197",
+        "M13 16a3 3 0 1 1 0 6H7a5 5 0 1 1 4.9-6Z",
+    )
+    val CloudRain = icon(
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "M16 14v6",
+        "M8 14v6",
+        "M12 16v6",
+    )
+    val CloudSnow = icon(
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "M8 15h.01",
+        "M8 19h.01",
+        "M12 17h.01",
+        "M12 21h.01",
+        "M16 15h.01",
+        "M16 19h.01",
+    )
+    val CloudLightning = icon(
+        "M6 16.326A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 .5 8.973",
+        "m13 12-3 5h4l-3 5",
+    )
+    val CloudFog = icon(
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "M16 17H7",
+        "M17 21H9",
+    )
+    val CloudDrizzle = icon(
+        "M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242",
+        "M8 19v1",
+        "M8 14v1",
+        "M16 19v1",
+        "M16 14v1",
+        "M12 21v1",
+        "M12 16v1",
+    )
+    val Wind = icon(
+        "M12.8 19.6A2 2 0 1 0 14 16H2",
+        "M17.5 8a2.5 2.5 0 1 1 2 4H2",
+        "M9.8 4.4A2 2 0 1 1 11 8H2",
+    )
+    val Wifi = icon(
+        "M12 20h.01",
+        "M2 8.82a15 15 0 0 1 20 0",
+        "M5 12.859a10 10 0 0 1 14 0",
+        "M8.5 16.429a5 5 0 0 1 7 0",
+    )
+    val SlidersHorizontal = icon(
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+    )
+    val Image = icon(
+        "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+        "M7 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z",
+        "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
+    )
+    val Images = icon(
+        "M18 22H4a2 2 0 0 1-2-2V6",
+        "m22 13-1.296-1.296a2.41 2.41 0 0 0-3.408 0L11 18",
+        "M10 8a2 2 0 1 0 4 0a2 2 0 1 0 -4 0Z",
+        "M8 2H20A2 2 0 0 1 22 4V16A2 2 0 0 1 20 18H8A2 2 0 0 1 6 16V4A2 2 0 0 1 8 2Z",
+    )
+    val Lightbulb = icon(
+        "M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5",
+        "M9 18h6",
+        "M10 22h4",
+    )
+    val Speaker = icon(
+        "M6 2H18A2 2 0 0 1 20 4V20A2 2 0 0 1 18 22H6A2 2 0 0 1 4 20V4A2 2 0 0 1 6 2Z",
+        "M12 6h.01",
+        "M8 14a4 4 0 1 0 8 0a4 4 0 1 0 -8 0Z",
+        "M12 14h.01",
+    )
+    val AlarmClock = icon(
+        "M4 13a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z",
+        "M12 9v4l2 2",
+        "M5 3 2 6",
+        "m22 6-3-3",
+        "M6.38 18.7 4 21",
+        "M17.64 18.67 20 21",
+    )
+    val Sunrise = icon(
+        "M12 2v8",
+        "m4.93 10.93 1.41 1.41",
+        "M2 18h2",
+        "M20 18h2",
+        "m19.07 10.93-1.41 1.41",
+        "M22 22H2",
+        "m8 6 4-4 4 4",
+        "M16 18a4 4 0 0 0-8 0",
+    )
+    val ChevronLeft = icon(
+        "m15 18-6-6 6-6",
+    )
+    val Check = icon(
+        "M20 6 9 17l-5-5",
+    )
+    val Play = icon(
+        "M6 3L20 12L6 21L6 3Z",
+    )
+    val Pause = icon(
+        "M15 4H17A1 1 0 0 1 18 5V19A1 1 0 0 1 17 20H15A1 1 0 0 1 14 19V5A1 1 0 0 1 15 4Z",
+        "M7 4H9A1 1 0 0 1 10 5V19A1 1 0 0 1 9 20H7A1 1 0 0 1 6 19V5A1 1 0 0 1 7 4Z",
+    )
+    val Settings = icon(
+        "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+        "M9 12a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z",
+    )
+    val Smartphone = icon(
+        "M7 2H17A2 2 0 0 1 19 4V20A2 2 0 0 1 17 22H7A2 2 0 0 1 5 20V4A2 2 0 0 1 7 2Z",
+        "M12 18h.01",
+    )
+    val X = icon(
+        "M18 6 6 18",
+        "m6 6 12 12",
+    )
+    val Power = icon(
+        "M12 2v10",
+        "M18.4 6.6a9 9 0 1 1-12.77.04",
+    )
+    val MoonStar = icon(
+        "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9",
+        "M20 3v4",
+        "M22 5h-4",
+    )
+    val Timer = icon(
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "M4 14a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z",
+    )
+    val Star = icon(
+        "M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z",
+    )
+    val RefreshCw = icon(
+        "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8",
+        "M21 3v5h-5",
+        "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16",
+        "M8 16H3v5",
+    )
+    val Download = icon(
+        "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+        "M7 10L12 15L17 10",
+        "Mundefined undefinedLundefined undefined",
+    )
+    val EyeOff = icon(
+        "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
+        "M14.084 14.158a3 3 0 0 1-4.242-4.242",
+        "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",
+        "m2 2 20 20",
+    )
+    val ArrowLeft = icon(
+        "m12 19-7-7 7-7",
+        "M19 12H5",
+    )
+    val ArrowRight = icon(
+        "M5 12h14",
+        "m12 5 7 7-7 7",
+    )
+    val Music = icon(
+        "M9 18V5l12-2v13",
+        "M3 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z",
+        "M15 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z",
+    )
+    val Gamepad2 = icon(
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+        "M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z",
+    )
+    val Folder = icon(
+        "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+    )
+    val Globe = icon(
+        "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0Z",
+        "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20",
+        "M2 12h20",
+    )
+    val Cast = icon(
+        "M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6",
+        "M2 12a9 9 0 0 1 8 8",
+        "M2 16a5 5 0 0 1 4 4",
+        "Mundefined undefinedLundefined undefined",
+    )
+    val Film = icon(
+        "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+        "M7 3v18",
+        "M3 7.5h4",
+        "M3 12h18",
+        "M3 16.5h4",
+        "M17 3v18",
+        "M17 7.5h4",
+        "M17 16.5h4",
+    )
+    val Tv = icon(
+        "M4 7H20A2 2 0 0 1 22 9V20A2 2 0 0 1 20 22H4A2 2 0 0 1 2 20V9A2 2 0 0 1 4 7Z",
+        "M17 2L12 7L7 2",
+    )
+    val LayoutGrid = icon(
+        "M4 3H9A1 1 0 0 1 10 4V9A1 1 0 0 1 9 10H4A1 1 0 0 1 3 9V4A1 1 0 0 1 4 3Z",
+        "M15 3H20A1 1 0 0 1 21 4V9A1 1 0 0 1 20 10H15A1 1 0 0 1 14 9V4A1 1 0 0 1 15 3Z",
+        "M15 14H20A1 1 0 0 1 21 15V20A1 1 0 0 1 20 21H15A1 1 0 0 1 14 20V15A1 1 0 0 1 15 14Z",
+        "M4 14H9A1 1 0 0 1 10 15V20A1 1 0 0 1 9 21H4A1 1 0 0 1 3 20V15A1 1 0 0 1 4 14Z",
+    )
+    val Palette = icon(
+        "M13 6.5a0.5 0.5 0 1 0 1 0a0.5 0.5 0 1 0 -1 0Z",
+        "M17 10.5a0.5 0.5 0 1 0 1 0a0.5 0.5 0 1 0 -1 0Z",
+        "M8 7.5a0.5 0.5 0 1 0 1 0a0.5 0.5 0 1 0 -1 0Z",
+        "M6 12.5a0.5 0.5 0 1 0 1 0a0.5 0.5 0 1 0 -1 0Z",
+        "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z",
+    )
+    val Plus = icon(
+        "M5 12h14",
+        "M12 5v14",
+    )
+    val Minus = icon(
+        "M5 12h14",
+    )
+    val Info = icon(
+        "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0Z",
+        "M12 16v-4",
+        "M12 8h.01",
+    )
+    val CircleAlert = icon(
+        "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0Z",
+        "Mundefined undefinedLundefined undefined",
+        "Mundefined undefinedLundefined undefined",
+    )
+}

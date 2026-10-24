@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haven setup</title>
+<style>
+:root{--bg:#0D1014;--card:#171C23;--hi:#1F2630;--line:#2F3946;--track:#3A4553;--text:#EEF1F5;--muted:#A3ADBA;--acc:#7DD3FC;--bad:#FF7A70}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px 16px 60px}
+main{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+header svg{flex:none}
+h1{font-size:24px;margin:0}
+h2{font-size:18px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:14px}
+section{background:var(--card);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+input[type=text],input[type=url],input[type=time],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit}
+textarea{min-height:84px;resize:vertical;font-family:ui-monospace,monospace;font-size:13px}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{background:var(--hi);color:var(--text);border:0;border-radius:999px;padding:11px 18px;font:600 15px system-ui,sans-serif;cursor:pointer}
+button.primary{background:var(--acc);color:var(--bg)}
+button:disabled{opacity:.5}
+.check{flex-direction:row;align-items:center;gap:10px;color:var(--text);font-size:15px;padding:8px 0}
+.check input{width:22px;height:22px;accent-color:var(--acc)}
+.list{display:flex;flex-direction:column;gap:2px}
+.status{font-size:14px;color:var(--muted)}
+.status.ok{color:#86EFAC}.status.bad{color:var(--bad)}
+.days{display:flex;gap:6px;flex-wrap:wrap}
+.days label{flex-direction:row;align-items:center;gap:4px;background:var(--hi);padding:8px 10px;border-radius:999px;color:var(--text)}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.photo{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--hi)}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo button{position:absolute;top:4px;right:4px;padding:2px 8px;font-size:13px;background:rgba(13,16,20,.8)}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--hi);border:1px solid var(--line);padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
+#toast.show{opacity:1}
+.hidden{display:none!important}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7DD3FC" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    <div><h1 id="title">Haven setup</h1><div class="sub" id="version"></div></div>
+  </header>
+
+  <div id="error" class="status bad hidden"></div>
+
+  <section>
+    <h2>Home Assistant</h2>
+    <div class="status" id="haStatus"></div>
+    <label>Address
+      <input type="url" id="haUrl" placeholder="http://192.168.1.10:8123" autocapitalize="off" autocomplete="off">
+    </label>
+    <label>Long-lived access token
+      <textarea id="haToken" placeholder="Paste the token here" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+    </label>
+    <div class="sub">In Home Assistant, open your profile, then Security, then "Long-lived access tokens", and create one named Haven. Use an admin account so Haven can read your areas.</div>
+    <div class="row">
+      <button id="haTest">Test</button>
+      <button class="primary" id="haSave">Save</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>This room</h2>
+    <label>Room name <input type="text" id="roomName"></label>
+    <label>Home Assistant area
+      <select id="area"></select>
+    </label>
+    <label>Weather from
+      <select id="weather"></select>
+    </label>
+    <label>Your name (for the greeting and avatar) <input type="text" id="profile"></label>
+    <label class="check"><input type="checkbox" id="bedroom"> Bedroom features: alarm clock and sleep timer</label>
+    <div class="row"><button class="primary" id="roomSave">Save</button></div>
+  </section>
+
+  <section id="entitiesCard">
+    <h2>Shown on the TV</h2>
+    <div class="sub">Untick anything this room's TV shouldn't control. Changes save right away.</div>
+    <div id="entities" class="list"></div>
+  </section>
+
+  <section>
+    <h2>Art mode</h2>
+    <label>Show <select id="artSource"></select></label>
+    <label>Change the picture every
+      <select id="artInterval"><option value="1">1 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option></select>
+    </label>
+    <label>Start art mode
+      <select id="artIdle"><option value="0">Only when I choose it</option><option value="5">After 5 min idle</option><option value="10">After 10 min idle</option><option value="15">After 15 min idle</option><option value="30">After 30 min idle</option></select>
+    </label>
+    <h2 style="margin-top:8px">Your photos</h2>
+    <div class="sub">Name a photo before uploading ("Lake day.jpg") and the name shows under it on the TV.</div>
+    <div class="row">
+      <label class="hidden" for="files"></label>
+      <input type="file" id="files" accept="image/*" multiple class="hidden">
+      <button class="primary" id="pick">Upload photos</button>
+      <span class="status" id="uploadStatus"></span>
+    </div>
+    <div class="photos" id="photos"></div>
+  </section>
+
+  <section id="alarmCard">
+    <h2>Alarm</h2>
+    <label class="check"><input type="checkbox" id="alarmOn"> Alarm on</label>
+    <label>Time <input type="time" id="alarmTime"></label>
+    <div class="days" id="days"></div>
+    <label>Sunrise lights (fade the room's lights up before the alarm)
+      <select id="sunrise"><option value="0">Off</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
+    </label>
+    <label>Snooze
+      <select id="snooze"><option value="5">5 min</option><option value="9">9 min</option><option value="10">10 min</option><option value="15">15 min</option></select>
+    </label>
+    <div class="row"><button class="primary" id="alarmSave">Save alarm</button></div>
+  </section>
+</main>
+<div id="toast"></div>
+
+<script>
+const key = new URLSearchParams(location.search).get('k') || '';
+const $ = (id) => document.getElementById(id);
+let state = null;
+
+async function api(path, opts = {}) {
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch(`/api/${path}${sep}k=${encodeURIComponent(key)}`, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
+  return j;
+}
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function showError(e) {
+  $('error').textContent = e.message || String(e);
+  $('error').classList.remove('hidden');
+}
+
+async function save(patch, msg = 'Saved') {
+  try {
+    state = await api('settings', { method: 'POST', body: JSON.stringify(patch) });
+    render();
+    toast(msg);
+  } catch (e) { showError(e); }
+}
+
+function opt(value, label, selected) {
+  const o = document.createElement('option');
+  o.value = value; o.textContent = label; o.selected = selected;
+  return o;
+}
+
+function render() {
+  const s = state;
+  $('title').textContent = `Haven · ${s.room.name}`;
+  $('version').textContent = `Version ${s.version}`;
+  $('error').classList.add('hidden');
+
+  const st = $('haStatus');
+  st.textContent = s.ha.status;
+  st.className = 'status ' + (s.ha.connected ? 'ok' : (s.ha.url ? 'bad' : ''));
+  if (document.activeElement !== $('haUrl')) $('haUrl').value = s.ha.url;
+  $('haToken').placeholder = s.ha.tokenSet ? 'Saved. Leave empty to keep it.' : 'Paste the token here';
+
+  if (document.activeElement !== $('roomName')) $('roomName').value = s.room.name;
+  if (document.activeElement !== $('profile')) $('profile').value = s.room.profile;
+  $('bedroom').checked = s.room.bedroom;
+  const area = $('area'); area.innerHTML = '';
+  area.append(opt('', s.ha.areas.length ? 'All areas (show everything)' : 'No areas found', s.room.area === ''));
+  s.ha.areas.forEach(a => area.append(opt(a.id, a.name, a.id === s.room.area)));
+  const w = $('weather'); w.innerHTML = '';
+  w.append(opt('', 'Automatic', s.ha.weatherEntity === ''));
+  s.ha.weathers.forEach(e => w.append(opt(e.id, e.name, e.id === s.ha.weatherEntity)));
+
+  const ent = $('entities'); ent.innerHTML = '';
+  const groups = [['Lights', s.entities.lights], ['Speakers', s.entities.speakers], ['Scenes', s.entities.scenes]];
+  let any = false;
+  for (const [name, items] of groups) {
+    if (!items.length) continue;
+    any = true;
+    const h = document.createElement('div'); h.className = 'sub'; h.style.marginTop = '8px'; h.textContent = name;
+    ent.append(h);
+    for (const it of items) {
+      const l = document.createElement('label'); l.className = 'check';
+      const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !it.hidden;
+      c.addEventListener('change', () => {
+        const hidden = new Set(allHidden());
+        if (c.checked) hidden.delete(it.id); else hidden.add(it.id);
+        save({ hiddenEntities: [...hidden] });
+      });
+      l.append(c, document.createTextNode(' ' + it.name));
+      ent.append(l);
+    }
+  }
+  $('entitiesCard').classList.toggle('hidden', !any);
+
+  const src = $('artSource'); src.innerHTML = '';
+  s.art.sources.forEach(o => src.append(opt(o.id, o.label, o.id === s.art.source)));
+  $('artInterval').value = String(s.art.interval);
+  $('artIdle').value = String(s.art.idle);
+
+  const ph = $('photos'); ph.innerHTML = '';
+  for (const name of s.photos) {
+    const d = document.createElement('div'); d.className = 'photo';
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = name;
+    img.src = `/api/photo?name=${encodeURIComponent(name)}&k=${encodeURIComponent(key)}`;
+    const b = document.createElement('button'); b.textContent = 'Delete';
+    b.addEventListener('click', async () => {
+      if (!confirm(`Delete ${name} from the TV?`)) return;
+      try { state = await api(`photos/delete?name=${encodeURIComponent(name)}`, { method: 'POST' }); render(); } catch (e) { showError(e); }
+    });
+    d.append(img, b); ph.append(d);
+  }
+
+  $('alarmCard').classList.toggle('hidden', !s.room.bedroom);
+  const a = s.alarm;
+  $('alarmOn').checked = a.enabled;
+  $('alarmTime').value = `${String(a.hour).padStart(2, '0')}:${String(a.minute).padStart(2, '0')}`;
+  const days = $('days'); days.innerHTML = '';
+  ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((n, i) => {
+    const l = document.createElement('label');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.value = String(i + 1); c.checked = a.days.includes(i + 1);
+    l.append(c, document.createTextNode(n)); days.append(l);
+  });
+  $('sunrise').value = String(a.sunriseMin);
+  $('snooze').value = String(a.snoozeMin);
+}
+
+function allHidden() {
+  const s = state.entities;
+  return [...s.lights, ...s.speakers, ...s.scenes].filter(e => e.hidden).map(e => e.id);
+}
+
+$('haTest').addEventListener('click', async () => {
+  try {
+    const r = await api('test', { method: 'POST', body: JSON.stringify({ url: $('haUrl').value, token: $('haToken').value }) });
+    toast(r.ok ? r.message : `Not working: ${r.message}`);
+    $('haStatus').textContent = r.message;
+    $('haStatus').className = 'status ' + (r.ok ? 'ok' : 'bad');
+  } catch (e) { showError(e); }
+});
+$('haSave').addEventListener('click', async () => {
+  await save({ haUrl: $('haUrl').value, haToken: $('haToken').value });
+  $('haToken').value = '';
+});
+$('roomSave').addEventListener('click', () => save({
+  roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value,
+  profileName: $('profile').value, bedroomExtras: $('bedroom').checked,
+}));
+$('artSource').addEventListener('change', () => save({ artSource: $('artSource').value }));
+$('artInterval').addEventListener('change', () => save({ artIntervalMin: Number($('artInterval').value) }));
+$('artIdle').addEventListener('change', () => save({ artIdleMin: Number($('artIdle').value) }));
+$('alarmSave').addEventListener('click', () => {
+  const [h, m] = ($('alarmTime').value || '06:30').split(':').map(Number);
+  const days = [...document.querySelectorAll('#days input:checked')].map(c => Number(c.value));
+  save({ alarm: { enabled: $('alarmOn').checked, hour: h, minute: m, days, sunriseMin: Number($('sunrise').value), snoozeMin: Number($('snooze').value) } }, 'Alarm saved');
+});
+
+$('pick').addEventListener('click', () => $('files').click());
+$('files').addEventListener('change', async (ev) => {
+  const files = [...ev.target.files];
+  ev.target.value = '';
+  let done = 0;
+  for (const f of files) {
+    $('uploadStatus').textContent = `Uploading ${done + 1} of ${files.length}…`;
+    try {
+      const { blob, name } = await prepare(f);
+      await api(`photos?name=${encodeURIComponent(name)}&taken=${f.lastModified || ''}`, { method: 'POST', body: blob });
+      done++;
+    } catch (e) { showError(e); }
+  }
+  $('uploadStatus').textContent = done ? `${done} uploaded` : '';
+  state = await api('state'); render();
+});
+
+// Big or unusual photos are scaled to 2560 px JPEGs so the TV doesn't fill up.
+async function prepare(file) {
+  const plain = /^image\/(jpeg|png|webp)$/.test(file.type) && file.size < 6e6;
+  if (plain) return { blob: file, name: file.name };
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 2560 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.9));
+    return { blob, name: file.name.replace(/\.[^.]+$/, '') + '.jpg' };
+  } catch (e) {
+    return { blob: file, name: file.name };
+  }
+}
+
+api('state').then(s => { state = s; render(); }).catch(showError);
+</script>
+</body>
+</html>

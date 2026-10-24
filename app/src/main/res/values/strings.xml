@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Haven</string>
+    <string name="a11y_label">Haven Home button</string>
+    <string name="a11y_description">Opens Haven when you press Home on the remote, and lets the sleep timer put the box to sleep. Haven does not read or collect what is on screen; it only watches for the Home button and for the stock home screen opening.</string>
+    <string name="dream_label">Haven art</string>
+</resources>

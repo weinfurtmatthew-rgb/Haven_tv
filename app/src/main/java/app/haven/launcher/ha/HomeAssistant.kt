@@ -1,0 +1,247 @@
+package app.haven.launcher.ha
+
+import app.haven.launcher.data.Settings
+import app.haven.launcher.data.SettingsStore
+import app.haven.launcher.data.strings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
+
+data class HaEntity(val id: String, val state: String, val attrs: JSONObject) {
+    val domain: String get() = id.substringBefore('.')
+    val name: String
+        get() = attrs.optString("friendly_name").ifBlank { id.substringAfter('.').replace('_', ' ') }
+    val available: Boolean get() = state != "unavailable" && state != "unknown"
+    val isOn: Boolean
+        get() = when (domain) {
+            "media_player" -> state !in setOf("off", "standby", "unavailable", "unknown")
+            else -> state == "on"
+        }
+    private val features: Int get() = attrs.optInt("supported_features", 0)
+    val dimmable: Boolean
+        get() = domain == "light" &&
+            (attrs.optJSONArray("supported_color_modes").strings().any { it != "onoff" } || features and 1 != 0)
+
+    /** 0..100, or null when off / not reported. */
+    val brightnessPct: Int?
+        get() = if (attrs.has("brightness") && !attrs.isNull("brightness")) {
+            (attrs.optDouble("brightness", 0.0) / 255.0 * 100).roundToInt().coerceIn(0, 100)
+        } else null
+
+    val canSetVolume: Boolean get() = domain == "media_player" && features and 4 != 0
+    val volume: Float?
+        get() = if (attrs.has("volume_level") && !attrs.isNull("volume_level")) attrs.optDouble("volume_level").toFloat() else null
+
+    fun copyWith(state: String = this.state, attrs: Map<String, Any?> = emptyMap()): HaEntity {
+        val a = JSONObject(this.attrs.toString())
+        for ((k, v) in attrs) a.put(k, v ?: JSONObject.NULL)
+        return HaEntity(id, state, a)
+    }
+}
+
+data class HaArea(val id: String, val name: String, val entities: Set<String>)
+
+sealed interface HaStatus {
+    data object NotConfigured : HaStatus
+    data object Connecting : HaStatus
+    data class Connected(val entityCount: Int) : HaStatus
+    data class Failed(val message: String) : HaStatus
+}
+
+/** Talks to Home Assistant's REST API with a long-lived access token. */
+class HomeAssistant(private val store: SettingsStore) {
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+    private val json = "application/json".toMediaType()
+
+    private val _status = MutableStateFlow<HaStatus>(HaStatus.NotConfigured)
+    val status: StateFlow<HaStatus> = _status
+    private val _entities = MutableStateFlow<Map<String, HaEntity>>(emptyMap())
+    val entities: StateFlow<Map<String, HaEntity>> = _entities
+    private val _areas = MutableStateFlow<List<HaArea>>(emptyList())
+    val areas: StateFlow<List<HaArea>> = _areas
+    private var areasLoadedFor = ""
+    private var areasLoadedAt = 0L
+
+    private fun request(s: Settings, path: String) =
+        Request.Builder().url(normalizeUrl(s.haUrl) + path).header("Authorization", "Bearer ${s.haToken.trim()}")
+
+    /** Fetches every entity state. Also loads the area list the first time and every 10 minutes. */
+    suspend fun refresh(): Boolean = withContext(Dispatchers.IO) {
+        val s = store.value
+        if (!s.haConfigured) {
+            _status.value = HaStatus.NotConfigured
+            _entities.value = emptyMap()
+            return@withContext false
+        }
+        if (_status.value !is HaStatus.Connected) _status.value = HaStatus.Connecting
+        try {
+            http.newCall(request(s, "/api/states").get().build()).execute().use { r ->
+                if (r.code == 401) error("Home Assistant rejected the access token")
+                if (!r.isSuccessful) error("Home Assistant answered ${r.code}")
+                val arr = JSONArray(r.body!!.string())
+                val map = HashMap<String, HaEntity>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val id = o.optString("entity_id")
+                    map[id] = HaEntity(id, o.optString("state"), o.optJSONObject("attributes") ?: JSONObject())
+                }
+                _entities.value = map
+                _status.value = HaStatus.Connected(map.size)
+            }
+            val key = normalizeUrl(s.haUrl) + s.haToken.hashCode()
+            if (key != areasLoadedFor || System.currentTimeMillis() - areasLoadedAt > 10 * 60_000) {
+                runCatching { _areas.value = fetchAreas(s) }
+                areasLoadedFor = key
+                areasLoadedAt = System.currentTimeMillis()
+            }
+            true
+        } catch (e: Exception) {
+            _status.value = HaStatus.Failed(e.friendly())
+            false
+        }
+    }
+
+    /** Areas come from the template API (needs an admin user's token); without it Haven shows everything. */
+    private fun fetchAreas(s: Settings): List<HaArea> {
+        val template = """
+            {% set ns = namespace(items=[]) %}
+            {% for a in areas() %}{% set ns.items = ns.items + [{"id": a, "name": area_name(a), "entities": area_entities(a)}] %}{% endfor %}
+            {{ ns.items | tojson }}
+        """.trimIndent()
+        val body = JSONObject().put("template", template).toString().toRequestBody(json)
+        http.newCall(request(s, "/api/template").post(body).build()).execute().use { r ->
+            if (!r.isSuccessful) return emptyList()
+            val arr = JSONArray(r.body!!.string().trim())
+            return (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                HaArea(o.optString("id"), o.optString("name"), o.optJSONArray("entities").strings().toSet())
+            }.sortedBy { it.name.lowercase() }
+        }
+    }
+
+    suspend fun call(domain: String, service: String, data: JSONObject): Boolean = withContext(Dispatchers.IO) {
+        val s = store.value
+        if (!s.haConfigured) return@withContext false
+        runCatching {
+            http.newCall(request(s, "/api/services/$domain/$service").post(data.toString().toRequestBody(json)).build())
+                .execute().use { it.isSuccessful }
+        }.getOrDefault(false)
+    }
+
+    /** Applies a guessed state locally so the UI reacts before the next poll. */
+    fun assume(entity: HaEntity) {
+        _entities.value = _entities.value + (entity.id to entity)
+    }
+
+    /** Checks a URL + token pair without saving it. Returns a short human message. */
+    suspend fun test(url: String, token: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder().url(normalizeUrl(url) + "/api/states")
+                .header("Authorization", "Bearer ${token.trim()}").get().build()
+            http.newCall(req).execute().use { r ->
+                if (r.code == 401) error("The access token was rejected")
+                if (!r.isSuccessful) error("Home Assistant answered ${r.code}")
+                val n = JSONArray(r.body!!.string()).length()
+                "Connected: $n entities"
+            }
+        }.recoverCatching { throw IllegalStateException(it.friendly()) }
+    }
+
+    // ---- room views ---------------------------------------------------------------------------
+
+    private fun inRoom(s: Settings): (String) -> Boolean {
+        val area = _areas.value.firstOrNull { it.id == s.haArea }
+        return { id -> (area == null || id in area.entities) && id !in s.hiddenEntities }
+    }
+
+    fun roomLights(s: Settings = store.value): List<HaEntity> {
+        val ok = inRoom(s)
+        return _entities.value.values.filter { e ->
+            ok(e.id) && (e.domain == "light" || (e.domain == "switch" && LIGHTISH.containsMatchIn(e.name)))
+        }.sortedBy { it.name.lowercase() }
+    }
+
+    fun roomSpeakers(s: Settings = store.value): List<HaEntity> {
+        val ok = inRoom(s)
+        return _entities.value.values.filter { it.domain == "media_player" && ok(it.id) && it.available }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    fun roomScenes(s: Settings = store.value): List<HaEntity> {
+        val all = _entities.value.values.filter { it.domain == "scene" && it.id !in s.hiddenEntities }
+        val area = _areas.value.firstOrNull { it.id == s.haArea } ?: return all.sortedBy { it.name }.take(4)
+        val inArea = all.filter { it.id in area.entities }
+        val chosen = inArea.ifEmpty { all.filter { it.name.contains(area.name, ignoreCase = true) } }
+        return chosen.sortedBy { it.name.lowercase() }.take(4)
+    }
+
+    fun weather(s: Settings = store.value): HaEntity? =
+        _entities.value[s.weatherEntity] ?: _entities.value.values.filter { it.domain == "weather" }.minByOrNull { it.id }
+
+    // ---- actions ------------------------------------------------------------------------------
+
+    suspend fun setLight(e: HaEntity, on: Boolean, brightnessPct: Int? = null): Boolean {
+        val data = JSONObject().put("entity_id", e.id)
+        if (on && brightnessPct != null && e.dimmable) data.put("brightness_pct", brightnessPct.coerceIn(1, 100))
+        assume(e.copyWith(if (on) "on" else "off", if (brightnessPct != null && on) mapOf("brightness" to brightnessPct * 255 / 100) else emptyMap()))
+        return call(e.domain, if (on) "turn_on" else "turn_off", data)
+    }
+
+    suspend fun setLights(ids: List<HaEntity>, on: Boolean, brightnessPct: Int? = null, transitionSec: Int? = null): Boolean {
+        var ok = true
+        for ((domain, group) in ids.groupBy { it.domain }) {
+            val data = JSONObject().put("entity_id", JSONArray(group.map { it.id }))
+            if (domain == "light" && on && brightnessPct != null) data.put("brightness_pct", brightnessPct)
+            if (domain == "light" && transitionSec != null) data.put("transition", transitionSec)
+            ok = call(domain, if (on) "turn_on" else "turn_off", data) && ok
+        }
+        return ok
+    }
+
+    suspend fun setPower(e: HaEntity, on: Boolean): Boolean {
+        assume(e.copyWith(if (on) "on" else "off"))
+        return call(e.domain, if (on) "turn_on" else "turn_off", JSONObject().put("entity_id", e.id))
+    }
+
+    suspend fun setVolume(e: HaEntity, level: Float): Boolean {
+        val v = level.coerceIn(0f, 1f)
+        assume(e.copyWith(attrs = mapOf("volume_level" to v.toDouble())))
+        return call("media_player", "volume_set", JSONObject().put("entity_id", e.id).put("volume_level", v.toDouble()))
+    }
+
+    suspend fun activate(scene: HaEntity): Boolean =
+        call(scene.domain, "turn_on", JSONObject().put("entity_id", scene.id))
+
+    companion object {
+        private val LIGHTISH = Regex("light|lamp|sconce|chandelier|lantern", RegexOption.IGNORE_CASE)
+
+        fun normalizeUrl(raw: String): String {
+            var u = raw.trim().trimEnd('/')
+            if (u.isEmpty()) return u
+            if (!u.startsWith("http://") && !u.startsWith("https://")) u = "http://$u"
+            val hostPart = u.substringAfter("://")
+            if (!hostPart.contains(':') && !hostPart.contains('/') && u.startsWith("http://")) u += ":8123"
+            return u
+        }
+
+        private fun Throwable.friendly(): String = when (this) {
+            is java.net.UnknownHostException -> "Can't find that address on your network"
+            is java.net.ConnectException -> "Nothing answered at that address"
+            is java.net.SocketTimeoutException -> "Home Assistant didn't answer in time"
+            is javax.net.ssl.SSLException -> "Secure connection failed (check http vs https)"
+            else -> message ?: javaClass.simpleName
+        }
+    }
+}
