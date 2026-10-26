@@ -20,7 +20,10 @@ design, with features that depend on the room the TV is in.
 
 ## Install on the DIRECTV STREAM box
 
-You need the remote and about ten minutes. Menu names below are the standard Android TV ones; your box may word
+You need the remote and about ten minutes. Some DIRECTV boxes are locked down by DIRECTV's device policy.
+If step 2's **Unknown sources** switch is missing or blocked, the box won't accept apps from outside Google Play,
+and Haven can't be installed this way. Stop there rather than trying developer-mode workarounds: owners report that
+some Gemini boxes disable themselves when developer mode is turned on. Menu names below are the standard Android TV ones; your box may word
 them slightly differently.
 
 1. **Install Downloader.** On the box, open the Google Play Store, search for **Downloader** (by AFTVnews) and install it.
@@ -38,7 +41,8 @@ them slightly differently.
 5. **Make the Home button open Haven.** The DIRECTV box doesn't let you choose a different home screen, so Haven
    includes a small accessibility service for this:
    Settings › Device Preferences › Accessibility › **Haven Home button** › turn it on, and confirm.
-   Now Home opens Haven. **Press Home twice quickly** to get the original home screen whenever you want it.
+   Now Home opens Haven. **Press Home twice quickly** to get the original home screen (on this box, the DIRECTV
+   app) whenever you want it.
    - If the switch is greyed out ("restricted setting"), go to Settings › Apps › Haven, open the menu or
      the app info screen, choose **Allow restricted settings**, then try again.
    - The service only listens for the Home button and notices when the stock home screen opens. It does not read
@@ -63,6 +67,22 @@ when there is one.
 3. Under **This room**, pick the Home Assistant **area** this TV is in. Haven then shows that area's lights,
    speakers (media players) and scenes. Untick anything you don't want on the TV.
 4. Weather comes from your Home Assistant weather entity (the default "Home" forecast works).
+
+## DIRECTV on its own box
+
+On the DIRECTV box, the built-in "launcher" **is** the DIRECTV app: live TV, the guide and the DVR all live in it.
+That's why other launchers tend to break DIRECTV, especially ones you install by disabling the stock launcher
+over ADB. Haven works around this instead of replacing the DIRECTV app:
+
+- Haven never disables or hides the DIRECTV app. It sits on top, and only takes over when you press Home.
+- **DIRECTV is the first, big card** on Haven's home screen. Selecting it opens the DIRECTV app as usual, with live
+  TV, guide and DVR.
+- Inside DIRECTV, Haven stays out of the way: it doesn't pull you back when DIRECTV's own screens open. Home
+  goes to Haven, and Home twice goes to DIRECTV's home.
+- Installing the DIRECTV app from Google Play isn't needed (and is reportedly not offered on DIRECTV's own boxes).
+  **Don't disable the built-in DIRECTV app** with ADB to "make room" for Haven; that removes live TV.
+- If something misbehaves, Settings › Home button › **Recent screens** lists which apps and screens opened.
+  That tells us exactly how DIRECTV's screens are named on your box.
 
 ## What to know
 

@@ -72,6 +72,7 @@ fun SettingsScreen(nav: Nav) {
     val updateState by Haven.updater.state.collectAsState()
     val scope = rememberCoroutineScope()
     var editing by remember { mutableStateOf<TextEdit?>(null) }
+    var showScreens by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
 
     // The phone setup page is served only while this screen is open, and only with the code shown here.
@@ -206,7 +207,14 @@ fun SettingsScreen(nav: Nav) {
                         Haven.settings.update { it.copy(homeOverride = !it.homeOverride) }
                     }
                 }
-                item { SettingRow("Open the original home screen", "") { HomeButtonService.openStockHome(ctx) } }
+                item {
+                    SettingRow("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") {
+                        HomeButtonService.openStockHome(ctx)
+                    }
+                }
+                item {
+                    SettingRow("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens = true }
+                }
 
                 item { Section("Apps and clock") }
                 item {
@@ -242,6 +250,33 @@ fun SettingsScreen(nav: Nav) {
     }
 
     editing?.let { e -> TextEditDialog(e) { editing = null } }
+    if (showScreens) RecentScreensDialog { showScreens = false }
+}
+
+/** Lists the package / activity of recent screens, as seen by the Home button service. */
+@Composable
+private fun RecentScreensDialog(onClose: () -> Unit) {
+    val screens by HomeButtonService.recentScreens.collectAsState()
+    val close = remember { FocusRequester() }
+    HavenDialog(onClose) {
+        Column(
+            Modifier.width(1300.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(40.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Txt("Recent screens", 34, weight = FontWeight.ExtraBold)
+            Txt(
+                if (screens.isEmpty()) "Nothing yet. Turn on the Home button service, open a few apps, then come back."
+                else "Newest first. Home apps on this box: " + HomeButtonService.stockHomePackages(Haven.app).joinToString(", ").ifBlank { "none" },
+                20, weight = FontWeight.Medium, color = C.Muted, maxLines = 3,
+            )
+            for (line in screens) Txt(line, 20, weight = FontWeight.Medium)
+            PillButton("Close", onClose, selected = true, focusRequester = close)
+        }
+    }
+    LaunchedEffect(Unit) {
+        delay(80)
+        runCatching { close.requestFocus() }
+    }
 }
 
 @Composable

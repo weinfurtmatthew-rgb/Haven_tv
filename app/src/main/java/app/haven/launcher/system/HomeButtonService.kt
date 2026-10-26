@@ -19,8 +19,13 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * Makes Haven the home screen on boxes that don't let you change the default launcher:
  * - the remote's Home button opens Haven (press it twice quickly for the original home screen);
- * - if the stock home screen opens anyway (after boot, or when an app closes), Haven is brought back.
- * It also lets the sleep timer put the box to sleep. It reads no screen content.
+ * - after boot, Haven opens once the service starts;
+ * - if Google's own home screen opens anyway (for example when an app closes), Haven is brought back.
+ *
+ * TV-provider home apps are never redirected: on the DIRECTV STREAM box the "launcher" is the DIRECTV app
+ * itself (live TV, guide, DVR), so Haven only steps in when Home is pressed.
+ * It also lets the sleep timer put the box to sleep. It reads no screen content, only which app and screen
+ * opened (kept in memory for the troubleshooting list in Settings).
  */
 class HomeButtonService : AccessibilityService() {
     private var lastHomeUp = 0L
@@ -62,12 +67,21 @@ class HomeButtonService : AccessibilityService() {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
+        remember(pkg, event.className?.toString())
         if (pkg !in stockHomes) {
             stockAllowed = false
             return
         }
+        // Only Google's plain home screens are replaced automatically; a provider's home app is also its TV app.
+        if (pkg !in GENERIC_LAUNCHERS) return
         if (!Haven.settings.value.homeOverride || stockAllowed || recentlyCrashed()) return
         openHaven()
+    }
+
+    private fun remember(pkg: String, cls: String?) {
+        val entry = if (cls.isNullOrBlank()) pkg else "$pkg / ${cls.removePrefix(pkg)}"
+        if (_recentScreens.value.firstOrNull() == entry) return
+        _recentScreens.value = (listOf(entry) + _recentScreens.value).take(12)
     }
 
     override fun onInterrupt() = Unit
@@ -108,6 +122,20 @@ class HomeButtonService : AccessibilityService() {
 
         private val _running = MutableStateFlow(false)
         val running: StateFlow<Boolean> = _running
+
+        private val _recentScreens = MutableStateFlow<List<String>>(emptyList())
+
+        /** The last few app screens that opened (package / activity), newest first, for troubleshooting. */
+        val recentScreens: StateFlow<List<String>> = _recentScreens
+
+        /** Google's stock Android TV / Google TV home screens: plain launchers that are safe to replace. */
+        val GENERIC_LAUNCHERS = setOf(
+            "com.google.android.tvlauncher",
+            "com.google.android.apps.tv.launcherx",
+            "com.google.android.leanbacklauncher",
+            "com.android.launcher",
+            "com.android.launcher3",
+        )
 
         /** Puts the box to sleep (and the TV, through HDMI-CEC). Needs the service to be on and Android 9+. */
         fun sleepDevice(): Boolean {

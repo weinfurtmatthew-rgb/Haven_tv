@@ -541,9 +541,13 @@ private fun List<String>.move(item: String, by: Int): List<String> {
     return m
 }
 
+/** First run: DIRECTV (live TV on the DIRECTV box) as the big card, then the first few apps with banners. */
 private fun defaultFavorites(apps: List<TvApp>): List<String> {
-    val tvFirst = apps.sortedByDescending { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
-    return tvFirst.filter { it.banner != null }.take(5).map { it.pkg }
+    val provider = apps.filter { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
+        .sortedByDescending { it.launchIntent.hasCategory(Intent.CATEGORY_HOME) }
+        .take(1)
+    val rest = apps.filter { it !in provider && it.banner != null }
+    return (provider + rest).take(5).map { it.pkg }
 }
 
 private fun lastOpened(at: Long?): String {

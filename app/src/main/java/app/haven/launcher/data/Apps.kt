@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import app.haven.launcher.system.HomeButtonService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,6 +81,15 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
         }
         add(query(Intent.CATEGORY_LEANBACK_LAUNCHER), Intent.CATEGORY_LEANBACK_LAUNCHER)
         add(query(Intent.CATEGORY_LAUNCHER), Intent.CATEGORY_LAUNCHER)
+        // A TV provider's home app (the DIRECTV app on its own box) may only register as a home screen;
+        // list it like any other app so live TV is one click away. Google's plain home screens are skipped.
+        add(
+            query(Intent.CATEGORY_HOME).filter { ri ->
+                val p = ri.activityInfo?.packageName ?: return@filter false
+                p !in HomeButtonService.GENERIC_LAUNCHERS && !p.contains("settings", ignoreCase = true)
+            },
+            Intent.CATEGORY_HOME,
+        )
         return out.sortedBy { it.label.lowercase() }
     }
 

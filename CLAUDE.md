@@ -6,7 +6,10 @@ Context for Claude Code. README.md covers features, the DIRECTV install steps an
 A real Android TV launcher (Kotlin + Jetpack Compose, no XML layouts) built from the Haven concept in `concept/`
 (mockups, ad, films; see `concept/CLAUDE.md` for working on those). Main target: the DIRECTV STREAM box, which
 does not let users change the default home app, so `system/HomeButtonService.kt` (an accessibility service)
-catches the Home key and redirects the stock home screen to Haven. Double Home opens the stock home screen.
+catches the Home key. Double Home opens the stock home screen. On that box the stock "launcher" is the DIRECTV
+app itself (live TV, guide, DVR), so the service must never redirect away from a provider's home app: automatic
+redirects only apply to Google's plain launchers (`GENERIC_LAUNCHERS`). The DIRECTV home app is listed in Haven's
+apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. Never suggest disabling it.
 
 ## Build and verify
 - CI (`.github/workflows/build.yml`) is the reference build: `testDebugUnitTest` then `assembleRelease`, then a
