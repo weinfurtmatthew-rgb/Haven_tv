@@ -67,6 +67,8 @@ class CrashActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(HEARTH)
             setPadding(dp(58), dp(40), dp(58), dp(32))
+            clipChildren = false
+            clipToPadding = false
         }
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

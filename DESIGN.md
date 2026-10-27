@@ -38,8 +38,8 @@ All colours are sRGB. Contrast ratios are against `hearth` unless noted; text pa
 | `Dust` | `#8F877B` | Hints and notes, 24 px and up | 5.3:1 (4.4 on surface) |
 | `Lamp` | `#F2B35E` | On, active, selected; the light in the mark | 10.1:1 |
 | `LampSoft` | `#3A2D1C` | Surface of a selected chip | lamp on it 7.2:1 |
-| `Sage` | `#A8C49A` | Fine: locked, closed | 9.0:1 on surface |
-| `Clay` | `#E8795E` | Needs attention: unlocked, live, errors | 6.0:1 on surface |
+| `Sage` | `#A8C49A` | Fine: locked, closed | 9.8:1 (8.1 on surface) |
+| `Clay` | `#E8795E` | Needs attention: unlocked, live, errors | 6.5:1 (5.4 on surface) |
 
 On a focused (linen) surface the content switches to `Ink` (= hearth, 16:1), `InkMuted #5E564C` (6.2:1),
 `Ember #8A4F0B` (the lamp, 5.6:1) and `TrackOnLinen #A39A8C`. Helpers: `ink(focused)`, `inkMuted(focused)`.

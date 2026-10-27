@@ -3,6 +3,8 @@ name: Build
 on:
   push:
     branches: [main]
+    # Docs-only changes don't need a build, and must not publish an identical release.
+    paths-ignore: ['**.md', 'concept/**', 'licenses/**']
   pull_request:
   workflow_dispatch:
 
