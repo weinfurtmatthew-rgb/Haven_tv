@@ -10,6 +10,18 @@ design, with features that depend on the room the TV is in.
 - **Profiles**: everyone in the house gets their own Haven. Each profile keeps its own look, home screen, apps,
   background, alarm, morning briefing and teams. "Who's watching?" switches between them, and can ask each time
   the TV turns on.
+- **Layouts**: nine whole home screens to start from. **Standard** (Haven as it came); **Spotlight** (a big photo
+  across the top with the date and a large clock in its sky, tucked behind the mountains, buildings or trees when
+  the photo has them, glass tiles along its bottom, and the photo showing what's popular on the streaming app
+  you're on); **Big tiles** (a menu down the side and big boxes, three across); **Game day** (your team's live
+  scoreboard or next game, today's games, sports headlines and apps); **Cinema** (a featured movie with where to
+  watch it on this TV, its trailer and a "lights down" scene, plus trending, in theaters and coming soon);
+  **Shows** (tabs, the shows you follow with their next episode, tonight's schedule and what's new on streaming);
+  **Smart home** (the house at a glance: scenes, lights, thermostats, cameras, locks and doors, sensors and
+  automations); **Music** (what's playing, big, with controls and every speaker); and **Kids** (huge friendly
+  tiles with only the apps a grown-up picked, a grown-up PIN and a bedtime). Each part of a layout (how you get
+  around, the top of the screen, the rows, the look) is its own setting, so layouts mix: Spotlight's photo with
+  Game day's rows, or the side menu on any of them.
 - **Make it yours**: every part of Haven is a choice, set on the TV (with a live preview) or from your phone.
   Eight colour schemes (one light) and ten accent colours; seven heading fonts and six text fonts; text size,
   tile sizes, spacing and corners; how focus looks (a light fill, a frame or a coloured frame), zoom and motion;
@@ -106,10 +118,19 @@ profile. Photos for art mode and backgrounds are shared by everyone; each profil
 
 ### Movie and show posters
 
-Posters come from [The Movie Database](https://www.themoviedb.org) with your own free key: sign up, open
-Settings › API, request a developer key, and paste the "API key" (or the longer "API read access token") into
-Background › TMDB key on the phone page. This product uses the TMDB API but is not endorsed or certified by TMDB.
-The photo of the day comes from Bing's daily image feed.
+Posters, movie lists, details, trailers and "where to watch" come from [The Movie Database](https://www.themoviedb.org)
+with your own free key: sign up, open Settings › API, request a developer key, and paste the "API key" (or the
+longer "API read access token") into Background › TMDB key on the phone page. This product uses the TMDB API but is
+not endorsed or certified by TMDB. TV schedules and the shows you follow come from [TVmaze](https://www.tvmaze.com)
+(no key needed; data under CC BY-SA). Sports headlines come from ESPN's public feed. The photo of the day comes
+from Bing's daily image feed.
+
+### Following shows and the grown-up lock
+
+Follow a show by pressing OK on it anywhere on the TV and choosing Follow, or search for it on the phone page under
+"TV shows you follow". The Kids layout shows only the apps picked under Profiles › Grown-up lock › Kids' apps (or
+the kids' apps Haven recognises); a PIN set there is asked before Settings, switching profiles, app menus and
+changing the layout, and a bedtime says goodnight and starts a five-minute sleep timer.
 
 ## DIRECTV on its own box
 
@@ -131,8 +152,8 @@ over ADB. Haven works around this instead of replacing the DIRECTV app:
 
 - **Continue watching isn't possible** for a third-party launcher: Android only lets the built-in home screen read
   other apps' watch progress. The top row is your favorite apps instead, with when you last opened them.
-- **HDMI inputs and cameras** from the mockups are left out: the box has no HDMI inputs, and cameras weren't in
-  scope for this version.
+- **HDMI inputs** from the mockups are left out: the box has no HDMI inputs. Cameras show through Home Assistant
+  (the Smart home layout's Cameras row).
 - **The alarm** needs the box to be able to wake the TV. Leave the box plugged in, keep HDMI-CEC on, and try the
   alarm once (Alarm › Try the alarm now) before relying on it.
 - **Sleep timer** needs the Home button service on to put the box to sleep (Android 9+). Without it, Haven still
@@ -163,8 +184,10 @@ so only install Haven builds from this repo's releases.
 |---|---|
 | `app/src/main/java/app/haven/launcher/MainActivity.kt` | The launcher activity and screen switching |
 | `…/ui/` | Compose screens: home, profiles, lights and speakers, art mode, alarm, sleep timer, briefing, sports, settings; the live theme (`Theme.kt`), backgrounds, dialogs, icons, D-pad components |
-| `…/data/` | Settings per profile (one JSON blob each in SharedPreferences), looks and backgrounds (`Look.kt`), the options registry behind the TV and phone settings (`Options.kt`), and the installed-apps list |
-| `…/bg/` | Background pictures: uploaded photos, Bing's photo of the day, paintings, TMDB posters, now playing; the blur |
+| `…/data/` | Settings per profile (one JSON blob each in SharedPreferences), looks and backgrounds (`Look.kt`), layouts and their parts (`Layouts.kt`), the options registry behind the TV and phone settings (`Options.kt`), the installed-apps list and app kinds (`AppKinds.kt`) |
+| `…/ui/HomeScreen.kt`, `HomeParts.kt`, `HomeRows.kt`, `Heroes.kt`, `HomeFrames.kt`, `HomeDialogs.kt` | The home screen: pages, rows, the tops of the screen (Spotlight, scoreboard, featured title, now playing, house status, kids' hello), the side menu and tabs, and its dialogs |
+| `…/media/` | Movie and TV content: TVmaze schedules and follows, TMDB lists and details (`Media.kt`, parsers in `MediaParse.kt`) |
+| `…/bg/` | Background pictures: uploaded photos, Bing's photo of the day, paintings, TMDB posters, now playing; the blur; the depth clock's sky finder (`DepthMask.kt`) |
 | `…/ha/HomeAssistant.kt` | Home Assistant REST client: states, areas (template API), services |
 | `…/art/` | Art sources (paintings, photos, generated) and the screensaver service |
 | `…/bedroom/` | Alarm scheduling per profile, the ringing screen and its synthesized sounds, sunrise lights, sleep timer |

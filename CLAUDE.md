@@ -17,8 +17,9 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   so keep the `v1.0.<n>` format and keep versionCode = run number.
 - Local: JDK 17 + Android SDK, `./gradlew testDebugUnitTest assembleRelease`.
 - Versions: AGP 8.7.3, Kotlin 2.1.0, Compose BOM 2024.12.01, compileSdk 35, targetSdk 34, minSdk 26.
-- Unit tests (`app/src/test`) cover pure logic only (alarm times, the options registry, feed parsers, alarm tones);
-  they get the real org.json library (testImplementation), not Android's stub.
+- Unit tests (`app/src/test`) cover pure logic only (alarm times, the options registry, layouts, feed and media
+  parsers, app kinds, the depth clock, alarm tones); they get the real org.json library (testImplementation), not
+  Android's stub.
 
 ## Layout rules
 - `DESIGN.md` is the design language (colour tokens, type scale, focus, voice) and lists what profiles can change.
@@ -47,6 +48,15 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   `value` / `update` are the profile on the TV. Work for a particular profile (its alarm, the phone page editing
   someone else) uses `settingsOf(id)` / `updateProfile(id)`. Side effects of a change (rescheduling alarms, score
   alerts, Home Assistant) belong in `Haven.init`'s `settings.onChange`, which sees every profile's changes.
+- Layouts (`data/Layouts.kt`) are recipes over parts kept in `LookConfig` (nav, hero, rows, sections, grid,
+  surface, Spotlight's photo and clock). `Layouts.apply` sets a recipe's parts (and its look and background when
+  `layoutLook` is on); never special-case a layout by name in the UI: render the parts. The home screen is
+  `HomeScreen.kt` (pages, focus, data loads) with `HomeRows.kt` (one composable per `HomeRow`; focus keys are
+  "Row:index"), `Heroes.kt`, `HomeFrames.kt` (side menu, tabs) and `HomeDialogs.kt`. Rows that need the internet
+  declare it in `needsOf` so the page loads and refreshes it.
+- Glass is `Focusable(glass = Look.glass)`: it draws the blurred backdrop at its own place (`ui/Glass.kt`); the
+  background layer and Spotlight publish backdrops. The grown-up PIN is checked at the screen level in
+  `HavenRoot` (Settings, Profiles) and with `HomeCtx.guard` for app menus.
 - A new choice for people goes in the options registry (`data/Options.kt`): a field in the data class with
   `toJson`/`fromJson`, then one `Opt` entry. The TV's Settings and the phone page (`/api/options`) both pick it up;
   `Preview.Look` / `Preview.Background` make it preview live. Only things that aren't a pick from a list (Home
@@ -61,5 +71,9 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   reboot/update. Alarm sounds are synthesized in `bedroom/AlarmTone.kt` (no sound files).
 - Backgrounds: `bg/Backgrounds.kt` (uploaded photos in `filesDir/backgrounds`, Bing's photo of the day, AIC
   paintings, TMDB with the user's own key, Home Assistant cover art). App pictures are uploaded from the phone into
-  `filesDir/appimages`.
+  `filesDir/appimages`. Spotlight's depth clock: `bg/DepthMask.kt` (pure, unit tested; test it on real photos with
+  kotlinc before changing thresholds).
+- Movies and TV: `media/Media.kt` (TVmaze, keyless; TMDB with the profile's key, cached per list) and the pure
+  parsers in `media/MediaParse.kt`. The demo household (`demo/Demo.kt`) supplies invented titles with painted
+  posters, so CI screenshots need no key and no network for them.
 - Names in the concept material (Matt, Sam, Lily, shows, brands) are placeholders; the app uses real device data.

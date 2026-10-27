@@ -590,11 +590,11 @@ fun lockLook(e: HaEntity): Triple<ImageVector, String, Boolean> = when (e.domain
 /** Locking and closing happen at once; unlocking and opening ask first. */
 fun lockAction(h: HomeCtx, e: HaEntity, scope: kotlinx.coroutines.CoroutineScope) {
     when {
-        e.domain == "lock" && e.state == "locked" -> h.open(
+        e.domain == "lock" && e.state == "locked" -> h.show(
             HomeDialog.Confirm("Unlock ${e.name}?", "Anyone at the door can come in.", "Unlock") { scope.launch { Haven.ha.setLocked(e, false) } },
         )
         e.domain == "lock" -> scope.launch { Haven.ha.setLocked(e, true) }
-        e.state == "closed" -> h.open(
+        e.state == "closed" -> h.show(
             HomeDialog.Confirm("Open ${e.name}?", "Make sure nothing is in the way.", "Open") { scope.launch { Haven.ha.setOpen(e, true) } },
         )
         else -> scope.launch { Haven.ha.setOpen(e, false) }

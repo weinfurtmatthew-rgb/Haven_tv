@@ -42,6 +42,26 @@ listed with each part. What never changes, whatever is chosen:
 The choices live in one registry (`data/Options.kt`) that drives both the TV's Settings and the phone page. Look
 options preview live while the list is open: Back puts back what was there, OK keeps it.
 
+## Layouts
+
+A layout is a recipe of parts, not a separate design: how you get around (one page of rows, a menu down the side,
+or tabs along the top), what fills the top of the screen (the clock bar, a Spotlight photo, a scoreboard, a
+featured title, now playing, the house's status, a big hello), which rows show, and a look (scheme, fonts, sizes,
+corners, focus, solid or glass, background). Picking a layout sets every part, previewed live; each part stays
+its own setting, so layouts mix. The tokens, type scale and focus rules above hold in every layout.
+
+- **Spotlight's clock** sits in the photo's sky. When scenery rises into it (mountains, buildings, trees), the
+  clock goes a little behind: the scenery covers about a fifth of the digits and never more than about three
+  fifths of any one, so it always reads as a time. Flat horizons, photos without a sky and things floating in
+  the sky (the sun, clouds) leave the clock in front.
+- **Glass** is a surface that lets the background through: a blurred copy of the picture behind it, darkened as
+  the background is, under a light tint (11% white on dark schemes, 55% on the light one) and a hairline edge.
+  It's for tiles, cards, chips and the side menu, over pictures; dialogs stay solid.
+- **Lift** is the fourth focus look: no fill and no frame; the focused thing rises (with Big zoom), casts a soft
+  shadow and catches a sheen of light. Spotlight and Music use it; it needs zoom to read across the room.
+- **Kids** keeps the same rules at a bigger size: Daylight, coral, Fredoka and Nunito, extra-large tiles and text,
+  extra-round corners, names always shown.
+
 ## Colour
 
 The table is the default scheme, **Hearth**, with the default **Lamp** accent. The other schemes (Midnight,
@@ -135,7 +155,8 @@ before it ellipsizes.
   instead; content uses `ink(focused)` / `lit(focused)`, which know the difference. Zoom scales the lift (none,
   subtle, standard, big).
 - **Pictures** (app banners, posters, art): 1.06 lift and a 4 px linen frame drawn 4 px outside the picture.
-  `FocusStyle.Picture`. No shadows: on a dark room they don't read.
+  `FocusStyle.Picture`. No shadows, except with the Lift focus look (see Layouts), where the shadow and a bigger
+  zoom take the frame's place.
 - **Selected** (not focus): lamp. A selected chip is `LampSoft` with a lamp dot and lamp text; when it also has
   focus it turns linen and keeps an ember dot, so selection and focus never look alike.
 - **On**: lamp on the indicator only: switch track, level fill, status word, room-tile icon.
