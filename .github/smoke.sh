@@ -12,7 +12,8 @@ key() { for k in "$@"; do adb shell input keyevent "KEYCODE_$k"; sleep 0.7; done
 rep() { for _ in $(seq "$2"); do adb shell input keyevent "KEYCODE_$1"; sleep 0.4; done; sleep 0.4; }
 screen() { adb shell am start -W -n "$PKG/.MainActivity" --es "$PKG.SCREEN" "$1" > /dev/null; sleep "${3:-6}"; shot "$2"; }
 demo() { adb shell am broadcast -n "$PKG/.demo.DemoReceiver" -a "$PKG.demo.$1" "${@:2}" > /dev/null; sleep 1; }
-opt() { demo OPT --es set "$1"; }
+# Quoted again for the device's shell, which would otherwise split "a=1;b=2" at the semicolon.
+opt() { demo OPT --es set "'$1'"; }
 home() { adb shell am start -W -n "$PKG/.MainActivity" --es "$PKG.SCREEN" Home > /dev/null; sleep "${1:-4}"; }
 
 adb shell getprop ro.build.version.release

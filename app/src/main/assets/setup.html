@@ -91,9 +91,9 @@ a{color:var(--lamp)}
     </div>
     <label class="check"><input type="checkbox" id="askOnStart"> Ask who's watching when the TV turns on</label>
     <h3>Add a profile</h3>
+    <input type="text" id="newName" placeholder="Their name">
     <div class="row">
-      <input type="text" id="newName" class="grow" placeholder="Their name">
-      <select id="newFrom" class="grow"><option value="fresh">Haven's own look</option><option value="copy">A copy of this profile</option></select>
+      <select id="newFrom" class="grow"><option value="fresh">Start with Haven's own look</option><option value="copy">Start as a copy of this profile</option></select>
       <button id="pAdd">Add</button>
     </div>
   </section>
@@ -234,6 +234,8 @@ let state = null;
 let profile = '';
 const AVATARS = { Lamp: '#F2B35E', Coral: '#F4927A', Rose: '#F29BBA', Lilac: '#BFA8F5', Sky: '#86C8F2', Mint: '#82DDBF', Sage: '#AFCB9F', Gold: '#E9CB5E', Red: '#F5857B', Mono: '#FFFFFF' };
 const AVATAR_NAMES = { Lamp: 'Lamp amber', Coral: 'Coral', Rose: 'Rose', Lilac: 'Lilac', Sky: 'Sky blue', Mint: 'Mint', Sage: 'Sage green', Gold: 'Gold', Red: 'Red' };
+// Shorter names for an app's picture than the TV uses, to fit beside the colour on a phone.
+const STYLE_NAMES = { Auto: 'Same as other apps', Banner: 'TV banner', Icon: 'Icon on a colour', Picture: 'Your picture' };
 
 async function api(path, opts = {}) {
   const sep = path.includes('?') ? '&' : '?';
@@ -470,7 +472,7 @@ function renderApps() {
     state.appStyles.forEach(x => {
       if (x.id === 'Banner' && !a.banner) return;
       if (x.id === 'Picture' && !a.image) return;
-      style.append(opt(x.id, x.label, x.id === a.style));
+      style.append(opt(x.id, STYLE_NAMES[x.id] || x.label, x.id === a.style));
     });
     style.addEventListener('change', () => appSave({ pkg: a.pkg, style: style.value }));
     r.append(style);
