@@ -12,6 +12,7 @@ import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
 import app.haven.launcher.data.ArtCare
 import app.haven.launcher.data.BriefConfig
+import app.haven.launcher.data.LookConfig
 import app.haven.launcher.data.Opt
 import app.haven.launcher.data.OptSection
 import app.haven.launcher.data.Options
@@ -451,6 +452,7 @@ class SetupServer(private val context: Context) {
                 s = s.copy(alarm = s.alarm.copy(enabled = a.enabled, hour = a.hour, minute = a.minute, days = a.days))
             }
             if (o.has("presenceEntity")) s = s.copy(artCare = s.artCare.copy(presenceEntity = o.getString("presenceEntity")))
+            if (o.optBoolean("resetLook")) s = s.copy(look = LookConfig(avatar = s.look.avatar))
             if (o.has("brief")) {
                 val b = BriefConfig.fromJson(o.getJSONObject("brief"))
                 s = s.copy(

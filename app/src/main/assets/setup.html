@@ -137,6 +137,7 @@ a{color:var(--lamp)}
     <h2>Look</h2>
     <div class="sub">Colours, fonts and shapes. The TV changes as soon as you pick.</div>
     <div class="opts"></div>
+    <div class="row"><button id="resetLook">Back to Haven's own look</button></div>
   </section>
 
   <section data-opts="Home">
@@ -541,6 +542,10 @@ $('haSave').addEventListener('click', async () => {
 $('roomSave').addEventListener('click', () => save({
   roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value, bedroomExtras: $('bedroom').checked,
 }));
+$('resetLook').addEventListener('click', () => {
+  if (!confirm("Put colours, fonts, sizes, focus and the home screen's rows back to how Haven came?")) return;
+  save({ resetLook: true }, 'Back to Haven\'s own look');
+});
 $('alarmSave').addEventListener('click', () => {
   const [h, m] = ($('alarmTime').value || '06:30').split(':').map(Number);
   const days = [...document.querySelectorAll('#days input:checked')].map(c => Number(c.value));

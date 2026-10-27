@@ -47,6 +47,7 @@ import app.haven.launcher.Screen
 import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.Accent
 import app.haven.launcher.data.BgKind
+import app.haven.launcher.data.LookConfig
 import app.haven.launcher.data.Opt
 import app.haven.launcher.data.OptSection
 import app.haven.launcher.data.ProfileInfo
@@ -215,6 +216,13 @@ fun SettingsScreen(nav: Nav) {
             },
             onDismiss = { dialog = null },
         )
+        "resetLook" -> ConfirmDialog(
+            "Back to Haven's own look?",
+            "Colours, fonts, sizes, focus and the home screen's rows go back to how Haven came. Apps, background, alarm and everything else stay as they are.",
+            "Reset the look",
+            onYes = { Haven.settings.update { it.copy(look = LookConfig(avatar = it.look.avatar)) } },
+            onDismiss = { dialog = null },
+        )
         "remove" -> ConfirmDialog(
             "Remove ${profiles.firstOrNull { it.active }?.name}?",
             "Their look, apps, alarm, briefing and teams go with them. Photos and pictures uploaded for everyone stay.",
@@ -300,6 +308,9 @@ private class SettingsUi(
 
     fun LazyListScope.lookRows() {
         options(OptSection.Look, first = true)
+        if (s.look != LookConfig(avatar = s.look.avatar)) {
+            row("Back to Haven's own look", "Colours, fonts, sizes, focus and home rows as they came") { openDialog("resetLook") }
+        }
     }
 
     fun LazyListScope.homeRows() {
