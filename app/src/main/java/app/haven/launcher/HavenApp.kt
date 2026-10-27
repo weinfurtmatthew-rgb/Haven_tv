@@ -7,6 +7,7 @@ import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.AppsRepository
 import app.haven.launcher.data.SettingsStore
 import app.haven.launcher.ha.HomeAssistant
+import app.haven.launcher.system.CrashReport
 import app.haven.launcher.update.Updater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,9 +53,15 @@ class HavenApp : Application() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             getSharedPreferences("haven_crash", MODE_PRIVATE).edit().putLong("at", System.currentTimeMillis()).commit()
+            CrashReport.record(this, e)
             previous?.uncaughtException(t, e)
         }
-        Haven.init(this)
-        Bedroom.restore(this)
+        try {
+            Haven.init(this)
+            Bedroom.restore(this)
+        } catch (e: Exception) {
+            // Keep the process alive so MainActivity can show what went wrong instead of closing.
+            CrashReport.record(this, e)
+        }
     }
 }

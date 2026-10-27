@@ -73,6 +73,12 @@
             android:taskAffinity="app.haven.launcher.alarm"
             android:turnScreenOn="true" />
 
+        <activity
+            android:name=".system.CrashActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <service
             android:name=".system.HomeButtonService"
             android:exported="true"

@@ -14,6 +14,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import app.haven.launcher.system.CrashActivity
+import app.haven.launcher.system.CrashReport
 import app.haven.launcher.ui.AlarmScreen
 import app.haven.launcher.ui.ArtScreen
 import app.haven.launcher.ui.C
@@ -46,6 +48,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Haven crashed last time: show the report instead of closing straight back to the stock home screen.
+        if (CrashReport.read(this) != null) {
+            CrashActivity.open(this)
+            finish()
+            return
+        }
         setContent { HavenRoot(nav) }
         openFromIntent(intent)
     }
