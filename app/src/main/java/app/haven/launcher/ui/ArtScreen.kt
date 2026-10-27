@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -51,7 +53,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
@@ -66,8 +67,7 @@ import kotlinx.coroutines.delay
 import java.time.LocalTime
 import kotlin.random.Random
 
-private val Wall = Color(0xFFD8D2C6)
-private val DarkWall = Color(0xFF12100E)
+private val DarkWall = Color(0xFF0B0A08)
 
 /**
  * Art mode: a picture in one of three styles (full screen, thin frame, gallery). Any button exits.
@@ -152,7 +152,7 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(if (rest != null || care.style != ArtStyle.Gallery) Color.Black else Wall)
+            .background(if (rest != null || care.style != ArtStyle.Gallery) Color.Black else C.Plaster)
             .focusRequester(focus)
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) onExit()
@@ -178,15 +178,15 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
             visible = hint,
             enter = fadeIn(),
             exit = fadeOut(tween(800)),
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp),
         ) {
             Row(
-                Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(Color(0xDB0D1014)).padding(horizontal = 24.dp),
+                Modifier.height(64.dp).clip(RoundedCornerShape(32.dp)).background(C.Hearth).padding(horizontal = 32.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Txt("Art mode · ${settings.artSource.label}", 18, weight = FontWeight.SemiBold)
-                Txt("Press any button to exit", 18, weight = FontWeight.Medium, color = C.Muted)
+                Txt("Art mode · ${settings.artSource.label}", T.Label)
+                Txt("Press any button to leave", T.Label, color = C.Stone)
             }
         }
     }
@@ -200,20 +200,17 @@ private fun TvTypeDialog() {
     val first = remember { FocusRequester() }
     fun pick(p: TvPanel) = Haven.settings.update { it.copy(artCare = it.artCare.copy(panel = p)) }
     HavenDialog(onDismiss = { pick(TvPanel.Oled) }) {
-        Column(
-            Modifier.width(1000.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(40.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Txt("What kind of TV is this?", 34, weight = FontWeight.ExtraBold)
+        Panel(Modifier.width(1040.dp)) {
+            Txt("What kind of TV is this?", T.Title)
             Txt(
-                "OLED screens can keep a faint ghost of still pictures, so Haven moves art more often and hides captions " +
-                    "sooner on them. You can change this later in Settings › Art mode.",
-                20, weight = FontWeight.Medium, color = C.Muted, maxLines = 4,
+                "OLED screens can keep a faint ghost of a still picture, so on them Haven moves the art more often and " +
+                    "hides captions sooner. You can change this later in Settings, under Art mode.",
+                T.Body, color = C.Stone, maxLines = 4,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                PillButton("OLED", { pick(TvPanel.Oled) }, selected = true, focusRequester = first)
-                PillButton("LCD / LED", { pick(TvPanel.Lcd) })
-                PillButton("Not sure", { pick(TvPanel.Oled) })
+                Chip("OLED", { pick(TvPanel.Oled) }, focusRequester = first)
+                Chip("LCD or LED", { pick(TvPanel.Lcd) })
+                Chip("Not sure", { pick(TvPanel.Oled) })
             }
         }
     }
@@ -238,12 +235,15 @@ private fun ArtImage(art: LoadedArt, scale: ContentScale, modifier: Modifier) {
 private fun CornerCaption(art: LoadedArt, visible: Boolean, modifier: Modifier) {
     val a by animateFloatAsState(if (visible) 1f else 0f, tween(1500), label = "caption")
     if (a <= 0f) return
+    // A museum label: solid, not see-through, so it never fights with the picture behind it.
     Column(
-        modifier.alpha(a).clip(RoundedCornerShape(14.dp)).background(Color(0xB30D1014)).padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier.alpha(a).widthIn(max = 1100.dp).clip(RoundedCornerShape(12.dp)).background(C.Hearth)
+            .padding(horizontal = 28.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (art.piece.title.isNotBlank()) Txt(art.piece.title, 22, weight = FontWeight.Bold)
+        if (art.piece.title.isNotBlank()) Txt(art.piece.title, T.Title, size = 30, maxLines = 2)
         val line = listOf(art.piece.subtitle, art.piece.credit).filter { it.isNotBlank() }.joinToString(" · ")
-        if (line.isNotBlank()) Txt(line, 16, weight = FontWeight.Medium, color = C.Muted)
+        if (line.isNotBlank()) Txt(line, T.Label, color = C.Stone, maxLines = 2)
     }
 }
 
@@ -258,7 +258,7 @@ private fun FullScreenArt(art: LoadedArt, captionOn: Boolean) {
                 scaleY = 1.03f
             },
         )
-        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 72.dp, bottom = 56.dp))
+        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 116.dp, bottom = 64.dp))
     }
 }
 
@@ -271,10 +271,10 @@ private fun ThinFrameArt(art: LoadedArt, captionOn: Boolean) {
     val maxH = 1026f - 2 * frame
     val (w, h) = if (aspect > maxW / maxH) maxW to maxW / aspect else maxH * aspect to maxH
     Box(Modifier.fillMaxSize().background(DarkWall), contentAlignment = Alignment.Center) {
-        Box(Modifier.background(Color(0xFF2E2219)).padding(frame.dp)) {
+        Box(Modifier.background(C.Walnut).padding(frame.dp)) {
             ArtImage(art, ContentScale.Crop, Modifier.size(w.dp, h.dp))
         }
-        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 72.dp, bottom = 56.dp))
+        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 116.dp, bottom = 64.dp))
     }
 }
 
@@ -282,8 +282,8 @@ private fun ThinFrameArt(art: LoadedArt, captionOn: Boolean) {
 private fun FramedArt(art: LoadedArt, captionOn: Boolean) {
     val photo = art.piece is ArtPiece.Photo
     val frame: Dp = if (photo) 20.dp else 28.dp
-    val frameColor = if (photo) Color(0xFFE9E4DA) else Color(0xFF2E2219)
-    val matColor = if (photo) Color(0xFFFBFAF7) else Color(0xFFF3EFE8)
+    val frameColor = if (photo) Color(0xFFE9E4DA) else C.Walnut
+    val matColor = C.Mat
     val side = 70f
     val top = 70f
     val bottom = 110f
@@ -304,15 +304,11 @@ private fun FramedArt(art: LoadedArt, captionOn: Boolean) {
             Column(Modifier.background(matColor).padding(start = side.dp, end = side.dp, top = top.dp)) {
                 ArtImage(art, ContentScale.Crop, Modifier.size(w.dp, h.dp))
                 Row(Modifier.size(w.dp, bottom.dp).alpha(captionAlpha), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        if (art.piece.title.isNotBlank()) {
-                            Txt(art.piece.title, 24, Modifier.weight(1f, fill = false), FontWeight.Bold, Color(0xFF5B5348))
-                        }
-                        if (art.piece.subtitle.isNotBlank()) {
-                            Txt(art.piece.subtitle, 22, weight = FontWeight.Medium, color = Color(0xFF5B5348))
-                        }
+                    Column(Modifier.weight(1f)) {
+                        if (art.piece.title.isNotBlank()) Txt(art.piece.title, T.Title, color = C.LabelInk, size = 28)
+                        val line = listOf(art.piece.subtitle, art.piece.credit).filter { it.isNotBlank() }.joinToString(" · ")
+                        if (line.isNotBlank()) Txt(line, T.Label, color = C.LabelInk)
                     }
-                    Txt(art.piece.credit, 18, Modifier.padding(start = 24.dp), FontWeight.Medium, Color(0xFF6A6256))
                 }
             }
         }
@@ -321,18 +317,20 @@ private fun FramedArt(art: LoadedArt, captionOn: Boolean) {
 
 private data class Palette(val sky: Color, val deep: Color, val a: Color, val b: Color, val c: Color, val sun: Color)
 
+/** Mid-century prints: earth pigments, a low sun, nothing neon. */
 private val PALETTES = listOf(
-    Palette(Color(0xFF214E5F), Color(0xFF183A4C), Color(0xFFC8553D), Color(0xFFF2E3C6), Color(0xFF8FB9A8), Color(0xFFE8A33D)),
-    Palette(Color(0xFFA9CCE6), Color(0xFF4F86A8), Color(0xFF5E8C6A), Color(0xFF7BA37F), Color(0xFFF3EFE8), Color(0xFFFBE7B0)),
-    Palette(Color(0xFF2A2340), Color(0xFF1B1730), Color(0xFFB9A2FF), Color(0xFFFF8A7A), Color(0xFFF4E9D8), Color(0xFFF7B955)),
-    Palette(Color(0xFFE9D8C4), Color(0xFFB98B6A), Color(0xFF6B2F3C), Color(0xFFD9A066), Color(0xFF3E5C50), Color(0xFFC8553D)),
-    Palette(Color(0xFF12304A), Color(0xFF0B2236), Color(0xFF2F6B57), Color(0xFF86EFAC), Color(0xFFF3EFE8), Color(0xFF7DD3FC)),
+    Palette(Color(0xFF1F3A4A), Color(0xFF152A36), Color(0xFFC8553D), Color(0xFFE9D8B4), Color(0xFF7E9C7A), Color(0xFFE8A33D)),
+    Palette(Color(0xFFE9DCC3), Color(0xFF6F8F9B), Color(0xFFB5533C), Color(0xFFD9A35B), Color(0xFF3E5C50), Color(0xFFC8553D)),
+    Palette(Color(0xFF1B2233), Color(0xFF10151F), Color(0xFFA65E46), Color(0xFFD8C3A0), Color(0xFF4F6E66), Color(0xFFE8C07A)),
+    Palette(Color(0xFFE3B88A), Color(0xFF8C4F33), Color(0xFF6B2F2A), Color(0xFFF2E3C6), Color(0xFF3E5C50), Color(0xFFF4E6CC)),
+    Palette(Color(0xFFA9C2C4), Color(0xFF3F6470), Color(0xFF2F4F3F), Color(0xFF7E9C7A), Color(0xFFEFE5D2), Color(0xFFF2B35E)),
 )
 
 /** Mid-century style shapes (sun, hills, arches, water) like the ArtPainting mockup, varied by [seed]. */
 @Composable
 fun GeneratedArt(seed: Long, modifier: Modifier = Modifier) {
-    Canvas(modifier) { drawComposition(seed) }
+    // Clipped: a hill may run past the edge, but never over the frame.
+    Canvas(modifier.clipToBounds()) { drawComposition(seed) }
 }
 
 private fun DrawScope.drawComposition(seed: Long) {

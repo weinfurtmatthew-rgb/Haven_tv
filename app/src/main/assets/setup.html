@@ -5,45 +5,52 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Haven setup</title>
 <style>
-:root{--bg:#0D1014;--card:#171C23;--hi:#1F2630;--line:#2F3946;--track:#3A4553;--text:#EEF1F5;--muted:#A3ADBA;--acc:#7DD3FC;--bad:#FF7A70}
+@font-face{font-family:Fraunces;src:url(/font/fraunces.ttf) format("truetype");font-weight:600;font-display:swap}
+@font-face{font-family:Atkinson;src:url(/font/atkinson-500.ttf) format("truetype");font-weight:500;font-display:swap}
+@font-face{font-family:Atkinson;src:url(/font/atkinson-600.ttf) format("truetype");font-weight:600;font-display:swap}
+@font-face{font-family:Atkinson;src:url(/font/atkinson-700.ttf) format("truetype");font-weight:700;font-display:swap}
+/* Haven's tokens (DESIGN.md): hearth, surface, raised, line, track, linen, stone, dust, lamp, sage, clay */
+:root{--bg:#14120F;--card:#28241F;--hi:#35302A;--line:#4A433B;--track:#7E756B;--text:#F2EDE4;--muted:#B9B0A3;--dust:#8F877B;--lamp:#F2B35E;--ok:#A8C49A;--bad:#E8795E}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px 16px 60px}
+body{margin:0;background:var(--bg);color:var(--text);font:500 16px/1.5 Atkinson,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:20px 16px 60px}
 main{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+header{display:flex;align-items:center;gap:14px;margin:4px 0 8px}
 header svg{flex:none}
-h1{font-size:24px;margin:0}
-h2{font-size:18px;margin:0 0 4px}
+h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:0}
+h1{font-size:28px;margin:0;line-height:1.1}
+h2{font-size:21px;margin:0 0 2px}
 .sub{color:var(--muted);font-size:14px}
-section{background:var(--card);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
-label{display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
-input[type=text],input[type=url],input[type=time],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit}
+section{background:var(--card);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px}
+label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=url],input[type=time],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-weight:500}
 textarea{min-height:84px;resize:vertical;font-family:ui-monospace,monospace;font-size:13px}
-input:focus,textarea:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--text);outline-offset:1px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button{background:var(--hi);color:var(--text);border:0;border-radius:999px;padding:11px 18px;font:600 15px system-ui,sans-serif;cursor:pointer}
-button.primary{background:var(--acc);color:var(--bg)}
+button{background:var(--hi);color:var(--text);border:0;border-radius:999px;padding:11px 20px;font:700 15px Atkinson,system-ui,sans-serif;cursor:pointer}
+button.primary{background:var(--text);color:var(--bg)}
+button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 button:disabled{opacity:.5}
-.check{flex-direction:row;align-items:center;gap:10px;color:var(--text);font-size:15px;padding:8px 0}
-.check input{width:22px;height:22px;accent-color:var(--acc)}
+.check{flex-direction:row;align-items:center;gap:10px;color:var(--text);font-size:15px;font-weight:500;padding:8px 0}
+.check input{width:22px;height:22px;accent-color:var(--lamp)}
 .list{display:flex;flex-direction:column;gap:2px}
 .status{font-size:14px;color:var(--muted)}
-.status.ok{color:#86EFAC}.status.bad{color:var(--bad)}
+.status.ok{color:var(--ok)}.status.bad{color:var(--bad)}
 .days{display:flex;gap:6px;flex-wrap:wrap}
 .days label{flex-direction:row;align-items:center;gap:4px;background:var(--hi);padding:8px 10px;border-radius:999px;color:var(--text)}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
 .photo{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--hi)}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
-.photo button{position:absolute;top:4px;right:4px;padding:2px 8px;font-size:13px;background:rgba(13,16,20,.8)}
+.photo button{position:absolute;top:4px;right:4px;padding:2px 8px;font-size:13px;background:rgba(20,18,15,.85)}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--hi);border:1px solid var(--line);padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 #toast.show{opacity:1}
 .hidden{display:none!important}
-a{color:var(--acc)}
+a{color:var(--lamp)}
 </style>
 </head>
 <body>
 <main>
   <header>
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#7DD3FC" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="12 8 76 92" width="38" height="46" aria-hidden="true"><path d="M20,92V46a30,30 0 0,1 60,0v46" fill="none" stroke="#F2EDE4" stroke-width="7" stroke-linecap="round"/><path d="M38,92V64a12,12 0 0,1 24,0v28z" fill="#F2B35E"/></svg>
     <div><h1 id="title">Haven setup</h1><div class="sub" id="version"></div></div>
   </header>
 
@@ -74,7 +81,7 @@ a{color:var(--acc)}
     <label>Weather from
       <select id="weather"></select>
     </label>
-    <label>Your name (for the greeting and avatar) <input type="text" id="profile"></label>
+    <label>Your name (for the morning greeting) <input type="text" id="profile"></label>
     <label class="check"><input type="checkbox" id="bedroom"> Bedroom features: alarm clock and sleep timer</label>
     <div class="row"><button class="primary" id="roomSave">Save</button></div>
   </section>

@@ -27,6 +27,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ServiceCompat
+import androidx.core.content.res.ResourcesCompat
 import app.haven.launcher.Haven
 import app.haven.launcher.R
 import kotlinx.coroutines.CoroutineScope
@@ -65,9 +66,9 @@ object Watch {
         if (target != null) Haven.apps.launch(target)
         val channel = onTv ?: game.broadcasts.firstOrNull()
         val msg = when {
-            streaming != null -> "Opening ${streaming.label} for ${game.away.team.abbr} at ${game.home.team.abbr}"
-            channel != null -> "${game.away.team.abbr} at ${game.home.team.abbr} is on ${channel}. Find it in the guide."
-            else -> "${game.away.team.abbr} at ${game.home.team.abbr}: no channel listed yet"
+            streaming != null -> "Opening ${streaming.label} for ${game.matchup}"
+            channel != null -> "${game.matchup} is on $channel. Find it in the guide."
+            else -> "${game.matchup}: no channel is listed yet"
         }
         Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
     }
@@ -76,6 +77,9 @@ object Watch {
 /** Shows a small score card in the top-right corner over any app, or a toast when that isn't allowed. */
 object ScorePopup {
     private val main = Handler(Looper.getMainLooper())
+
+    private fun font(ctx: Context, id: Int, fallback: Typeface): Typeface =
+        runCatching { ResourcesCompat.getFont(ctx, id) }.getOrNull() ?: fallback
 
     fun canOverlay(ctx: Context): Boolean = Settings.canDrawOverlays(ctx)
 
@@ -98,24 +102,28 @@ object ScorePopup {
         runCatching {
             val wm = app.getSystemService(WindowManager::class.java)
             val dp = { v: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), app.resources.displayMetrics).toInt() }
+            // Haven's colours and type (DESIGN.md), fully opaque so the picture behind never shows through the text.
             val card = LinearLayout(app).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(18), dp(12), dp(18), dp(12))
+                setPadding(dp(22), dp(14), dp(22), dp(16))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(14).toFloat()
-                    setColor(Color.argb(235, 13, 16, 20))
-                    setStroke(dp(2), Color.rgb(125, 211, 252))
+                    cornerRadius = dp(16).toFloat()
+                    setColor(Color.rgb(0x28, 0x24, 0x1F))
+                    setStroke(dp(1), Color.rgb(0x4A, 0x43, 0x3B))
                 }
                 addView(TextView(app).apply {
                     text = title
-                    setTextColor(Color.rgb(238, 241, 245))
-                    textSize = 18f
-                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Color.rgb(0xF2, 0xED, 0xE4))
+                    textSize = 20f
+                    typeface = font(app, R.font.atkinson_bold, Typeface.DEFAULT_BOLD)
+                    fontFeatureSettings = "tnum"
                 })
                 if (line.isNotBlank()) addView(TextView(app).apply {
                     text = line
-                    setTextColor(Color.rgb(163, 173, 186))
-                    textSize = 14f
+                    setTextColor(Color.rgb(0xB9, 0xB0, 0xA3))
+                    textSize = 16f
+                    typeface = font(app, R.font.atkinson_medium, Typeface.DEFAULT)
+                    setPadding(0, dp(2), 0, 0)
                 })
             }
             val lp = WindowManager.LayoutParams(

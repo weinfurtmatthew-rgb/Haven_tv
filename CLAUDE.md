@@ -20,12 +20,19 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
 - Unit tests (`app/src/test`) cover pure logic only (alarm times, URL normalizing); org.json is stubbed there.
 
 ## Layout rules
-- Everything is drawn on the mockups' 1920x1080 canvas: `ui/Theme.kt` `DesignCanvas` sets density so 1.dp is
-  one design pixel. Use mockup pixel values directly. Colors are in `C`; text goes through `Txt` (Manrope).
-- Every interactive element is `ui/Components.kt` `Focusable` (D-pad focus, scale + accent outline, OK = click,
-  hold OK = long click, `onKey` for left/right or up/down adjustments). Don't use `clickable`.
+- `DESIGN.md` is the design language (colour tokens, type scale, focus, voice). Follow it for any UI change.
+- Everything is drawn on a 1920x1080 canvas: `ui/Theme.kt` `DesignCanvas` sets density so 1.dp is one design
+  pixel. Colours are tokens in `C` (no raw hex in screens); text goes through `Txt` with a style from `T`
+  (Fraunces for titles and clocks, Atkinson Hyperlegible Next for the rest, nothing under 24 px).
+- Every interactive element is `ui/Components.kt` `Focusable` (D-pad focus: controls turn linen, pictures get a
+  linen frame; OK = click, hold OK = long click, `onKey` for left/right or up/down adjustments). Don't use
+  `clickable`. Content picks colours with `ink(focused)` / `inkMuted(focused)`. Lamp (amber) means on/selected.
+- A composable that shows Home Assistant data must read `Haven.ha.entities` (collectAsState) itself; otherwise
+  Compose skips it when only the entities change and toggles never show.
 - Dialogs use `HavenDialog` (a real window, so focus can't escape to the screen behind).
 - Icons are Lucide paths in `ui/Icons.kt`, generated from `lucide-static`; add new ones the same way.
+- Screenshots: CI's emulator tour (`.github/smoke.sh`, demo household from `demo/Demo.kt`) pushes every screen
+  to the `screens-api34` / `screens-api30` branches; check them after UI changes.
 
 ## Data and integrations
 - Settings: one JSON blob (`data/Settings.kt`), exposed as `Haven.settings.state`. Add a field in the data

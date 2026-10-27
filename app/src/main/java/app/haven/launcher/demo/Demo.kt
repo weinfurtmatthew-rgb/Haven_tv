@@ -173,7 +173,7 @@ class DemoReceiver : BroadcastReceiver() {
                 CrashReport.record(ctx, IllegalStateException("Demo crash for the report screen"))
                 CrashActivity.open(ctx)
             }
-            "POPUP" -> ScorePopup.show(ctx, "KC 21 – 17 BUF", "Q3 4:12 · Touchdown, Kansas City")
+            "POPUP" -> ScorePopup.show(ctx, Demo.games().first().scoreLine, "Q3 4:12 · Touchdown, Kansas City")
         }
     }
 }

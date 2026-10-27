@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#FF0D1014</color>
-    <color name="accent">#FF7DD3FC</color>
+    <!-- Haven's hearth and lamp (DESIGN.md). -->
+    <color name="bg">#FF14120F</color>
+    <color name="accent">#FFF2B35E</color>
 </resources>

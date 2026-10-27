@@ -30,6 +30,8 @@ data class BriefData(
     val status: List<StatusItem> = emptyList(),
     val headlines: List<String> = emptyList(),
     val games: List<Game> = emptyList(),
+    /** False when Home Assistant has no calendars at all, so "nothing on the calendar" would be misleading. */
+    val hasCalendars: Boolean = false,
 )
 
 /** Gathers the morning briefing from Home Assistant, a news feed and the sports feed, all in parallel. */
@@ -49,7 +51,8 @@ object Briefing {
         val weather = ha.weather(s)
         val hourly = async { weather?.let { ha.forecast(it.id, "hourly") }.orEmpty() }
         val daily = async { weather?.let { ha.forecast(it.id, "daily") }.orEmpty() }
-        val events = async { calendarToday(cfg.calendars) }
+        val calendarIds = async { cfg.calendars.ifEmpty { Haven.ha.calendars().map { it.first }.toSet() } }
+        val events = async { calendarToday(calendarIds.await()) }
         val now = ZonedDateTime.now()
         BriefData(
             weather = weather,
@@ -61,15 +64,15 @@ object Briefing {
             status = status(cfg.statusEntities),
             headlines = news.await(),
             games = sports.await(),
+            hasCalendars = calendarIds.await().isNotEmpty(),
         )
     }
 
-    private suspend fun calendarToday(chosen: Set<String>): List<CalEvent> {
+    private suspend fun calendarToday(ids: Set<String>): List<CalEvent> {
         val zone = ZoneId.systemDefault()
         val start = ZonedDateTime.now(zone)
         val end = LocalDate.now(zone).plusDays(1).atStartOfDay(zone)
         val fmt = DateTimeFormatter.ISO_OFFSET_DATE_TIME
-        val ids = chosen.ifEmpty { Haven.ha.calendars().map { it.first }.toSet() }
         return ids.flatMap { Haven.ha.events(it, start.withHour(0).withMinute(0).format(fmt), end.format(fmt)) }
             .filter { it.allDay || it.start == null || !it.start.toInstant().isBefore(start.toInstant().minusSeconds(3600)) }
             .sortedWith(compareBy<CalEvent> { !it.allDay }.thenBy { it.start })

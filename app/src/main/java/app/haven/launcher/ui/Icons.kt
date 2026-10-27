@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
 
-/** Lucide icons (ISC license), generated from lucide-static 0.460.0. Stroked on a 24x24 grid like the mockups. */
+/** Lucide icons (ISC license), generated from lucide-static 0.460.0. Stroked at Lucide's 2 px on the 24x24 grid. */
 object Icons {
     private fun icon(vararg paths: String): ImageVector =
         ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
@@ -19,7 +19,7 @@ object Icons {
                     addPath(
                         pathData = nodes,
                         stroke = SolidColor(Color.White),
-                        strokeLineWidth = 1.7f,
+                        strokeLineWidth = 2f,
                         strokeLineCap = StrokeCap.Round,
                         strokeLineJoin = StrokeJoin.Round,
                     )
@@ -329,5 +329,27 @@ object Icons {
     val Bell = icon(
         "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9",
         "M10.3 21a1.94 1.94 0 0 0 3.4 0",
+    )
+    val ChevronUp = icon(
+        "m18 15-6-6-6 6",
+    )
+    val ChevronDown = icon(
+        "m6 9 6 6 6-6",
+    )
+    val ChevronRight = icon(
+        "m9 18 6-6-6-6",
+    )
+    val ChevronsLeftRight = icon(
+        "m9 7-5 5 5 5",
+        "m15 7 5 5-5 5",
+    )
+    val LampFloor = icon(
+        "M9 2h6l3 7H6l3-7Z",
+        "M12 9v13",
+        "M9 22h6",
+    )
+    val ChevronsUpDown = icon(
+        "m7 15 5 5 5-5",
+        "m7 9 5-5 5 5",
     )
 }

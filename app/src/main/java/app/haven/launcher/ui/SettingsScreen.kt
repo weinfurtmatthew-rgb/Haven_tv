@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,6 +28,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -33,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -40,11 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.haven.launcher.BuildConfig
 import app.haven.launcher.Haven
 import app.haven.launcher.Nav
@@ -52,19 +54,34 @@ import app.haven.launcher.Screen
 import app.haven.launcher.data.ArtSource
 import app.haven.launcher.data.ArtStyle
 import app.haven.launcher.data.QuietMode
+import app.haven.launcher.data.Settings
 import app.haven.launcher.data.TvPanel
-import app.haven.launcher.sports.ScorePopup
+import app.haven.launcher.ha.HaArea
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.setup.SetupServer
+import app.haven.launcher.sports.ScorePopup
 import app.haven.launcher.system.HomeButtonService
 import app.haven.launcher.update.Updater
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private class TextEdit(val title: String, val initial: String, val hint: String, val onSave: (String) -> Unit)
+
+/** Settings are grouped like Android TV's own: pick a group on the left, its settings appear next to it. */
+private enum class Group(val label: String) {
+    Room("This room"),
+    HomeAssistant("Home Assistant"),
+    Art("Art mode"),
+    Briefing("Morning briefing"),
+    Sports("Sports"),
+    HomeButton("Home button"),
+    Apps("Apps and clock"),
+    About("About"),
+}
 
 @Composable
 fun SettingsScreen(nav: Nav) {
@@ -77,7 +94,10 @@ fun SettingsScreen(nav: Nav) {
     val scope = rememberCoroutineScope()
     var editing by remember { mutableStateOf<TextEdit?>(null) }
     var showScreens by remember { mutableStateOf(false) }
-    val first = remember { FocusRequester() }
+    var group by remember { mutableStateOf(Group.Room) }
+    var phoneHint by remember { mutableStateOf<String?>(null) }
+    val rail = remember { Group.values().associateWith { FocusRequester() } }
+    val firstRow = remember { FocusRequester() }
 
     // The phone setup page is served only while this screen is open, and only with the code shown here.
     val server = remember { SetupServer(ctx.applicationContext) }
@@ -90,277 +110,329 @@ fun SettingsScreen(nav: Nav) {
     }
     LaunchedEffect(Unit) {
         delay(60)
-        runCatching { first.requestFocus() }
+        runCatching { rail.getValue(Group.Room).requestFocus() }
+    }
+    LaunchedEffect(phoneHint) {
+        if (phoneHint != null) {
+            delay(8_000)
+            phoneHint = null
+        }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 56.dp), verticalArrangement = Arrangement.spacedBy(36.dp)) {
+    val ui = SettingsUi(
+        s = s,
+        status = status,
+        areas = areas,
+        serviceOn = serviceOn,
+        updateState = updateState,
+        scope = scope,
+        nav = nav,
+        edit = { editing = it },
+        onPhone = { phoneHint = it },
+        showScreens = { showScreens = true },
+        backToRail = rail.getValue(group),
+        firstRow = firstRow,
+    )
+
+    Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
         ScreenHeader("Settings", "Haven ${BuildConfig.VERSION_NAME}", onBack = { nav.go(Screen.Home) })
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-            LazyColumn(
-                Modifier.width(1060.dp).fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 60.dp, start = 8.dp, end = 8.dp),
-            ) {
-                item { Section("This room") }
-                item {
-                    SettingRow("Room name", s.roomName, focusRequester = first) {
-                        editing = TextEdit("Room name", s.roomName, "Living Room") { v ->
-                            Haven.settings.update { it.copy(roomName = v.ifBlank { "Living Room" }) }
-                        }
-                    }
+        Row(Modifier.fillMaxSize()) {
+            Column(Modifier.width(320.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (g in Group.values()) {
+                    RailItem(
+                        g.label,
+                        selected = g == group,
+                        focusRequester = rail.getValue(g),
+                        onFocus = { group = g },
+                        onClick = { runCatching { firstRow.requestFocus() } },
+                    )
                 }
-                item {
-                    val current = areas.firstOrNull { it.id == s.haArea }
-                    SettingRow(
-                        "Home Assistant area",
-                        when {
-                            current != null -> current.name
-                            areas.isEmpty() && s.haConfigured -> "No areas found · showing everything"
-                            areas.isEmpty() -> "Connect Home Assistant first"
-                            else -> "All areas · select to pick this room"
-                        },
+            }
+            Spacer(width = 48.dp)
+            Box(Modifier.width(840.dp).fillMaxHeight()) {
+                key(group) {
+                    LazyColumn(
+                        Modifier.offset(x = (-16).dp).width(872.dp).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                     ) {
-                        if (areas.isNotEmpty()) {
-                            val ids = listOf("") + areas.map { it.id }
-                            val next = ids[(ids.indexOf(s.haArea) + 1) % ids.size]
-                            val nextName = areas.firstOrNull { it.id == next }?.name
-                            Haven.settings.update { cur ->
-                                val renamed = current == null && cur.roomName == "Living Room" || cur.roomName == current?.name
-                                cur.copy(haArea = next, roomName = if (renamed && nextName != null) nextName else cur.roomName)
+                        with(ui) {
+                            when (group) {
+                                Group.Room -> roomRows()
+                                Group.HomeAssistant -> homeAssistantRows()
+                                Group.Art -> artRows()
+                                Group.Briefing -> briefingRows()
+                                Group.Sports -> sportsRows()
+                                Group.HomeButton -> homeButtonRows()
+                                Group.Apps -> appsRows()
+                                Group.About -> aboutRows()
                             }
                         }
                     }
                 }
-                item {
-                    SettingRow("Bedroom features", "Alarm clock and sleep timer on the home screen", toggle = s.bedroomExtras) {
-                        Haven.settings.update { it.copy(bedroomExtras = !it.bedroomExtras) }
-                    }
-                }
-                item {
-                    SettingRow("Your name", s.profileName.ifBlank { "Not set · used for the greeting and avatar" }) {
-                        editing = TextEdit("Your name", s.profileName, "Matt") { v ->
-                            Haven.settings.update { it.copy(profileName = v.trim()) }
-                        }
-                    }
-                }
-
-                item { Section("Home Assistant") }
-                item {
-                    SettingRow(
-                        "Connection",
-                        when (val st = status) {
-                            HaStatus.NotConfigured -> "Not set up · scan the code on the right with your phone"
-                            HaStatus.Connecting -> "Connecting…"
-                            is HaStatus.Connected -> "Connected · ${st.entityCount} entities"
-                            is HaStatus.Failed -> st.message
-                        },
-                        icon = Icons.House,
-                    ) { scope.launch { Haven.ha.refresh() } }
-                }
-                item {
-                    SettingRow("Server address", s.haUrl.ifBlank { "Not set" }) {
-                        editing = TextEdit("Home Assistant address", s.haUrl, "http://192.168.1.10:8123") { v ->
-                            Haven.settings.update { it.copy(haUrl = v.trim()) }
-                            scope.launch { Haven.ha.refresh() }
-                        }
-                    }
-                }
-                item {
-                    SettingRow("Access token", if (s.haToken.isBlank()) "Not set · easier to paste from your phone" else "Saved") {
-                        editing = TextEdit("Long-lived access token", "", "Paste or type the token") { v ->
-                            if (v.isNotBlank()) Haven.settings.update { it.copy(haToken = v.trim()) }
-                            scope.launch { Haven.ha.refresh() }
-                        }
-                    }
-                }
-
-                item { Section("Art mode") }
-                item {
-                    SettingRow("Show", s.artSource.label) {
-                        val all = ArtSource.values()
-                        Haven.settings.update { it.copy(artSource = all[(it.artSource.ordinal + 1) % all.size]) }
-                    }
-                }
-                item {
-                    SettingRow("Change the picture every", "${s.artIntervalMin} min") {
-                        Haven.settings.update { it.copy(artIntervalMin = cycle(listOf(1, 5, 15, 30, 60), it.artIntervalMin)) }
-                    }
-                }
-                item {
-                    SettingRow("Start art mode", if (s.artIdleMin == 0) "Only when I choose it" else "After ${s.artIdleMin} min idle on the home screen") {
-                        Haven.settings.update { it.copy(artIdleMin = cycle(listOf(0, 5, 10, 15, 30), it.artIdleMin)) }
-                    }
-                }
-                item { SettingRow("Your photos", "${Haven.art.photos().size} on this TV · add more from your phone") {} }
-                item {
-                    SettingRow("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
-                        openSystem(ctx, AndroidSettings.ACTION_DREAM_SETTINGS)
-                    }
-                }
-
-                item {
-                    SettingRow("Art style", s.artCare.style.label) {
-                        val all = ArtStyle.values()
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(style = all[(it.artCare.style.ordinal + 1) % all.size])) }
-                    }
-                }
-                item {
-                    SettingRow(
-                        "TV type", "${s.artCare.panel.label} · " +
-                            if (s.artCare.strongProtection) "strong burn-in protection" else "standard burn-in protection",
-                    ) {
-                        val next = if (s.artCare.panel == TvPanel.Oled) TvPanel.Lcd else TvPanel.Oled
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(panel = next)) }
-                    }
-                }
-                item {
-                    SettingRow("Dim the art", if (s.artCare.dimPct == 0) "Off" else "${s.artCare.dimPct}% darker") {
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(dimPct = cycle(listOf(0, 15, 30, 45), it.artCare.dimPct))) }
-                    }
-                }
-                item {
-                    val c = s.artCare
-                    SettingRow(
-                        "Quiet hours",
-                        if (!c.quietEnabled) "Off" else "${hourLabel(c.quietStart, s.use24h)} to ${hourLabel(c.quietEnd, s.use24h)} · ${c.quietMode.label.lowercase()}",
-                    ) {
-                        val presets = listOf(23 to 23, 23 to 6, 22 to 6, 0 to 7, 21 to 7)
-                        val i = presets.indexOf(c.quietStart to c.quietEnd)
-                        val (a, b) = presets[(i + 1) % presets.size]
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(quietStart = a, quietEnd = b)) }
-                    }
-                }
-                item {
-                    SettingRow("During quiet hours", s.artCare.quietMode.label) {
-                        val next = if (s.artCare.quietMode == QuietMode.Black) QuietMode.Dim else QuietMode.Black
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(quietMode = next)) }
-                    }
-                }
-                item {
-                    SettingRow(
-                        "Only when someone is in the room",
-                        if (s.artCare.presenceEntity.isBlank()) "Off · pick a motion sensor on your phone"
-                        else "${Haven.ha.entities.value[s.artCare.presenceEntity]?.name ?: s.artCare.presenceEntity} · black after ${s.artCare.presenceDelayMin} min",
-                    ) {}
-                }
-                item {
-                    SettingRow("Art time limit", if (s.artCare.maxHours == 0) "No limit" else "Go black after ${s.artCare.maxHours} hours") {
-                        Haven.settings.update { it.copy(artCare = it.artCare.copy(maxHours = cycle(listOf(0, 2, 4, 8), it.artCare.maxHours))) }
-                    }
-                }
-
-                item { Section("Morning briefing") }
-                item {
-                    SettingRow("Show the briefing now", "It also opens when you stop the alarm") { nav.go(Screen.Briefing) }
-                }
-                item {
-                    val b = s.brief
-                    SettingRow(
-                        "What it shows",
-                        listOf(
-                            "weather",
-                            if (b.calendars.isEmpty()) "all calendars" else "${b.calendars.size} calendar(s)",
-                            if (b.commuteEntity.isBlank()) "no commute" else "commute",
-                            if (b.statusEntities.isEmpty()) "locks and garage" else "${b.statusEntities.size} home items",
-                            if (b.headlinesFeed.isBlank()) "no headlines" else "headlines",
-                            "your teams",
-                        ).joinToString(" · ") + " — change on your phone",
-                    ) {}
-                }
-
-                item { Section("Sports") }
-                item {
-                    SettingRow(
-                        "Your teams",
-                        if (s.sports.teams.isEmpty()) "None yet · choose them on your phone" else s.sports.teams.joinToString(", ") { it.name },
-                        icon = Icons.Trophy,
-                    ) { nav.go(Screen.Sports) }
-                }
-                item {
-                    SettingRow("Score alerts", "Game start, scoring and finals for your teams, over any app", toggle = s.sports.alerts) {
-                        Haven.settings.update { it.copy(sports = it.sports.copy(alerts = !it.sports.alerts)) }
-                    }
-                }
-                item {
-                    val ok = ScorePopup.canOverlay(ctx)
-                    SettingRow(
-                        "Show alerts on top of other apps",
-                        if (ok) "Allowed" else "Not allowed · alerts show as small messages instead. Select to allow",
-                        toggle = ok,
-                    ) { ScorePopup.requestPermission(ctx) }
-                }
-                item {
-                    SettingRow("Test an alert", "Shows a sample score alert") {
-                        ScorePopup.show(ctx, "Sample: HOM 21 – 17 AWY", "Q3 4:12 · Haven score alert")
-                    }
-                }
-
-                item { Section("Home button") }
-                item {
-                    SettingRow(
-                        "Haven Home button service",
-                        if (serviceOn) "On · Home opens Haven" else "Off · select, then turn on \"Haven Home button\"",
-                        toggle = serviceOn,
-                    ) { openSystem(ctx, AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS) }
-                }
-                item {
-                    SettingRow("Open Haven when Home is pressed", "Press Home twice quickly for the original home screen", toggle = s.homeOverride) {
-                        Haven.settings.update { it.copy(homeOverride = !it.homeOverride) }
-                    }
-                }
-                if (!serviceOn) {
-                    item {
-                        SettingRow(
-                            "Switch keeps turning itself off?",
-                            "Select to reinstall Haven through Android's installer, then try the switch again",
-                            icon = Icons.RefreshCw,
-                        ) { scope.launch { Haven.updater.checkAndInstall(reinstall = true) } }
-                    }
-                }
-                item {
-                    SettingRow("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") {
-                        HomeButtonService.openStockHome(ctx)
-                    }
-                }
-                item {
-                    SettingRow("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens = true }
-                }
-
-                item { Section("Apps and clock") }
-                item {
-                    SettingRow("Hidden apps", if (s.hiddenApps.isEmpty()) "None" else "${s.hiddenApps.size} hidden · select to show them again") {
-                        Haven.settings.update { it.copy(hiddenApps = emptySet()) }
-                    }
-                }
-                item {
-                    SettingRow("Clock", if (s.use24h) "24-hour" else "12-hour") {
-                        Haven.settings.update { it.copy(use24h = !it.use24h) }
-                    }
-                }
-
-                item { Section("About") }
-                item {
-                    SettingRow(
-                        "Updates",
-                        when (val u = updateState) {
-                            Updater.State.Idle -> "Version ${BuildConfig.VERSION_NAME} · select to check"
-                            Updater.State.Checking -> "Checking…"
-                            Updater.State.UpToDate -> "Up to date (${BuildConfig.VERSION_NAME})"
-                            is Updater.State.Downloading -> "Downloading ${u.version}… ${u.percent}%"
-                            is Updater.State.Installing -> "Opening the installer for ${u.version}"
-                            is Updater.State.Failed -> u.message
-                        },
-                        icon = Icons.Download,
-                    ) { scope.launch { Haven.updater.checkAndInstall() } }
-                }
-                item { SettingRow("Android settings", "") { openSystem(ctx, AndroidSettings.ACTION_SETTINGS) } }
+                BottomFade(64.dp)
             }
-            PhoneSetupPanel(server, Modifier.weight(1f).fillMaxHeight())
+            Spacer(width = 48.dp)
+            PhoneSetupPanel(server, phoneHint, Modifier.weight(1f))
         }
     }
 
     editing?.let { e -> TextEditDialog(e) { editing = null } }
     if (showScreens) RecentScreensDialog { showScreens = false }
+}
+
+/** What every group's rows need. Rows that can only be changed on the phone point at the QR code instead. */
+private class SettingsUi(
+    val s: Settings,
+    val status: HaStatus,
+    val areas: List<HaArea>,
+    val serviceOn: Boolean,
+    val updateState: Updater.State,
+    val scope: CoroutineScope,
+    val nav: Nav,
+    val edit: (TextEdit) -> Unit,
+    val onPhone: (String) -> Unit,
+    val showScreens: () -> Unit,
+    val backToRail: FocusRequester,
+    val firstRow: FocusRequester,
+) {
+    /** Left from any row goes back to this group in the rail, not to whichever group happens to be level with it. */
+    val rowModifier: Modifier get() = Modifier.focusProperties { left = backToRail }
+
+    fun LazyListScope.row(
+        title: String,
+        value: String,
+        first: Boolean = false,
+        toggle: Boolean? = null,
+        toggleEnabled: Boolean = true,
+        phoneOnly: Boolean = false,
+        onClick: () -> Unit = { onPhone(title) },
+    ) {
+        item(key = title) {
+            SettingRow(
+                title, value, rowModifier, toggle = toggle, toggleEnabled = toggleEnabled, phoneOnly = phoneOnly,
+                focusRequester = if (first) firstRow else null, onClick = onClick,
+            )
+        }
+    }
+
+    fun LazyListScope.roomRows() {
+        row("Room name", s.roomName, first = true) {
+            edit(TextEdit("Room name", s.roomName, "Living Room") { v -> Haven.settings.update { it.copy(roomName = v.ifBlank { "Living Room" }) } })
+        }
+        val current = areas.firstOrNull { it.id == s.haArea }
+        row(
+            "Home Assistant area",
+            when {
+                current != null -> current.name
+                areas.isEmpty() && s.haConfigured -> "No areas found, so Haven shows everything"
+                areas.isEmpty() -> "Connect Home Assistant first"
+                else -> "All areas. Select to pick this room's"
+            },
+        ) {
+            if (areas.isNotEmpty()) {
+                val ids = listOf("") + areas.map { it.id }
+                val next = ids[(ids.indexOf(s.haArea) + 1) % ids.size]
+                val nextName = areas.firstOrNull { it.id == next }?.name
+                Haven.settings.update { cur ->
+                    val renamed = current == null && cur.roomName == "Living Room" || cur.roomName == current?.name
+                    cur.copy(haArea = next, roomName = if (renamed && nextName != null) nextName else cur.roomName)
+                }
+            }
+        }
+        row("Bedroom features", "Alarm clock and sleep timer on the home screen", toggle = s.bedroomExtras) {
+            Haven.settings.update { it.copy(bedroomExtras = !it.bedroomExtras) }
+        }
+        row("Your name", s.profileName.ifBlank { "Not set. Used for the morning greeting" }) {
+            edit(TextEdit("Your name", s.profileName, "Matt") { v -> Haven.settings.update { it.copy(profileName = v.trim()) } })
+        }
+    }
+
+    fun LazyListScope.homeAssistantRows() {
+        row(
+            "Connection",
+            when (val st = status) {
+                HaStatus.NotConfigured -> "Not set up. Scan the code with your phone"
+                HaStatus.Connecting -> "Connecting…"
+                is HaStatus.Connected -> "Connected · ${st.entityCount} entities"
+                is HaStatus.Failed -> st.message
+            },
+            first = true,
+        ) { scope.launch { Haven.ha.refresh() } }
+        row("Server address", s.haUrl.ifBlank { "Not set" }) {
+            edit(
+                TextEdit("Home Assistant address", s.haUrl, "http://192.168.1.10:8123") { v ->
+                    Haven.settings.update { it.copy(haUrl = v.trim()) }
+                    scope.launch { Haven.ha.refresh() }
+                },
+            )
+        }
+        row("Access token", if (s.haToken.isBlank()) "Not set. Easier to paste from your phone" else "Saved") {
+            edit(
+                TextEdit("Long-lived access token", "", "Paste or type the token") { v ->
+                    if (v.isNotBlank()) Haven.settings.update { it.copy(haToken = v.trim()) }
+                    scope.launch { Haven.ha.refresh() }
+                },
+            )
+        }
+    }
+
+    fun LazyListScope.artRows() {
+        val c = s.artCare
+        row("Show", s.artSource.label, first = true) {
+            val all = ArtSource.values()
+            Haven.settings.update { it.copy(artSource = all[(it.artSource.ordinal + 1) % all.size]) }
+        }
+        row("Style", c.style.label) {
+            val all = ArtStyle.values()
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(style = all[(it.artCare.style.ordinal + 1) % all.size])) }
+        }
+        row("Change the picture every", "${s.artIntervalMin} min") {
+            Haven.settings.update { it.copy(artIntervalMin = cycle(listOf(1, 5, 15, 30, 60), it.artIntervalMin)) }
+        }
+        row("Start art mode", if (s.artIdleMin == 0) "Only when I choose it" else "After ${s.artIdleMin} min on the home screen") {
+            Haven.settings.update { it.copy(artIdleMin = cycle(listOf(0, 5, 10, 15, 30), it.artIdleMin)) }
+        }
+        row("Your photos", "${Haven.art.photos().size} on this TV. Add more from your phone", phoneOnly = true)
+        row("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
+            openSystem(Haven.app, AndroidSettings.ACTION_DREAM_SETTINGS)
+        }
+        row("TV type", "${c.panel.label} · " + if (c.strongProtection) "strong burn-in protection" else "standard burn-in protection") {
+            val next = if (c.panel == TvPanel.Oled) TvPanel.Lcd else TvPanel.Oled
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(panel = next)) }
+        }
+        row("Dim the art", if (c.dimPct == 0) "Off" else "${c.dimPct}% darker") {
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(dimPct = cycle(listOf(0, 15, 30, 45), it.artCare.dimPct))) }
+        }
+        row(
+            "Quiet hours",
+            if (!c.quietEnabled) "Off" else "${hourLabel(c.quietStart, s.use24h)} to ${hourLabel(c.quietEnd, s.use24h)} · ${c.quietMode.label.lowercase()}",
+        ) {
+            val presets = listOf(23 to 23, 23 to 6, 22 to 6, 0 to 7, 21 to 7)
+            val i = presets.indexOf(c.quietStart to c.quietEnd)
+            val (a, b) = presets[(i + 1) % presets.size]
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(quietStart = a, quietEnd = b)) }
+        }
+        row("During quiet hours", c.quietMode.label) {
+            val next = if (c.quietMode == QuietMode.Black) QuietMode.Dim else QuietMode.Black
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(quietMode = next)) }
+        }
+        row(
+            "Only when someone is in the room",
+            if (c.presenceEntity.isBlank()) "Off. Pick a motion sensor on your phone"
+            else "${Haven.ha.entities.value[c.presenceEntity]?.name ?: c.presenceEntity} · black after ${c.presenceDelayMin} min",
+            phoneOnly = true,
+        )
+        row("Time limit", if (c.maxHours == 0) "No limit" else "Black after ${c.maxHours} hours") {
+            Haven.settings.update { it.copy(artCare = it.artCare.copy(maxHours = cycle(listOf(0, 2, 4, 8), it.artCare.maxHours))) }
+        }
+    }
+
+    fun LazyListScope.briefingRows() {
+        val b = s.brief
+        row("Show the briefing now", "It also opens when you stop the alarm", first = true) { nav.go(Screen.Briefing) }
+        row(
+            "What it shows",
+            listOf(
+                "weather",
+                if (b.calendars.isEmpty()) "all calendars" else "${b.calendars.size} calendars",
+                if (b.commuteEntity.isBlank()) null else "commute",
+                if (b.statusEntities.isEmpty()) "locks and garage" else "${b.statusEntities.size} home items",
+                if (b.headlinesFeed.isBlank()) null else "headlines",
+                "your teams",
+            ).filterNotNull().joinToString(", ").replaceFirstChar { it.uppercase() },
+            phoneOnly = true,
+        )
+    }
+
+    fun LazyListScope.sportsRows() {
+        row(
+            "Your teams",
+            if (s.sports.teams.isEmpty()) "None yet. Choose them on your phone" else s.sports.teams.joinToString(", ") { it.name },
+            first = true,
+            phoneOnly = s.sports.teams.isEmpty(),
+        ) { if (s.sports.teams.isEmpty()) onPhone("Your teams") else nav.go(Screen.Sports) }
+        row("Score alerts", "Game start, scores and finals for your teams, over any app", toggle = s.sports.alerts) {
+            Haven.settings.update { it.copy(sports = it.sports.copy(alerts = !it.sports.alerts)) }
+        }
+        val ok = ScorePopup.canOverlay(Haven.app)
+        row(
+            "Show alerts on top of other apps",
+            if (ok) "Allowed" else "Not allowed, so alerts show as small messages. Select to allow",
+            toggle = ok,
+        ) { ScorePopup.requestPermission(Haven.app) }
+        row("Test an alert", "Shows a sample score alert") {
+            ScorePopup.show(Haven.app, "AWY 17 – 21 HOM", "Q3 4:12 · Sample alert from Haven")
+        }
+    }
+
+    fun LazyListScope.homeButtonRows() {
+        row(
+            "Haven Home button service",
+            if (serviceOn) "On. Home opens Haven" else "Off. Select, then turn on \"Haven Home button\"",
+            first = true,
+            toggle = serviceOn,
+        ) { openSystem(Haven.app, AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS) }
+        row("Open Haven when Home is pressed", "Press Home twice quickly for the original home screen", toggle = s.homeOverride) {
+            Haven.settings.update { it.copy(homeOverride = !it.homeOverride) }
+        }
+        if (!serviceOn) {
+            row("Switch keeps turning itself off?", "Select to reinstall Haven through Android's installer, then try the switch again") {
+                scope.launch { Haven.updater.checkAndInstall(reinstall = true) }
+            }
+        }
+        row("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") { HomeButtonService.openStockHome(Haven.app) }
+        row("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens() }
+    }
+
+    fun LazyListScope.appsRows() {
+        row("Hidden apps", if (s.hiddenApps.isEmpty()) "None" else "${s.hiddenApps.size} hidden. Select to show them again", first = true) {
+            Haven.settings.update { it.copy(hiddenApps = emptySet()) }
+        }
+        row("Clock", if (s.use24h) "24-hour" else "12-hour") {
+            Haven.settings.update { it.copy(use24h = !it.use24h) }
+        }
+        row("Android settings", "Network, display, sound and accessibility") { openSystem(Haven.app, AndroidSettings.ACTION_SETTINGS) }
+    }
+
+    fun LazyListScope.aboutRows() {
+        row(
+            "Updates",
+            when (val u = updateState) {
+                Updater.State.Idle -> "Version ${BuildConfig.VERSION_NAME}. Select to check"
+                Updater.State.Checking -> "Checking…"
+                Updater.State.UpToDate -> "Up to date (${BuildConfig.VERSION_NAME})"
+                is Updater.State.Downloading -> "Downloading ${u.version}… ${u.percent}%"
+                is Updater.State.Installing -> "Opening the installer for ${u.version}"
+                is Updater.State.Failed -> u.message
+            },
+            first = true,
+        ) { scope.launch { Haven.updater.checkAndInstall() } }
+    }
+}
+
+@Composable
+private fun RailItem(label: String, selected: Boolean, focusRequester: FocusRequester, onFocus: () -> Unit, onClick: () -> Unit) {
+    Focusable(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(72.dp),
+        color = C.Hearth,
+        focusedScale = 1.03f,
+        focusRequester = focusRequester,
+        onFocus = { if (it) onFocus() },
+    ) { focused ->
+        Row(
+            Modifier.fillMaxSize().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(
+                Modifier.size(6.dp, 32.dp).clip(RoundedCornerShape(3.dp))
+                    .background(if (selected) (if (focused) C.Ember else C.Lamp) else Color.Transparent),
+            )
+            Txt(label, T.Label, size = 26, color = if (focused) C.Ink else if (selected) C.Linen else C.Stone)
+        }
+    }
 }
 
 /** Lists the package / activity of recent screens, as seen by the Home button service. */
@@ -369,18 +441,17 @@ private fun RecentScreensDialog(onClose: () -> Unit) {
     val screens by HomeButtonService.recentScreens.collectAsState()
     val close = remember { FocusRequester() }
     HavenDialog(onClose) {
-        Column(
-            Modifier.width(1300.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(40.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Txt("Recent screens", 34, weight = FontWeight.ExtraBold)
+        Panel(Modifier.width(1300.dp)) {
+            Txt("Recent screens", T.Title)
             Txt(
                 if (screens.isEmpty()) "Nothing yet. Turn on the Home button service, open a few apps, then come back."
                 else "Newest first. Home apps on this box: " + HomeButtonService.stockHomePackages(Haven.app).joinToString(", ").ifBlank { "none" },
-                20, weight = FontWeight.Medium, color = C.Muted, maxLines = 3,
+                T.Body, color = C.Stone, maxLines = 3,
             )
-            for (line in screens) Txt(line, 20, weight = FontWeight.Medium)
-            PillButton("Close", onClose, selected = true, focusRequester = close)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (line in screens) Txt(line, T.Label)
+            }
+            Chip("Close", onClose, focusRequester = close)
         }
     }
     LaunchedEffect(Unit) {
@@ -390,26 +461,38 @@ private fun RecentScreensDialog(onClose: () -> Unit) {
 }
 
 @Composable
-private fun PhoneSetupPanel(server: SetupServer, modifier: Modifier) {
+private fun PhoneSetupPanel(server: SetupServer, hint: String?, modifier: Modifier) {
     val url by server.url.collectAsState()
-    Panel(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(Icons.Smartphone, 36.dp, C.Accent)
-            Txt("Set up from your phone", 30, weight = FontWeight.ExtraBold)
+    Panel(modifier, padding = 36.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Icon(Icons.Smartphone, 36.dp, C.Stone)
+            Txt("Set up from your phone", T.Title, size = 32, maxLines = 2)
         }
         Txt(
-            "Scan with your phone's camera (same Wi-Fi as the TV) to connect Home Assistant, pick this room's lights, upload photos and set the alarm.",
-            20, weight = FontWeight.Medium, color = C.Muted, maxLines = 4,
+            "Connect Home Assistant, choose lights, teams and photos, and set the alarm. Your phone must be on the same Wi-Fi as the TV.",
+            T.Body, color = C.Stone, maxLines = 5,
         )
         val u = url
         if (u == null) {
-            Txt("This TV isn't on a network yet.", 22, weight = FontWeight.Medium)
+            Txt("This TV isn't on a network yet.", T.Body)
         } else {
-            Box(
-                Modifier.size(300.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).padding(14.dp),
-            ) { QrCode(u, Modifier.fillMaxSize()) }
-            Txt("Or type this address:", 18, weight = FontWeight.Medium, color = C.Muted)
-            Txt(u.removePrefix("http://"), 24, weight = FontWeight.Bold, maxLines = 2)
+            Box(Modifier.size(264.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(16.dp)) {
+                QrCode(u, Modifier.fillMaxSize())
+            }
+            Column {
+                Txt("Or open", T.Label, color = C.Dust)
+                Txt(u.removePrefix("http://"), T.Numeric, maxLines = 2)
+            }
+        }
+        if (hint != null) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(C.LampSoft).padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Smartphone, 28.dp, C.Lamp)
+                Txt("Change “$hint” on your phone: scan the code above.", T.Label, color = C.Lamp, maxLines = 3)
+            }
         }
     }
 }
@@ -435,23 +518,20 @@ private fun TextEditDialog(e: TextEdit, onClose: () -> Unit) {
     var value by remember { mutableStateOf(e.initial) }
     val field = remember { FocusRequester() }
     HavenDialog(onClose) {
-        Column(
-            Modifier.width(1100.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(40.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Txt(e.title, 34, weight = FontWeight.ExtraBold)
+        Panel(Modifier.width(1100.dp)) {
+            Txt(e.title, T.Title)
             Box(
-                Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(16.dp)).background(C.CardHi).padding(horizontal = 24.dp),
+                Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(12.dp)).background(C.Raised).padding(horizontal = 28.dp),
                 contentAlignment = Alignment.CenterStart,
             ) {
-                if (value.isEmpty()) Txt(e.hint, 26, weight = FontWeight.Medium, color = C.Ring)
+                if (value.isEmpty()) Txt(e.hint, T.Body, color = C.Dust)
                 BasicTextField(
                     value = value,
                     onValueChange = { value = it },
                     modifier = Modifier.fillMaxWidth().focusRequester(field),
                     singleLine = true,
-                    textStyle = TextStyle(color = C.Text, fontSize = 26.sp, fontFamily = Manrope, fontWeight = FontWeight.SemiBold),
-                    cursorBrush = SolidColor(C.Accent),
+                    textStyle = T.Body.copy(color = C.Linen, fontSize = T.CardTitle.fontSize),
+                    cursorBrush = SolidColor(C.Lamp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = {
                         e.onSave(value)
@@ -460,11 +540,11 @@ private fun TextEditDialog(e: TextEdit, onClose: () -> Unit) {
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                PillButton("Save", {
+                Chip("Save", {
                     e.onSave(value)
                     onClose()
-                }, selected = true)
-                PillButton("Cancel", onClose)
+                })
+                Chip("Cancel", onClose)
             }
         }
     }
@@ -474,42 +554,43 @@ private fun TextEditDialog(e: TextEdit, onClose: () -> Unit) {
     }
 }
 
+/**
+ * A row in a settings list: title, current value, and a switch when it's on/off. [phoneOnly] rows show a phone
+ * icon; selecting one points at the QR code instead of doing nothing.
+ */
 @Composable
 fun SettingRow(
     title: String,
     value: String,
     modifier: Modifier = Modifier,
     toggle: Boolean? = null,
+    toggleEnabled: Boolean = true,
+    phoneOnly: Boolean = false,
     icon: ImageVector? = null,
     focusRequester: FocusRequester? = null,
     onClick: () -> Unit,
 ) {
     Focusable(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(if (value.isBlank()) 80.dp else 96.dp),
-        color = C.CardHi,
-        focusedColor = C.Line,
-        focusedScale = 1.02f,
+        modifier = modifier.fillMaxWidth().heightIn(min = 104.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
         focusRequester = focusRequester,
     ) { focused ->
         Row(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp),
+            Modifier.align(Alignment.CenterStart).fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            if (icon != null) Icon(icon, 32.dp, if (focused) C.Accent else C.Muted)
+            if (icon != null) Icon(icon, 32.dp, if (focused) C.Ink else C.Stone)
             Column(Modifier.weight(1f)) {
-                Txt(title, 24, weight = FontWeight.Bold)
-                if (value.isNotBlank()) Txt(value, 18, weight = FontWeight.Medium, color = C.Muted)
+                Txt(title, T.CardTitle, color = ink(focused), maxLines = 2)
+                if (value.isNotBlank()) Txt(value, T.Label, color = inkMuted(focused), maxLines = 3)
             }
-            if (toggle != null) Toggle(toggle)
+            if (phoneOnly) Icon(Icons.Smartphone, 32.dp, if (focused) C.Ink else C.Dust)
+            if (toggle != null) Toggle(toggle, focused, enabled = toggleEnabled)
         }
     }
-}
-
-@Composable
-private fun Section(title: String) {
-    Txt(title, 22, Modifier.padding(top = 18.dp, bottom = 2.dp), FontWeight.ExtraBold, C.Accent)
 }
 
 private fun hourLabel(h: Int, use24h: Boolean): String =

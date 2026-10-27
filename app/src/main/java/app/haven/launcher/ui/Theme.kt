@@ -12,40 +12,85 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.haven.launcher.R
 
-/** Colors from the Haven mockups (accent #7DD3FC on near-black). */
+/** Haven's colours (DESIGN.md): dark, warm and still. Lamp light is only for things that are on. */
 object C {
-    val Bg = Color(0xFF0D1014)
-    val Card = Color(0xFF171C23)
-    val CardHi = Color(0xFF1F2630)
-    val Line = Color(0xFF2F3946)
-    val Track = Color(0xFF3A4553)
-    val Ring = Color(0xFF5C6877)
-    val Text = Color(0xFFEEF1F5)
-    val Muted = Color(0xFFA3ADBA)
-    val Accent = Color(0xFF7DD3FC)
-    val Avatar = Color(0xFF2B4C7E)
-    val Warm = Color(0xFFF7B955)
-    val Danger = Color(0xFFFF7A70)
-    val Scrim = Color(0xD90D1014)
+    val Hearth = Color(0xFF14120F)
+    val Surface = Color(0xFF28241F)
+    val Raised = Color(0xFF35302A)
+    val Line = Color(0xFF4A433B)
+    val Track = Color(0xFF7E756B)
+    val Linen = Color(0xFFF2EDE4)
+    val Stone = Color(0xFFB9B0A3)
+    val Dust = Color(0xFF8F877B)
+    val Lamp = Color(0xFFF2B35E)
+    val LampSoft = Color(0xFF3A2D1C)
+    val Sage = Color(0xFFA8C49A)
+    val Clay = Color(0xFFE8795E)
+    val Scrim = Color(0xE614120F)
 
-    /** Card colors used when an app has no banner (from the "Continue watching" mockup row). */
-    val CardPalette = listOf(
-        Color(0xFF2B4C7E), Color(0xFF5B3F8C), Color(0xFF2F6B57), Color(0xFF8A5A2B), Color(0xFF6B2F3C), Color(0xFF566A82),
-    )
+    // On a focused (linen) surface.
+    val Ink = Hearth
+    val InkMuted = Color(0xFF5E564C)
+    val Ember = Color(0xFF8A4F0B)
+    val TrackOnLinen = Color(0xFFA39A8C)
+
+    // Art-mode materials.
+    val Plaster = Color(0xFFD9D2C5)
+    val Walnut = Color(0xFF3B2A1E)
+    val Mat = Color(0xFFF4F0E8)
+    val LabelInk = Color(0xFF3A332B)
 }
 
-val Manrope = FontFamily(
-    Font(R.font.manrope_medium, FontWeight.Medium),
-    Font(R.font.manrope_semibold, FontWeight.SemiBold),
-    Font(R.font.manrope_bold, FontWeight.Bold),
-    Font(R.font.manrope_extrabold, FontWeight.ExtraBold),
+/** Text colour on a control: hearth when the control is focused (linen), linen otherwise. */
+fun ink(focused: Boolean): Color = if (focused) C.Ink else C.Linen
+
+fun inkMuted(focused: Boolean): Color = if (focused) C.InkMuted else C.Stone
+
+/** Fraunces 36pt Soft SemiBold: titles and greetings. */
+val Fraunces = FontFamily(Font(R.font.fraunces_title, FontWeight.SemiBold))
+
+/** Fraunces 72pt Soft SemiBold: the clocks and other display sizes. */
+val FrauncesDisplay = FontFamily(Font(R.font.fraunces_display, FontWeight.SemiBold))
+
+/** Atkinson Hyperlegible Next: everything you read or act on. */
+val Atkinson = FontFamily(
+    Font(R.font.atkinson_medium, FontWeight.Medium),
+    Font(R.font.atkinson_semibold, FontWeight.SemiBold),
+    Font(R.font.atkinson_bold, FontWeight.Bold),
 )
+
+private fun style(family: FontFamily, size: Int, weight: FontWeight, line: Float, tracking: Float = 0f, features: String? = null) =
+    TextStyle(
+        fontFamily = family,
+        fontSize = size.sp,
+        fontWeight = weight,
+        lineHeight = line.em,
+        letterSpacing = tracking.sp,
+        fontFeatureSettings = features,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
+    )
+
+/** The type scale (DESIGN.md). Sizes are design pixels; nothing you need to read is under 24. */
+object T {
+    val Display = style(FrauncesDisplay, 240, FontWeight.SemiBold, 1.0f, -4f)
+    val Clock = style(FrauncesDisplay, 88, FontWeight.SemiBold, 1.0f, -1f)
+    val Headline = style(Fraunces, 56, FontWeight.SemiBold, 1.15f)
+    val Title = style(Fraunces, 36, FontWeight.SemiBold, 1.2f)
+    val CardTitle = style(Atkinson, 28, FontWeight.Bold, 1.25f)
+    val Body = style(Atkinson, 26, FontWeight.Medium, 1.35f)
+    val Label = style(Atkinson, 24, FontWeight.SemiBold, 1.3f)
+
+    /** Tabular figures, for numbers that tick or line up: timers, scores, times in a column. */
+    val Numeric = style(Atkinson, 26, FontWeight.Bold, 1.25f, features = "tnum")
+}
 
 /**
  * Lays everything out on the mockups' 1920x1080 canvas: inside, 1.dp (and 1.sp) is one design pixel,
@@ -61,29 +106,21 @@ fun DesignCanvas(modifier: Modifier = Modifier, content: @Composable () -> Unit)
     }
 }
 
+/** All text goes through here: a style from [T], optionally at another [size]. */
 @Composable
 fun Txt(
     text: String,
-    size: Int,
+    style: TextStyle = T.Body,
     modifier: Modifier = Modifier,
-    weight: FontWeight = FontWeight.SemiBold,
-    color: Color = C.Text,
+    color: Color = C.Linen,
     maxLines: Int = 1,
     align: TextAlign = TextAlign.Start,
-    spacing: Float = 0f,
+    size: Int? = null,
 ) {
     BasicText(
         text = text,
         modifier = modifier,
-        style = TextStyle(
-            color = color,
-            fontSize = size.sp,
-            fontWeight = weight,
-            fontFamily = Manrope,
-            textAlign = align,
-            letterSpacing = spacing.sp,
-            lineHeight = (size * 1.3f).sp,
-        ),
+        style = style.copy(color = color, textAlign = align, fontSize = size?.sp ?: style.fontSize),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )

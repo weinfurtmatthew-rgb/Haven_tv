@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,7 +35,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -49,7 +50,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Lights and speakers for this room, from the LightsSpeakers mockup. */
+/** Lights and speakers for this room: two columns of rows, no boxes around them. */
 @Composable
 fun LightsScreen(nav: Nav) {
     val settings by Haven.settings.state.collectAsState()
@@ -74,94 +75,113 @@ fun LightsScreen(nav: Nav) {
         runCatching { firstFocus.requestFocus() }.recoverCatching { backFocus.requestFocus() }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 56.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
         ScreenHeader("Lights and speakers", settings.roomName, onBack = { nav.go(Screen.Home) }, backFocus = backFocus)
         when (val st = status) {
             HaStatus.NotConfigured -> EmptyState(
                 "Connect Home Assistant",
-                "Haven controls lights, scenes and speakers through Home Assistant. Open Settings and choose \"Set up from your phone\".",
+                "Haven turns lights, scenes and speakers on and off through Home Assistant. Open Settings and scan the code with your phone to connect it.",
                 "Open settings", firstFocus,
             ) { nav.go(Screen.Settings) }
             is HaStatus.Failed -> EmptyState(
-                "Can't reach Home Assistant", st.message, "Try again", firstFocus,
+                "Can't reach Home Assistant", "${st.message}. Check the address in Settings, or try again.", "Try again", firstFocus,
             ) { scope.launch { Haven.ha.refresh() } }
-            else -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-                LightsPanel(Modifier.weight(1f).fillMaxHeight(), scope, firstFocus)
-                SpeakersPanel(Modifier.weight(1f).fillMaxHeight(), scope)
+            else -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
+                LightsColumn(Modifier.weight(1f).fillMaxHeight(), scope, firstFocus)
+                SpeakersColumn(Modifier.weight(1f).fillMaxHeight(), scope)
             }
         }
     }
 }
 
 @Composable
-private fun LightsPanel(modifier: Modifier, scope: CoroutineScope, firstFocus: FocusRequester) {
-    val s = Haven.settings.value
+private fun LightsColumn(modifier: Modifier, scope: CoroutineScope, firstFocus: FocusRequester) {
+    // Read the states here, not only in the screen: otherwise Compose skips this column and toggles never show.
+    val s by Haven.settings.state.collectAsState()
+    Haven.ha.entities.collectAsState().value
     val lights = Haven.ha.roomLights(s)
     val scenes = Haven.ha.roomScenes(s)
     var active by remember { mutableStateOf<String?>(null) }
     val pending = remember { HashMap<String, Job>() }
 
-    Panel(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(Icons.Lightbulb, 36.dp, C.Accent)
-            Txt("Lights", 32, weight = FontWeight.ExtraBold)
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        SectionTitle(
+            "Lights",
+            trailing = when {
+                lights.isEmpty() -> null
+                lights.none { it.isOn } -> "All off"
+                else -> "${lights.count { it.isOn }} of ${lights.size} on"
+            },
+        )
+        // Negative offset + padding: the row scrolls edge to edge, so a focused chip's lift is never clipped.
+        LazyRow(
+            Modifier.offset(x = (-16).dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        ) {
             itemsIndexed(scenes, key = { _, e -> e.id }) { i, scene ->
-                PillButton(scene.name, {
+                Chip(scene.name, {
                     active = scene.id
                     scope.launch { Haven.ha.activate(scene); delay(800); Haven.ha.refresh() }
                 }, selected = active == scene.id, focusRequester = if (i == 0) firstFocus else null)
             }
             item(key = "bright") {
-                PillButton("Bright", {
+                Chip("Bright", {
                     active = "bright"
                     scope.launch { Haven.ha.setLights(lights, on = true, brightnessPct = 100); delay(600); Haven.ha.refresh() }
                 }, selected = active == "bright", focusRequester = if (scenes.isEmpty()) firstFocus else null)
             }
             item(key = "off") {
-                PillButton("All off", {
+                Chip("All off", {
                     active = "off"
                     scope.launch { Haven.ha.setLights(lights.filter { it.isOn }, on = false); delay(600); Haven.ha.refresh() }
                 }, selected = active == "off")
             }
         }
         if (lights.isEmpty()) {
-            Txt(
-                "No lights found for this room. Pick the room's Home Assistant area in Settings.",
-                22, weight = FontWeight.Medium, color = C.Muted, maxLines = 3,
-            )
+            Txt("No lights in this room. Pick the room's Home Assistant area in Settings.", T.Body, color = C.Stone, maxLines = 3)
         } else {
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                items(lights, key = { it.id }) { light ->
-                    LightRow(
-                        light,
-                        onToggle = {
-                            active = null
-                            scope.launch { Haven.ha.setLight(light, !light.isOn, if (!light.isOn) light.brightnessPct else null) }
-                        },
-                        onAdjust = { step ->
-                            val current = if (light.isOn) light.brightnessPct ?: 100 else 0
-                            val target = (current + step).coerceIn(0, 100)
-                            if (target == current) {
-                                false
-                            } else {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    Modifier.offset(x = (-16).dp).fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                ) {
+                    items(lights, key = { it.id }) { light ->
+                        LightRow(
+                            light,
+                            onToggle = {
                                 active = null
-                                Haven.ha.assume(
-                                    light.copyWith(if (target > 0) "on" else "off", mapOf("brightness" to target * 255 / 100)),
-                                )
-                                pending.remove(light.id)?.cancel()
-                                pending[light.id] = scope.launch {
-                                    delay(350)
-                                    Haven.ha.setLight(light, target > 0, target)
+                                scope.launch { Haven.ha.setLight(light, !light.isOn, if (!light.isOn) light.brightnessPct else null) }
+                            },
+                            onAdjust = { step ->
+                                val now = Haven.ha.entities.value[light.id] ?: light
+                                val current = if (now.isOn) now.brightnessPct ?: 100 else 0
+                                val target = (current + step).coerceIn(0, 100)
+                                if (target == current) {
+                                    false
+                                } else {
+                                    active = null
+                                    Haven.ha.assume(
+                                        now.copyWith(if (target > 0) "on" else "off", mapOf("brightness" to target * 255 / 100)),
+                                    )
+                                    pending.remove(light.id)?.cancel()
+                                    pending[light.id] = scope.launch {
+                                        delay(350)
+                                        Haven.ha.setLight(light, target > 0, target)
+                                    }
+                                    true
                                 }
-                                true
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
+                BottomFade(48.dp)
             }
-            Txt("OK turns a light on or off.  ◀ ▶ changes brightness.", 18, weight = FontWeight.Medium, color = C.Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                KeyHint("on or off", key = "OK")
+                KeyHint("brightness", icon = Icons.ChevronsLeftRight)
+            }
         }
     }
 }
@@ -177,75 +197,86 @@ private fun LightRow(e: HaEntity, onToggle: () -> Unit, onAdjust: (Int) -> Boole
     }
     Focusable(
         onClick = onToggle,
-        modifier = Modifier.fillMaxWidth().height(120.dp),
-        color = C.CardHi,
-        focusedColor = C.Line,
-        focusedScale = 1.02f,
+        modifier = Modifier.fillMaxWidth().height(112.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
         onKey = { ev -> e.dimmable && adjustKey(ev, onAdjust, 10) },
-    ) {
+    ) { focused ->
         Row(
             Modifier.fillMaxSize().padding(horizontal = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            Column(Modifier.width(220.dp)) {
-                Txt(e.name, 24, weight = FontWeight.Bold)
-                Txt(status, 18, weight = FontWeight.Medium, color = C.Muted)
+            Column(Modifier.width(260.dp)) {
+                Txt(e.name, T.CardTitle, color = ink(focused))
+                Txt(status, T.Label, color = if (e.isOn && !focused) C.Lamp else inkMuted(focused))
             }
-            if (e.dimmable) LevelBar(pct / 100f, Modifier.weight(1f)) else Box(Modifier.weight(1f))
-            Toggle(e.isOn)
+            if (e.dimmable) LevelBar(pct / 100f, Modifier.weight(1f), focused) else Box(Modifier.weight(1f))
+            Toggle(e.isOn, focused)
         }
     }
 }
 
 @Composable
-private fun SpeakersPanel(modifier: Modifier, scope: CoroutineScope) {
-    val s = Haven.settings.value
+private fun SpeakersColumn(modifier: Modifier, scope: CoroutineScope) {
+    val s by Haven.settings.state.collectAsState()
+    Haven.ha.entities.collectAsState().value
     val speakers = Haven.ha.roomSpeakers(s)
     val pending = remember { HashMap<String, Job>() }
-    Panel(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(Icons.Speaker, 36.dp, C.Accent)
-            Txt("Speakers", 32, weight = FontWeight.ExtraBold)
-        }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        SectionTitle("Speakers", trailing = speakers.count { it.isOn }.takeIf { speakers.isNotEmpty() }?.let { "$it of ${speakers.size} on" })
         val playing = speakers.firstOrNull { it.state == "playing" }
         if (playing != null) {
             val title = playing.attrs.optString("media_title")
             val by = playing.attrs.optString("media_artist").ifBlank { playing.attrs.optString("app_name") }
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.CardHi).padding(horizontal = 28.dp, vertical = 22.dp),
+            Row(
+                Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(12.dp)).background(C.LampSoft).padding(horizontal = 28.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                Txt("Playing on ${playing.name}", 26, weight = FontWeight.Bold)
-                Txt(listOf(title, by).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Playing" }, 18, weight = FontWeight.Medium, color = C.Muted)
+                Icon(Icons.Music, 32.dp, C.Lamp)
+                Txt(listOf(title, by).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Playing" }, T.Body, Modifier.weight(1f))
+                Txt(playing.name, T.Label, color = C.Lamp)
             }
         }
         if (speakers.isEmpty()) {
-            Txt("No speakers found for this room.", 22, weight = FontWeight.Medium, color = C.Muted)
+            Txt("No speakers in this room.", T.Body, color = C.Stone)
         } else {
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
-                items(speakers, key = { it.id }) { sp ->
-                    SpeakerRow(
-                        sp,
-                        onToggle = { scope.launch { Haven.ha.setPower(sp, !sp.isOn) } },
-                        onAdjust = { step ->
-                            val current = ((sp.volume ?: 0f) * 100).toInt()
-                            val target = (current + step).coerceIn(0, 100)
-                            if (target == current || !sp.canSetVolume) {
-                                false
-                            } else {
-                                Haven.ha.assume(sp.copyWith(attrs = mapOf("volume_level" to target / 100.0)))
-                                pending.remove(sp.id)?.cancel()
-                                pending[sp.id] = scope.launch {
-                                    delay(300)
-                                    Haven.ha.setVolume(sp, target / 100f)
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    Modifier.offset(x = (-16).dp).fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+                ) {
+                    items(speakers, key = { it.id }) { sp ->
+                        SpeakerRow(
+                            sp,
+                            onToggle = { scope.launch { Haven.ha.setPower(sp, !sp.isOn) } },
+                            onAdjust = { step ->
+                                val now = Haven.ha.entities.value[sp.id] ?: sp
+                                val current = ((now.volume ?: 0f) * 100).toInt()
+                                val target = (current + step).coerceIn(0, 100)
+                                if (target == current || !now.canSetVolume) {
+                                    false
+                                } else {
+                                    Haven.ha.assume(now.copyWith(attrs = mapOf("volume_level" to target / 100.0)))
+                                    pending.remove(sp.id)?.cancel()
+                                    pending[sp.id] = scope.launch {
+                                        delay(300)
+                                        Haven.ha.setVolume(sp, target / 100f)
+                                    }
+                                    true
                                 }
-                                true
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
+                BottomFade(48.dp)
             }
-            Txt("OK turns a speaker on or off.  ◀ ▶ changes volume.", 18, weight = FontWeight.Medium, color = C.Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                KeyHint("on or off", key = "OK")
+                KeyHint("volume", icon = Icons.ChevronsLeftRight)
+            }
         }
     }
 }
@@ -261,24 +292,22 @@ private fun SpeakerRow(e: HaEntity, onToggle: () -> Unit, onAdjust: (Int) -> Boo
     }
     Focusable(
         onClick = onToggle,
-        modifier = Modifier.fillMaxWidth().height(84.dp),
-        color = if (e.isOn) C.CardHi else C.Card,
-        focusedColor = C.Line,
-        focusedScale = 1.02f,
-        restingBorder = if (e.isOn) androidx.compose.ui.graphics.Color.Transparent else C.Line,
+        modifier = Modifier.fillMaxWidth().height(112.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
         onKey = { ev -> adjustKey(ev, onAdjust, 5) },
-    ) {
+    ) { focused ->
         Row(
             Modifier.fillMaxSize().padding(horizontal = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            CheckDot(e.isOn)
-            Column(Modifier.width(240.dp)) {
-                Txt(e.name, 22, weight = FontWeight.Bold)
-                Txt(sub, 17, weight = FontWeight.Medium, color = C.Muted)
+            Column(Modifier.width(260.dp)) {
+                Txt(e.name, T.CardTitle, color = ink(focused))
+                Txt(sub, T.Label, color = if (e.state == "playing" && !focused) C.Lamp else inkMuted(focused))
             }
-            if (e.canSetVolume) LevelBar(if (e.isOn) e.volume ?: 0f else 0f, Modifier.weight(1f), height = 10.dp)
+            if (e.canSetVolume) LevelBar(if (e.isOn) e.volume ?: 0f else 0f, Modifier.weight(1f), focused) else Box(Modifier.weight(1f))
+            Toggle(e.isOn, focused)
         }
     }
 }
@@ -292,17 +321,18 @@ private fun adjustKey(ev: KeyEvent, onAdjust: (Int) -> Boolean, step: Int): Bool
     }
 }
 
+/** Something isn't set up yet: the doorway mark, what's missing, and the one thing to do about it. */
 @Composable
 fun EmptyState(title: String, body: String, action: String, focus: FocusRequester, onAction: () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().padding(top = 120.dp),
+        Modifier.fillMaxWidth().padding(top = 96.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Icon(Icons.House, 72.dp, C.Accent)
-        Txt(title, 40, weight = FontWeight.ExtraBold)
-        Txt(body, 24, Modifier.width(1000.dp), FontWeight.Medium, C.Muted, maxLines = 4, align = androidx.compose.ui.text.style.TextAlign.Center)
-        Spacer(height = 12.dp)
-        PillButton(action, onAction, selected = true, focusRequester = focus)
+        HavenMark(Modifier.width(76.dp).height(92.dp))
+        Txt(title, T.Headline)
+        Txt(body, T.Body, Modifier.width(1000.dp), C.Stone, maxLines = 4, align = TextAlign.Center)
+        Spacer(height = 16.dp)
+        Chip(action, onAction, focusRequester = focus)
     }
 }

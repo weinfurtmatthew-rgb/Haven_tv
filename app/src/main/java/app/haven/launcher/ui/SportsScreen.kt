@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,9 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -45,6 +43,7 @@ import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.League
 import app.haven.launcher.sports.ScoreAlerts
+import app.haven.launcher.sports.Side
 import app.haven.launcher.sports.Team
 import app.haven.launcher.sports.Watch
 import coil.compose.AsyncImage
@@ -53,8 +52,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-private val LiveRed = Color(0xFFFF5A5F)
 
 /** Followed teams' games on the left (OK opens the game), and any league's games today on the right. */
 @Composable
@@ -85,56 +82,79 @@ fun SportsScreen(nav: Nav) {
     }
     val board by produceState(emptyList<Game>(), league) {
         while (true) {
-            value = Haven.sports.provider.scoreboard(league, LocalDate.now())
+            value = runCatching { Haven.sports.board(league) }.getOrDefault(emptyList())
             delay(if (value.any { it.state == GameState.Live }) 30_000L else 5 * 60_000L)
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 56.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
         ScreenHeader("Sports", if (followed.isEmpty()) null else followed.joinToString(", ") { it.abbr }, onBack = { nav.go(Screen.Home) }, backFocus = backFocus)
         if (followed.isEmpty()) {
             EmptyState(
                 "Pick your teams",
-                "Open Settings and scan the code with your phone to choose teams from the NFL, MLB, NHL, NBA, Premier League, La Liga and Champions League.",
+                "Open Settings and scan the code with your phone to follow teams in the NFL, MLB, NHL, NBA, Premier League, La Liga and Champions League.",
                 "Open settings", first,
             ) { nav.go(Screen.Settings) }
             return@Column
         }
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-            Column(Modifier.width(1000.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(96.dp)) {
+            Column(Modifier.width(960.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 SectionTitle("Your teams")
-                if (games.isEmpty()) {
-                    Txt("Looking for games…", 24, weight = FontWeight.Medium, color = C.Muted)
-                }
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 6.dp)) {
-                    items(games, key = { it.id }) { g ->
-                        GameCard(g, if (g == games.first()) first else null) { Watch.open(ctx, g) }
+                if (games.isEmpty()) Txt("Looking for games…", T.Body, color = C.Stone)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        Modifier.offset(x = (-16).dp).fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 64.dp),
+                    ) {
+                        items(games, key = { it.id }) { g ->
+                            GameCard(g, if (g == games.first()) first else null) { Watch.open(ctx, g) }
+                        }
                     }
+                    BottomFade(48.dp)
                 }
             }
-            Panel(Modifier.weight(1f).fillMaxHeight()) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                SectionTitle("Today")
+                LazyRow(
+                    Modifier.offset(x = (-16).dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                ) {
                     items(League.values().toList(), key = { it.id }) { l ->
-                        PillButton(l.label, { league = l }, selected = l == league, height = 48.dp)
+                        Chip(l.label, { league = l }, selected = l == league, height = 56.dp)
                     }
                 }
-                Txt("${league.label} today", 26, weight = FontWeight.ExtraBold)
-                if (board.isEmpty()) Txt("No games today", 22, weight = FontWeight.Medium, color = C.Muted)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 4.dp)) {
-                    items(board, key = { it.id }) { g -> CompactGame(g) { Watch.open(ctx, g) } }
+                if (board.isEmpty()) Txt("No ${league.label} games today", T.Body, color = C.Stone)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        Modifier.offset(x = (-16).dp).fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 64.dp),
+                    ) {
+                        items(board, key = { it.id }) { g -> CompactGame(g) { Watch.open(ctx, g) } }
+                    }
+                    BottomFade(48.dp)
                 }
             }
         }
     }
 }
 
+/** A team's logo, in ESPN's dark-background version when there is one. */
 @Composable
 private fun TeamLogo(team: Team, size: Dp) {
+    var model by remember(team.logo) { mutableStateOf(team.darkLogo) }
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (team.logo.isNotBlank()) {
-            AsyncImage(model = team.logo, contentDescription = null, modifier = Modifier.size(size))
+            AsyncImage(
+                model = model,
+                contentDescription = null,
+                modifier = Modifier.size(size),
+                onError = { if (model != team.logo) model = team.logo },
+            )
         } else {
-            Txt(team.abbr, (size.value / 3).toInt(), weight = FontWeight.Bold)
+            Txt(team.abbr, T.Label)
         }
     }
 }
@@ -155,41 +175,38 @@ fun gameStatus(g: Game, use24h: Boolean): String = when (g.state) {
 }
 
 @Composable
+private fun TeamScore(side: Side, showScore: Boolean, focused: Boolean) {
+    Row(Modifier.width(300.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        TeamLogo(side.team, 64.dp)
+        Txt(side.team.abbr, T.CardTitle, Modifier.weight(1f), ink(focused), size = 32)
+        if (showScore) Txt(side.score ?: "", T.Numeric, color = ink(focused), size = 48)
+    }
+}
+
+@Composable
 private fun GameCard(g: Game, focus: FocusRequester?, onClick: () -> Unit) {
     val use24 = Haven.settings.value.use24h
+    val scored = g.state != GameState.Scheduled
     Focusable(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(150.dp),
-        color = C.Card,
-        focusedColor = C.CardHi,
-        focusedScale = 1.02f,
+        modifier = Modifier.fillMaxWidth().height(144.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
         focusRequester = focus,
-    ) {
+    ) { focused ->
         Row(
             Modifier.fillMaxSize().padding(horizontal = 32.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(40.dp),
         ) {
-            TeamLogo(g.away.team, 72.dp)
-            Column(Modifier.width(150.dp)) {
-                Txt(g.away.team.abbr, 30, weight = FontWeight.ExtraBold)
-                if (g.state != GameState.Scheduled) Txt(g.away.score ?: "", 40, weight = FontWeight.Bold)
-            }
-            Txt("at", 24, weight = FontWeight.Medium, color = C.Muted)
-            TeamLogo(g.home.team, 72.dp)
-            Column(Modifier.width(150.dp)) {
-                Txt(g.home.team.abbr, 30, weight = FontWeight.ExtraBold)
-                if (g.state != GameState.Scheduled) Txt(g.home.score ?: "", 40, weight = FontWeight.Bold)
-            }
+            TeamScore(g.first, scored, focused)
+            TeamScore(g.second, scored, focused)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (g.state == GameState.Live) Box(Modifier.size(14.dp).clip(CircleShape).background(LiveRed))
-                    Txt(gameStatus(g, use24), 24, weight = FontWeight.Bold, color = if (g.state == GameState.Live) LiveRed else C.Text)
+                    if (g.state == GameState.Live) Box(Modifier.size(12.dp).clip(CircleShape).background(if (focused) C.Ink else C.Clay))
+                    Txt(gameStatus(g, use24), T.Label, color = if (g.state == GameState.Live && !focused) C.Clay else ink(focused))
                 }
-                Txt(
-                    listOfNotNull(g.league.label, g.broadcasts.firstOrNull()).joinToString(" · "),
-                    20, weight = FontWeight.Medium, color = C.Muted,
-                )
+                Txt(listOfNotNull(g.league.label, g.broadcasts.firstOrNull()).joinToString(" · "), T.Label, color = inkMuted(focused))
             }
         }
     }
@@ -200,21 +217,26 @@ private fun CompactGame(g: Game, onClick: () -> Unit) {
     val use24 = Haven.settings.value.use24h
     Focusable(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(76.dp),
-        color = C.CardHi,
-        focusedColor = C.Line,
-        focusedScale = 1.02f,
-    ) {
+        modifier = Modifier.fillMaxWidth().height(88.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
+    ) { focused ->
         Row(
-            Modifier.fillMaxSize().padding(horizontal = 22.dp),
+            Modifier.fillMaxSize().padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            TeamLogo(g.away.team, 36.dp)
-            Txt(if (g.state == GameState.Scheduled) g.away.team.abbr else "${g.away.team.abbr} ${g.away.score ?: ""}", 22, Modifier.width(110.dp), FontWeight.Bold)
-            TeamLogo(g.home.team, 36.dp)
-            Txt(if (g.state == GameState.Scheduled) g.home.team.abbr else "${g.home.team.abbr} ${g.home.score ?: ""}", 22, Modifier.width(110.dp), FontWeight.Bold)
-            Txt(gameStatus(g, use24), 20, Modifier.weight(1f), FontWeight.Medium, if (g.state == GameState.Live) LiveRed else C.Muted)
+            for (side in listOf(g.first, g.second)) {
+                TeamLogo(side.team, 40.dp)
+                Txt(
+                    if (g.state == GameState.Scheduled) side.team.abbr else "${side.team.abbr} ${side.score ?: ""}",
+                    T.Numeric, Modifier.width(120.dp), ink(focused),
+                )
+            }
+            Txt(
+                gameStatus(g, use24), T.Label, Modifier.weight(1f), if (g.state == GameState.Live && !focused) C.Clay else inkMuted(focused),
+                align = androidx.compose.ui.text.style.TextAlign.End,
+            )
         }
     }
 }

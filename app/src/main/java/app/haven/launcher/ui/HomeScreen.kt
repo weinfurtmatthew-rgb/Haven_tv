@@ -5,8 +5,9 @@ import android.content.Intent
 import android.provider.Settings as AndroidSettings
 import android.os.SystemClock
 import android.text.format.DateFormat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,16 +16,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -33,14 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -61,16 +64,23 @@ import app.haven.launcher.sports.ScoreAlerts
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Remembers which home tile had focus, so coming back from a screen lands on the same tile. */
+/**
+ * Where focus is on the home screen. [lastKey] is restored when you come back from another screen; it only
+ * records focus that followed a key press, because Android hands the window's first focus to whatever control
+ * comes first (the room chip), and that must not be remembered as the user's choice.
+ */
 private object HomeFocus {
     var lastKey: String? = null
+    var current: String? = null
+    var userMoved = false
 }
+
+private const val SIDE = 116
 
 @Composable
 fun HomeScreen(nav: Nav) {
     val settings by Haven.settings.state.collectAsState()
     val apps by Haven.apps.apps.collectAsState()
-    val lastUsed by Haven.apps.lastUsed.collectAsState()
     val haStatus by Haven.ha.status.collectAsState()
     Haven.ha.entities.collectAsState().value // recompose on Home Assistant updates
     Haven.ha.areas.collectAsState().value
@@ -82,7 +92,14 @@ fun HomeScreen(nav: Nav) {
 
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun req(key: String) = requesters.getOrPut(key) { FocusRequester() }
-    fun track(key: String): (Boolean) -> Unit = { f -> if (f) HomeFocus.lastKey = key }
+    fun track(key: String): (Boolean) -> Unit = { f ->
+        if (f) {
+            HomeFocus.current = key
+            if (HomeFocus.userMoved) HomeFocus.lastKey = key
+        }
+    }
+    val keyPressed = remember { BooleanArray(1) }
+    DisposableEffect(Unit) { onDispose { HomeFocus.current = null } }
 
     val visibleApps = apps.filter { it.pkg !in settings.hiddenApps }
     val byPkg = apps.associateBy { it.pkg }
@@ -91,6 +108,7 @@ fun HomeScreen(nav: Nav) {
 
     val favState = rememberLazyListState()
     val appState = rememberLazyListState()
+    val roomState = rememberLazyListState()
 
     // First run: pin a few apps so the top row isn't empty.
     LaunchedEffect(apps.isNotEmpty()) {
@@ -126,50 +144,63 @@ fun HomeScreen(nav: Nav) {
         }
     }
 
-    // Initial focus, and "Home pressed while already home" -> back to the start of the rows.
+    // Focus the first favorite (DIRECTV on the DIRECTV box), or whatever the user had focused before leaving.
+    // "Home pressed while already home" starts over from the first favorite.
     LaunchedEffect(nav.homeResets, apps.isNotEmpty(), favorites.isNotEmpty()) {
         if (nav.homeResets != lastResetSeen) {
             lastResetSeen = nav.homeResets
             HomeFocus.lastKey = null
             favState.scrollToItem(0)
             appState.scrollToItem(0)
+            roomState.scrollToItem(0)
         }
-        delay(30)
-        val key = HomeFocus.lastKey
-        val ok = key != null && runCatching { requesters[key]?.requestFocus() != null }.getOrDefault(false)
-        if (!ok) {
-            runCatching { req("fav:0").requestFocus() }
-                .recoverCatching { req("app:0").requestFocus() }
-                .recoverCatching { req("top:settings").requestFocus() }
+        val fallback = when {
+            favorites.isNotEmpty() -> "fav:0"
+            visibleApps.isNotEmpty() -> "app:0"
+            else -> "top:settings"
+        }
+        var target = HomeFocus.lastKey ?: fallback
+        // Ask until it sticks: the window may give its first focus to the top bar after this runs.
+        for (attempt in 0 until 30) {
+            if (HomeFocus.current == target || (attempt > 0 && keyPressed[0])) break
+            val ok = runCatching { req(target).requestFocus() }.isSuccess
+            if (!ok && attempt >= 4) target = fallback
+            delay(if (attempt == 0) 30L else 100L)
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(top = 56.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(top = 48.dp)
+            .onPreviewKeyEvent {
+                if (it.type == KeyEventType.KeyDown) {
+                    HomeFocus.userMoved = true
+                    keyPressed[0] = true
+                }
+                false
+            },
+    ) {
         TopBar(settings, haStatus, update != null, ::req, ::track, nav)
 
         // ---- Favorites
-        SectionTitle("Favorites", Modifier.padding(start = 96.dp, top = 30.dp, bottom = 8.dp))
+        SectionTitle("Favorites", Modifier.padding(start = SIDE.dp, top = 32.dp))
         if (favorites.isEmpty()) {
-            Box(
-                Modifier.padding(start = 96.dp, top = 12.dp).size(520.dp, 292.dp)
-                    .clip(RoundedCornerShape(16.dp)).background(C.Card),
-                contentAlignment = Alignment.Center,
-            ) {
-                Txt("Hold OK on an app below to pin it here", 24, color = C.Muted, weight = FontWeight.Medium)
+            Panel(Modifier.padding(start = SIDE.dp, top = 24.dp, bottom = 55.dp).size(400.dp, 225.dp), padding = 32.dp) {
+                Txt("Hold OK on an app below to pin it here.", T.Body, color = C.Stone, maxLines = 3)
             }
         } else {
             LazyRow(
                 state = favState,
-                contentPadding = PaddingValues(start = 96.dp, end = 96.dp, top = 12.dp, bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalAlignment = Alignment.Top,
+                contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
             ) {
                 itemsIndexed(favorites, key = { _, a -> "fav:" + a.pkg }) { i, app ->
-                    FavoriteCard(
+                    AppCard(
                         app = app,
-                        big = i == 0,
-                        index = i,
-                        subtitle = lastOpened(lastUsed[app.pkg]),
+                        width = 400.dp,
+                        height = 225.dp,
+                        iconSize = 96.dp,
                         onClick = { Haven.apps.launch(app) },
                         onLongClick = { menuFor = app },
                         focusRequester = req("fav:$i"),
@@ -180,20 +211,29 @@ fun HomeScreen(nav: Nav) {
         }
 
         // ---- Apps
-        SectionTitle("Apps", Modifier.padding(start = 96.dp, top = 18.dp, bottom = 8.dp))
+        SectionTitle("Apps", Modifier.padding(start = SIDE.dp, top = 8.dp))
         LazyRow(
             state = appState,
-            contentPadding = PaddingValues(start = 96.dp, end = 96.dp, top = 10.dp, bottom = 10.dp),
+            contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             itemsIndexed(visibleApps, key = { _, a -> "app:" + a.pkg }) { i, app ->
-                AppTile(app, i, { Haven.apps.launch(app) }, { menuFor = app }, req("app:$i"), track("app:$i"))
+                AppCard(
+                    app = app,
+                    width = 256.dp,
+                    height = 144.dp,
+                    iconSize = 72.dp,
+                    onClick = { Haven.apps.launch(app) },
+                    onLongClick = { menuFor = app },
+                    focusRequester = req("app:$i"),
+                    onFocus = track("app:$i"),
+                )
             }
         }
 
         // ---- This room
-        SectionTitle(settings.roomName.ifBlank { "This room" }, Modifier.padding(start = 96.dp, top = 12.dp, bottom = 8.dp))
-        RoomRow(settings, haStatus, sleepEndsAt, games, nav, ::req, ::track)
+        SectionTitle(settings.roomName.ifBlank { "This room" }, Modifier.padding(start = SIDE.dp, top = 8.dp))
+        RoomRow(settings, haStatus, sleepEndsAt, games, nav, roomState, ::req, ::track)
     }
 
     menuFor?.let { app ->
@@ -209,178 +249,108 @@ private fun TopBar(
     haStatus: HaStatus,
     updateReady: Boolean,
     req: (String) -> FocusRequester,
-    rememberFocus: (String) -> (Boolean) -> Unit,
+    track: (String) -> (Boolean) -> Unit,
     nav: Nav,
 ) {
     val ctx = LocalContext.current
     val now by rememberNow()
     val use24 = settings.use24h || DateFormat.is24HourFormat(ctx)
+    Haven.ha.entities.collectAsState().value // weather
     Row(
-        Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 96.dp),
+        Modifier.fillMaxWidth().height(96.dp).padding(horizontal = SIDE.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Txt(formatTime(now, use24), 56, Modifier.alignByBaseline(), FontWeight.ExtraBold, spacing = -1f)
-            if (!use24) Txt(amPm(now), 24, Modifier.alignByBaseline().padding(start = 20.dp), FontWeight.SemiBold, C.Muted)
-            Txt(formatDate(now), 26, Modifier.alignByBaseline().padding(start = 32.dp), FontWeight.Medium, C.Muted)
+            Txt(formatTime(now, use24), T.Clock, Modifier.alignByBaseline())
+            if (!use24) Txt(amPm(now), T.Label, Modifier.alignByBaseline().padding(start = 14.dp), C.Stone)
+            Txt(formatDate(now), T.Body, Modifier.alignByBaseline().padding(start = 36.dp), C.Stone)
         }
         Box(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Information, not a button: no surface, so it doesn't look focusable.
+            Haven.ha.weather(settings)?.takeIf { it.available }?.let { WeatherNote(it, Modifier.padding(end = 16.dp)) }
             if (updateReady) {
-                PillButton(
-                    "Update ready", { nav.go(Screen.Settings) }, icon = Icons.Download,
-                    focusRequester = req("top:update"),
-                )
+                Chip("Update ready", { nav.go(Screen.Settings) }, icon = Icons.Download, focusRequester = req("top:update"), onFocus = track("top:update"))
             }
-            Focusable(
-                onClick = { nav.go(Screen.Lights) },
-                modifier = Modifier.height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = C.CardHi,
-                focusedColor = C.Line,
-                focusedScale = 1.06f,
+            Chip(
+                settings.roomName.ifBlank { "This room" },
+                { nav.go(if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights) },
+                icon = Icons.House,
                 focusRequester = req("top:room"),
-                onFocus = rememberFocus("top:room"),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 24.dp).height(56.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(Icons.House, 28.dp, C.Accent)
-                    Txt(settings.roomName.ifBlank { "This room" }, 22, weight = FontWeight.Bold)
-                }
-            }
-            Haven.ha.weather(settings)?.takeIf { it.available }?.let { WeatherChip(it) }
-            CircleButton(Icons.Wifi, { openSystem(ctx, AndroidSettings.ACTION_WIFI_SETTINGS) }, focusRequester = req("top:wifi"))
-            CircleButton(Icons.SlidersHorizontal, { openSystem(ctx, AndroidSettings.ACTION_SETTINGS) }, focusRequester = req("top:system"))
-            Focusable(
-                onClick = { nav.go(Screen.Settings) },
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                color = C.Avatar,
-                focusedColor = C.Avatar,
-                focusedScale = 1.1f,
-                focusRequester = req("top:settings"),
-                onFocus = rememberFocus("top:settings"),
-            ) {
-                val initial = settings.profileName.trim().firstOrNull()?.uppercase()
-                if (initial != null) {
-                    Txt(initial, 24, Modifier.align(Alignment.Center), FontWeight.Bold)
-                } else {
-                    Icon(Icons.Settings, 28.dp, C.Text, Modifier.align(Alignment.Center))
-                }
-            }
+                onFocus = track("top:room"),
+            )
+            IconButton(Icons.Settings, { nav.go(Screen.Settings) }, focusRequester = req("top:settings"), onFocus = track("top:settings"))
         }
     }
 }
 
 @Composable
-private fun WeatherChip(w: HaEntity) {
+private fun WeatherNote(w: HaEntity, modifier: Modifier = Modifier) {
     val temp = w.attrs.optDouble("temperature", Double.NaN)
     val unit = w.attrs.optString("temperature_unit", "°").let { if (it.startsWith("°")) "°" else it }
-    Row(
-        Modifier.height(56.dp).clip(RoundedCornerShape(28.dp)).background(C.Card).padding(horizontal = 24.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(weatherIcon(w.state), 28.dp)
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(weatherIcon(w.state), 32.dp, C.Stone)
         val t = if (temp.isNaN()) "" else "${Math.round(temp)}$unit "
-        Txt(t + weatherLabel(w.state), 22)
+        Txt(t + weatherLabel(w.state), T.Label, color = C.Stone)
     }
 }
 
+/**
+ * An app as a picture: its TV banner, or its icon on a plain tile. The name appears under the card only while
+ * it has focus, so rows stay quiet and nothing is cut mid-word at the edge of the screen.
+ */
 @Composable
-private fun FavoriteCard(
+private fun AppCard(
     app: TvApp,
-    big: Boolean,
-    index: Int,
-    subtitle: String,
+    width: Dp,
+    height: Dp,
+    iconSize: Dp,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     focusRequester: FocusRequester,
     onFocus: (Boolean) -> Unit,
 ) {
-    val w = if (big) 520.dp else 360.dp
-    val h = if (big) 292.dp else 203.dp
-    Column(Modifier.width(w)) {
+    var focused by remember { mutableStateOf(false) }
+    val labelAlpha by animateFloatAsState(if (focused) 1f else 0f, tween(160), label = "label")
+    Column(Modifier.width(width)) {
         Focusable(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier.size(w, h),
-            focusedScale = 1.05f,
+            modifier = Modifier.size(width, height),
+            color = C.Surface,
+            style = FocusStyle.Picture,
+            focusedScale = 1.06f,
             focusRequester = focusRequester,
-            onFocus = onFocus,
+            onFocus = {
+                focused = it
+                onFocus(it)
+            },
         ) {
             if (app.banner != null) {
                 Image(app.banner, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
-                PlaceholderArt(index, app.icon, big)
+                IconArt(app.icon, iconSize)
             }
         }
-        Txt(app.label, if (big) 28 else 22, Modifier.padding(top = if (big) 14.dp else 12.dp), FontWeight.Bold)
-        Txt(subtitle, if (big) 20 else 18, Modifier.padding(top = 2.dp), FontWeight.Medium, C.Muted)
-    }
-}
-
-/** The mockup's abstract card art, with the app icon in the corner square. */
-@Composable
-private fun PlaceholderArt(index: Int, icon: ImageBitmap?, big: Boolean) {
-    val base = C.CardPalette[index % C.CardPalette.size]
-    val circle = if (big) 320.dp else 220.dp
-    val square = if (big) 120.dp else 84.dp
-    Box(Modifier.fillMaxSize().background(base)) {
-        Box(
-            Modifier.align(Alignment.TopEnd).offset(x = circle * 0.19f, y = -circle * 0.24f).size(circle)
-                .clip(CircleShape).background(Color.White.copy(alpha = 0.14f)),
-        )
-        Box(
-            Modifier.align(Alignment.BottomStart).padding(start = if (big) 36.dp else 24.dp, bottom = if (big) 44.dp else 32.dp)
-                .size(square).clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.10f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (icon != null) Image(icon, null, Modifier.size(square * 0.72f))
-        }
+        Txt(app.label, T.Label, Modifier.padding(top = 24.dp).alpha(labelAlpha))
     }
 }
 
 @Composable
-private fun AppTile(
-    app: TvApp,
-    index: Int,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    focusRequester: FocusRequester,
-    onFocus: (Boolean) -> Unit,
-) {
-    Focusable(
-        onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = Modifier.size(220.dp, 124.dp),
-        focusedScale = 1.08f,
-        focusRequester = focusRequester,
-        onFocus = onFocus,
-    ) { focused ->
-        if (app.banner != null) {
-            Image(app.banner, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        } else {
-            Column(
-                Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                if (app.icon != null) Image(app.icon, null, Modifier.size(48.dp))
-                Txt(app.label, 20, color = if (focused) C.Accent else C.Text)
-            }
-        }
+private fun IconArt(icon: ImageBitmap?, size: Dp) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (icon != null) Image(icon, null, Modifier.size(size))
     }
 }
+
+private enum class Glow { None, On, Alert }
 
 private data class RoomTile(
     val key: String,
     val icon: ImageVector,
     val title: String,
     val subtitle: String,
+    val glow: Glow,
     val onClick: () -> Unit,
 )
 
@@ -391,10 +361,42 @@ private fun RoomRow(
     sleepEndsAt: Long,
     games: List<Game>,
     nav: Nav,
+    state: androidx.compose.foundation.lazy.LazyListState,
     req: (String) -> FocusRequester,
-    rememberFocus: (String) -> (Boolean) -> Unit,
+    track: (String) -> (Boolean) -> Unit,
 ) {
     val ha = Haven.ha
+    ha.entities.collectAsState().value // this row must recompose on Home Assistant updates itself
+    val haNote = when (haStatus) {
+        HaStatus.NotConfigured -> "Connect Home Assistant"
+        is HaStatus.Failed -> "Can't reach Home Assistant"
+        HaStatus.Connecting -> "Connecting…"
+        is HaStatus.Connected -> null
+    }
+    val haTarget = if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights
+    val lights = ha.roomLights(settings)
+    val speakers = ha.roomSpeakers(settings)
+    val lightsTile = RoomTile(
+        "lights", Icons.Lightbulb, "Lights",
+        haNote ?: when {
+            lights.isEmpty() -> "None in this room"
+            lights.none { it.isOn } -> "All off"
+            else -> "${lights.count { it.isOn }} of ${lights.size} on"
+        },
+        if (lights.any { it.isOn }) Glow.On else Glow.None,
+    ) { nav.go(haTarget) }
+    val playing = speakers.firstOrNull { it.state == "playing" }
+    val speakersTile = RoomTile(
+        "speakers", Icons.Speaker, "Speakers",
+        haNote ?: when {
+            speakers.isEmpty() -> "None in this room"
+            playing != null -> "Playing on ${playing.name}"
+            speakers.none { it.isOn } -> "All off"
+            else -> "${speakers.count { it.isOn }} of ${speakers.size} on"
+        },
+        if (playing != null) Glow.On else Glow.None,
+    ) { nav.go(haTarget) }
+
     val tiles = buildList {
         if (settings.bedroomExtras) {
             val a = settings.alarm
@@ -402,76 +404,72 @@ private fun RoomRow(
                 RoomTile(
                     "alarm", Icons.AlarmClock, "Alarm",
                     if (a.enabled) "${Bedroom.timeLabel(a.hour, a.minute, settings.use24h)} · ${Bedroom.daysLabel(a.days)}" else "Off",
+                    if (a.enabled) Glow.On else Glow.None,
                 ) { nav.go(Screen.Alarm) },
             )
             val left = ((sleepEndsAt - System.currentTimeMillis()) / 60_000L).toInt()
-            add(RoomTile("sleep", Icons.MoonStar, "Sleep timer", if (sleepEndsAt > 0) "${maxOf(left, 1)} min left" else "Off") { nav.go(Screen.Sleep) })
+            add(
+                RoomTile(
+                    "sleep", Icons.MoonStar, "Sleep timer", if (sleepEndsAt > 0) "${maxOf(left, 1)} min left" else "Off",
+                    if (sleepEndsAt > 0) Glow.On else Glow.None,
+                ) { nav.go(Screen.Sleep) },
+            )
         }
-        add(RoomTile("art", Icons.Image, "Art mode", settings.artSource.label) { nav.go(Screen.Art) })
-        if (settings.sports.teams.isNotEmpty()) {
-            val g = games.firstOrNull()
-            val sub = when {
-                g == null -> "No games scheduled"
-                g.state == GameState.Live -> "${g.scoreLine} · ${g.detail}"
-                g.state == GameState.Final -> "Final: ${g.scoreLine}"
-                else -> "${g.away.team.abbr} at ${g.home.team.abbr} · ${gameStatus(g, settings.use24h)}"
-            }
-            add(RoomTile("sports", Icons.Trophy, "Your teams", sub) { nav.go(Screen.Sports) })
-        }
-        val lights = ha.roomLights(settings)
-        val speakers = ha.roomSpeakers(settings)
-        val haNote = when (haStatus) {
-            HaStatus.NotConfigured -> "Connect Home Assistant"
-            is HaStatus.Failed -> "Can't reach Home Assistant"
-            HaStatus.Connecting -> "Connecting…"
-            is HaStatus.Connected -> null
-        }
-        add(
-            RoomTile(
-                "lights", Icons.Lightbulb, "Lights",
-                haNote ?: if (lights.isEmpty()) "None in this room" else "${lights.count { it.isOn }} of ${lights.size} on",
-            ) { nav.go(if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights) },
-        )
-        val playing = speakers.firstOrNull { it.state == "playing" }
-        add(
-            RoomTile(
-                "speakers", Icons.Speaker, "Speakers",
-                haNote ?: when {
-                    speakers.isEmpty() -> "None in this room"
-                    playing != null -> "Playing on ${playing.name}"
-                    else -> "${speakers.count { it.isOn }} of ${speakers.size} on"
-                },
-            ) { nav.go(if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights) },
-        )
+        add(lightsTile)
+        add(speakersTile)
         if (!settings.bedroomExtras) {
             val scenes = ha.roomScenes(settings)
             if (scenes.isNotEmpty()) {
-                add(RoomTile("scenes", Icons.Palette, "Scenes", scenes.joinToString(", ") { it.name }) { nav.go(Screen.Lights) })
+                add(RoomTile("scenes", Icons.Palette, "Scenes", scenes.joinToString(", ") { it.name }, Glow.None) { nav.go(Screen.Lights) })
             }
         }
+        add(RoomTile("art", Icons.Image, "Art mode", settings.artSource.label, Glow.None) { nav.go(Screen.Art) })
+        if (settings.sports.teams.isNotEmpty()) {
+            val g = games.firstOrNull()
+            val (title, sub) = when {
+                g == null -> "Your teams" to "No games scheduled"
+                g.state == GameState.Live -> g.scoreLine to listOf(g.detail, g.league.label).filter { it.isNotBlank() }.joinToString(" · ")
+                g.state == GameState.Final -> g.scoreLine to "Final"
+                else -> g.matchup to gameStatus(g, settings.use24h)
+            }
+            add(
+                RoomTile("sports", Icons.Trophy, title, sub, if (g?.state == GameState.Live) Glow.Alert else Glow.None) {
+                    nav.go(Screen.Sports)
+                },
+            )
+        }
     }
-    val gap = 24
-    val width = ((1728 - gap * (tiles.size - 1)) / tiles.size).coerceAtMost(340)
-    Row(
-        Modifier.padding(start = 96.dp, top = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(gap.dp),
+    LazyRow(
+        state = state,
+        contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
     ) {
-        tiles.forEach { t ->
+        itemsIndexed(tiles, key = { _, t -> t.key }) { _, t ->
             Focusable(
                 onClick = t.onClick,
-                modifier = Modifier.size(width.dp, 96.dp),
+                modifier = Modifier.size(400.dp, 112.dp),
+                color = C.Surface,
+                focusedScale = 1.05f,
                 focusRequester = req("room:${t.key}"),
-                onFocus = rememberFocus("room:${t.key}"),
-            ) {
+                onFocus = track("room:${t.key}"),
+            ) { focused ->
                 Row(
-                    Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                    Modifier.fillMaxSize().padding(horizontal = 24.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    Icon(t.icon, 36.dp, C.Accent)
+                    Icon(
+                        t.icon, 40.dp,
+                        when {
+                            focused -> C.Ink
+                            t.glow == Glow.On -> C.Lamp
+                            t.glow == Glow.Alert -> C.Clay
+                            else -> C.Stone
+                        },
+                    )
                     Column {
-                        Txt(t.title, 21, weight = FontWeight.Bold)
-                        Txt(t.subtitle, 17, weight = FontWeight.Medium, color = C.Muted)
+                        Txt(t.title, T.CardTitle, color = ink(focused))
+                        Txt(t.subtitle, T.Label, color = inkMuted(focused))
                     }
                 }
             }
@@ -484,35 +482,33 @@ private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit) {
     val isFav = app.pkg in settings.favorites
     val first = remember { FocusRequester() }
     HavenDialog(onDismiss) {
-        Column(
-            Modifier.width(560.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(36.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Txt(app.label, 32, weight = FontWeight.ExtraBold)
-            Spacer(height = 6.dp)
-            MenuItem(if (isFav) "Remove from favorites" else "Add to favorites", if (isFav) Icons.X else Icons.Star, first) {
-                Haven.settings.update {
-                    it.copy(favorites = if (isFav) it.favorites - app.pkg else it.favorites + app.pkg)
-                }
-                onDismiss()
-            }
-            if (isFav) {
-                MenuItem("Move left", Icons.ArrowLeft) {
-                    Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, -1)) }
+        Panel(Modifier.width(640.dp)) {
+            Txt(app.label, T.Title)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                MenuItem(if (isFav) "Remove from favorites" else "Add to favorites", if (isFav) Icons.X else Icons.Star, first) {
+                    Haven.settings.update {
+                        it.copy(favorites = if (isFav) it.favorites - app.pkg else it.favorites + app.pkg)
+                    }
                     onDismiss()
                 }
-                MenuItem("Move right", Icons.ArrowRight) {
-                    Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, 1)) }
+                if (isFav) {
+                    MenuItem("Move left", Icons.ArrowLeft) {
+                        Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, -1)) }
+                        onDismiss()
+                    }
+                    MenuItem("Move right", Icons.ArrowRight) {
+                        Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, 1)) }
+                        onDismiss()
+                    }
+                }
+                MenuItem("Hide from Haven", Icons.EyeOff) {
+                    Haven.settings.update { it.copy(hiddenApps = it.hiddenApps + app.pkg, favorites = it.favorites - app.pkg) }
                     onDismiss()
                 }
-            }
-            MenuItem("Hide from Haven", Icons.EyeOff) {
-                Haven.settings.update { it.copy(hiddenApps = it.hiddenApps + app.pkg, favorites = it.favorites - app.pkg) }
-                onDismiss()
-            }
-            MenuItem("App info", Icons.Info) {
-                Haven.apps.openAppInfo(app.pkg)
-                onDismiss()
+                MenuItem("App info", Icons.Info) {
+                    Haven.apps.openAppInfo(app.pkg)
+                    onDismiss()
+                }
             }
         }
     }
@@ -526,24 +522,22 @@ private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit) {
 fun MenuItem(label: String, icon: ImageVector, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
     Focusable(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(72.dp),
-        color = C.CardHi,
-        focusedColor = C.Line,
-        focusedScale = 1.02f,
+        modifier = Modifier.fillMaxWidth().height(80.dp),
+        focusedScale = 1.03f,
         focusRequester = focusRequester,
     ) { focused ->
         Row(
-            Modifier.fillMaxSize().padding(horizontal = 24.dp),
+            Modifier.fillMaxSize().padding(horizontal = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Icon(icon, 28.dp, if (focused) C.Accent else C.Text)
-            Txt(label, 24)
+            Icon(icon, 32.dp, if (focused) C.Ink else C.Stone)
+            Txt(label, T.Body, color = ink(focused))
         }
     }
 }
 
-/** A dialog window (so D-pad focus stays inside it) drawn on the 1920x1080 canvas. */
+/** A dialog window (so D-pad focus stays inside it) drawn on the 1920x1080 canvas over a dimmed screen. */
 @Composable
 fun HavenDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -564,25 +558,13 @@ private fun List<String>.move(item: String, by: Int): List<String> {
     return m
 }
 
-/** First run: DIRECTV (live TV on the DIRECTV box) as the big card, then the first few apps with banners. */
+/** First run: DIRECTV (live TV on the DIRECTV box) first, then the first few apps with banners. */
 private fun defaultFavorites(apps: List<TvApp>): List<String> {
     val provider = apps.filter { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
         .sortedByDescending { it.launchIntent.hasCategory(Intent.CATEGORY_HOME) }
         .take(1)
     val rest = apps.filter { it !in provider && it.banner != null }
     return (provider + rest).take(5).map { it.pkg }
-}
-
-private fun lastOpened(at: Long?): String {
-    if (at == null || at == 0L) return "Not opened yet"
-    val mins = (System.currentTimeMillis() - at) / 60_000L
-    return when {
-        mins < 1 -> "Opened just now"
-        mins < 60 -> "Opened $mins min ago"
-        mins < 24 * 60 -> "Opened ${mins / 60} hr ago"
-        mins < 48 * 60 -> "Opened yesterday"
-        else -> "Opened ${mins / (24 * 60)} days ago"
-    }
 }
 
 fun openSystem(ctx: Context, action: String) {

@@ -9,10 +9,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -26,14 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
 import app.haven.launcher.Nav
@@ -46,10 +40,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-private val Sunny = Color(0xFFFFD27A)
-private val Good = Color(0xFF86EFAC)
-private val Warn = Color(0xFFFF8A7A)
 
 /** The morning briefing from the "day in the life" film, shown after the alarm is stopped. Any button closes it. */
 @Composable
@@ -69,12 +59,12 @@ fun BriefingScreen(nav: Nav) {
         nav.go(Screen.Home)
     }
     val now = remember { LocalDateTime.now() }
-    val use24 = s.use24h
+    val timeFormat = DateTimeFormatter.ofPattern(if (s.use24h) "H:mm" else "h:mm a", Locale.getDefault())
 
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color(0xFF121829))
+            .background(C.Hearth)
             .focusRequester(focus)
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) nav.go(Screen.Home)
@@ -82,125 +72,130 @@ fun BriefingScreen(nav: Nav) {
             }
             .focusable(),
     ) {
-        Box(Modifier.offset(1100.dp, (-500).dp).size(1500.dp).background(Brush.radialGradient(listOf(Color(0x5CFF9F6B), Color.Transparent))))
-        Box(Modifier.offset((-500).dp, 400.dp).size(1400.dp).background(Brush.radialGradient(listOf(Color(0x474F8FE8), Color.Transparent))))
-
         val d = data
         if (d == null) {
-            Txt("Getting your briefing…", 36, Modifier.align(Alignment.Center), FontWeight.SemiBold, C.Muted)
+            Txt("Getting your briefing…", T.Title, Modifier.align(Alignment.Center), C.Stone)
             return@Box
         }
-        Row(Modifier.fillMaxSize().padding(start = 140.dp, end = 140.dp, top = 110.dp, bottom = 70.dp)) {
-            // ---- left: greeting, weather, hourly, headlines
-            Column(Modifier.width(820.dp), verticalArrangement = Arrangement.spacedBy(26.dp)) {
-                val name = s.profileName.trim()
-                Txt(if (name.isEmpty()) "Good morning." else "Good morning, $name.", 72, weight = FontWeight.ExtraBold, spacing = -1f)
-                Txt("Here's your ${now.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())}.", 36, weight = FontWeight.Medium, color = C.Muted)
+        Row(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 96.dp, bottom = 128.dp)) {
+            // ---- left: greeting, weather, headlines
+            Column(Modifier.width(840.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
+                Column {
+                    val name = s.profileName.trim()
+                    Txt(greeting(now.hour) + (if (name.isEmpty()) "." else ", $name."), T.Headline, size = 72, maxLines = 2)
+                    Txt(formatDate(now), T.Body, Modifier.padding(top = 8.dp), C.Stone, size = 30)
+                }
                 val w = d.weather
                 if (w != null) {
-                    val unit = "°"
                     val t = w.attrs.optDouble("temperature", Double.NaN)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                        Icon(weatherIcon(w.state), 120.dp, Sunny)
-                        if (!t.isNaN()) Txt("${Math.round(t)}$unit", 150, weight = FontWeight.Medium, spacing = -4f)
-                        Column {
-                            Txt(weatherLabel(w.state), 34, weight = FontWeight.SemiBold)
-                            val today = d.today
-                            if (today?.temperature != null) {
-                                val lo = today.low?.let { "  ·  Low ${Math.round(it)}$unit" }.orEmpty()
-                                Txt("High ${Math.round(today.temperature)}$unit$lo", 28, weight = FontWeight.Medium, color = C.Muted)
+                    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                            Icon(weatherIcon(w.state), 112.dp)
+                            if (!t.isNaN()) Txt("${Math.round(t)}°", T.Display, size = 160)
+                            Column {
+                                Txt(weatherLabel(w.state), T.CardTitle, size = 34)
+                                val today = d.today
+                                if (today?.temperature != null) {
+                                    val lo = today.low?.let { " · Low ${Math.round(it)}°" }.orEmpty()
+                                    Txt("High ${Math.round(today.temperature)}°$lo", T.Body, color = C.Stone)
+                                }
                             }
                         }
-                    }
-                    if (d.hourly.isNotEmpty()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(44.dp)) {
-                            for (h in d.hourly) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    val label = h.time?.atZoneSameInstant(ZoneId.systemDefault())
-                                        ?.format(DateTimeFormatter.ofPattern(if (use24) "H:mm" else "h a", Locale.getDefault())).orEmpty()
-                                    Txt(label, 22, weight = FontWeight.Medium, color = C.Muted)
-                                    Icon(weatherIcon(h.condition), 40.dp, Color(0xFFFFE0A6))
-                                    Txt(h.temperature?.let { "${Math.round(it)}$unit" } ?: "", 26, weight = FontWeight.SemiBold)
+                        if (d.hourly.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+                                for (h in d.hourly) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        val label = h.time?.atZoneSameInstant(ZoneId.systemDefault())
+                                            ?.format(DateTimeFormatter.ofPattern(if (s.use24h) "H:mm" else "h a", Locale.getDefault())).orEmpty()
+                                        Txt(label, T.Label, color = C.Stone)
+                                        Icon(weatherIcon(h.condition), 40.dp, C.Stone)
+                                        Txt(h.temperature?.let { "${Math.round(it)}°" } ?: "", T.Numeric, size = 28)
+                                    }
                                 }
                             }
                         }
                     }
                 } else if (!s.haConfigured) {
-                    Txt("Connect Home Assistant in Settings for weather, calendar and home status.", 24, weight = FontWeight.Medium, color = C.Muted, maxLines = 2)
+                    Txt("Connect Home Assistant in Settings for weather, your calendar and the house.", T.Body, color = C.Stone, maxLines = 2)
                 }
                 if (d.headlines.isNotEmpty()) {
-                    Card(Icons.Newspaper, Color(0xFFB9A2FF), "Headlines") {
-                        for (h in d.headlines) Txt(h, 22, weight = FontWeight.Medium, maxLines = 1)
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        SectionTitle("Headlines")
+                        for (h in d.headlines.take(3)) Txt(h, T.Body, maxLines = 2)
                     }
                 }
             }
-            Box(Modifier.width(80.dp))
+            Box(Modifier.width(96.dp))
             // ---- right: calendar, commute, home, games
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-                Card(Icons.Calendar, C.Accent, "Today", if (d.events.isEmpty()) null else "${d.events.size} event${if (d.events.size == 1) "" else "s"}") {
-                    if (d.events.isEmpty()) {
-                        Txt("Nothing on the calendar", 24, weight = FontWeight.Medium, color = C.Muted)
-                    }
-                    for (e in d.events) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            val time = when {
-                                e.allDay || e.start == null -> "All day"
-                                else -> e.start.atZoneSameInstant(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(if (use24) "H:mm" else "h:mm", Locale.getDefault()))
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                if (d.events.isNotEmpty() || d.hasCalendars) {
+                    BriefCard(Icons.Calendar, "Today", if (d.events.isEmpty()) null else "${d.events.size} event${if (d.events.size == 1) "" else "s"}") {
+                        if (d.events.isEmpty()) Txt("Nothing on the calendar", T.Body, color = C.Stone)
+                        for (e in d.events) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                val time = when {
+                                    e.allDay || e.start == null -> "All day"
+                                    else -> e.start.atZoneSameInstant(ZoneId.systemDefault()).format(timeFormat)
+                                }
+                                Txt(time, T.Numeric, Modifier.width(170.dp))
+                                Txt(e.summary, T.Body, Modifier.weight(1f))
                             }
-                            Txt(time, 26, Modifier.width(130.dp), FontWeight.Bold, C.Accent)
-                            Txt(e.summary, 26, weight = FontWeight.Medium)
                         }
                     }
                 }
                 d.commute?.let { c ->
-                    Card(Icons.Car, Color(0xFFF7B955), "${c.minutes} ${c.unit} to ${c.label}") {
-                        if (c.route.isNotBlank()) Txt("Via ${c.route}", 22, weight = FontWeight.Medium, color = C.Muted)
+                    BriefCard(Icons.Car, "${c.minutes} ${c.unit} to ${c.label}") {
+                        if (c.route.isNotBlank()) Txt("Via ${c.route}", T.Body, color = C.Stone)
                     }
                 }
                 if (d.status.isNotEmpty()) {
-                    Card(Icons.House, Good, "Home") {
+                    BriefCard(Icons.House, "Home") {
                         for (st in d.status) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Txt(st.name, 24, Modifier.weight(1f), FontWeight.Medium)
-                                Txt(st.text, 22, weight = FontWeight.Bold, color = if (st.ok) Good else Warn)
+                                Txt(st.name, T.Body, Modifier.weight(1f))
+                                Txt(st.text, T.Label, color = if (st.ok) C.Sage else C.Clay)
                             }
                         }
                     }
                 }
                 if (d.games.isNotEmpty()) {
-                    Card(Icons.Trophy, Color(0xFFFF8A7A), "Your teams today") {
+                    BriefCard(Icons.Trophy, "Your teams today") {
                         for (g in d.games.take(3)) {
-                            val line = when (g.state) {
-                                GameState.Live, GameState.Final -> "${g.scoreLine} · ${g.detail}"
-                                else -> "${g.away.team.abbr} at ${g.home.team.abbr} · " +
-                                    g.start.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern(if (use24) "H:mm" else "h:mm a", Locale.getDefault())) +
-                                    (g.broadcasts.firstOrNull()?.let { " · $it" } ?: "")
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                when (g.state) {
+                                    GameState.Live, GameState.Final -> {
+                                        Txt(g.scoreLine, T.Numeric, Modifier.weight(1f))
+                                        Txt(g.detail.ifBlank { if (g.state == GameState.Live) "Live" else "Final" }, T.Label, color = if (g.state == GameState.Live) C.Clay else C.Stone)
+                                    }
+                                    else -> {
+                                        Txt(g.matchup, T.Body, Modifier.weight(1f))
+                                        Txt(
+                                            g.start.atZone(ZoneId.systemDefault()).format(timeFormat) + (g.broadcasts.firstOrNull()?.let { " · $it" } ?: ""),
+                                            T.Label, color = C.Stone,
+                                        )
+                                    }
+                                }
                             }
-                            Txt(line, 22, weight = FontWeight.Medium, maxLines = 1)
                         }
                     }
                 }
             }
         }
-        Txt(
-            "Press any button to close", 18, Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
-            FontWeight.Medium, C.Muted.copy(alpha = 0.7f),
-        )
+        Txt("Press any button to close", T.Label, Modifier.align(Alignment.BottomCenter).padding(bottom = 56.dp), C.Dust)
     }
 }
 
 @Composable
-private fun Card(icon: ImageVector, tint: Color, title: String, trailing: String? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun BriefCard(icon: ImageVector, title: String, trailing: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(Color(0x991A2234)).padding(horizontal = 36.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.Surface).padding(horizontal = 36.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(icon, 34.dp, tint)
-            Txt(title, 30, Modifier.weight(1f), FontWeight.Bold)
-            if (trailing != null) Txt(trailing, 22, weight = FontWeight.Medium, color = C.Muted)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Icon(icon, 32.dp, C.Stone)
+            Txt(title, T.CardTitle, Modifier.weight(1f))
+            if (trailing != null) Txt(trailing, T.Label, color = C.Stone)
         }
-        Box(Modifier.height(2.dp))
         content()
     }
 }

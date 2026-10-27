@@ -13,17 +13,18 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +32,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import app.haven.launcher.Haven
@@ -45,9 +44,12 @@ import app.haven.launcher.ui.DesignCanvas
 import app.haven.launcher.ui.Focusable
 import app.haven.launcher.ui.Icon
 import app.haven.launcher.ui.Icons
+import app.haven.launcher.ui.T
 import app.haven.launcher.ui.Txt
 import app.haven.launcher.ui.formatDate
 import app.haven.launcher.ui.formatTime
+import app.haven.launcher.ui.greeting
+import app.haven.launcher.ui.ink
 import app.haven.launcher.ui.rememberNow
 import app.haven.launcher.ui.weatherIcon
 import app.haven.launcher.ui.weatherLabel
@@ -57,7 +59,7 @@ import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
 
-/** Full-screen alarm from the bedroom mockup: dawn gradient, big clock, Snooze / Stop. */
+/** Full-screen alarm from the bedroom mockup: a sunrise in a dark room, big clock, Snooze / Stop. */
 class AlarmActivity : ComponentActivity() {
     private val chime = Chime()
     private var done = false
@@ -119,66 +121,73 @@ private fun AlarmRinging(onSnooze: () -> Unit, onStop: () -> Unit) {
         delay(80)
         runCatching { stopFocus.requestFocus() }
     }
-    Box(
-        Modifier.fillMaxSize().background(
-            Brush.verticalGradient(listOf(Color(0xFF120F2C), Color(0xFF8C3E6E), Color(0xFFFF945C))),
-        ),
-    ) {
-        Box(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 0.dp).size(1400.dp, 500.dp)
-                .background(Brush.radialGradient(listOf(Color(0x99FFF0D6), Color(0x00FFD7A0)))),
-        )
+    // The light comes up over the first minute, like the sunrise lights in the room.
+    val rise = remember { Animatable(0.15f) }
+    LaunchedEffect(Unit) { rise.animateTo(1f, tween(60_000, easing = LinearEasing)) }
+    Box(Modifier.fillMaxSize().background(C.Hearth)) {
+        SunriseGlow(rise.value, Modifier.fillMaxSize())
         Column(
-            Modifier.fillMaxSize().padding(top = 230.dp),
+            Modifier.fillMaxSize().padding(top = 136.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Txt(formatDate(now), 36, weight = FontWeight.Medium, color = C.Text.copy(alpha = 0.85f))
-            Txt(formatTime(now, s.use24h), 300, Modifier.padding(top = 4.dp), FontWeight.ExtraBold, spacing = -8f)
+            Txt(formatDate(now), T.Body, color = C.Stone, size = 34)
+            Txt(formatTime(now, s.use24h), T.Display, Modifier.padding(top = 8.dp))
             val name = s.profileName.trim()
-            Txt(if (name.isEmpty()) "Good morning" else "Good morning, $name", 50, weight = FontWeight.SemiBold)
-            Row(Modifier.padding(top = 36.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            Txt(greeting(now.hour) + if (name.isEmpty()) "" else ", $name", T.Headline, Modifier.padding(top = 8.dp))
+            Row(Modifier.padding(top = 40.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
                 Haven.ha.weather(s)?.takeIf { it.available }?.let { w ->
                     val t = w.attrs.optDouble("temperature", Double.NaN)
-                    InfoPill(weatherIcon(w.state), (if (t.isNaN()) "" else "${Math.round(t)}° ") + weatherLabel(w.state))
+                    Info(weatherIcon(w.state), (if (t.isNaN()) "" else "${Math.round(t)}° ") + weatherLabel(w.state))
                 }
-                if (s.alarm.sunriseMin > 0 && s.haConfigured) InfoPill(Icons.Sunrise, "Sunrise lights on")
+                if (s.alarm.sunriseMin > 0 && s.haConfigured) Info(Icons.Sunrise, "Sunrise lights are on")
             }
-            Row(Modifier.padding(top = 48.dp), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-                Focusable(
-                    onClick = onSnooze,
-                    modifier = Modifier.size(240.dp, 80.dp),
-                    shape = RoundedCornerShape(40.dp),
-                    color = Color(0x55281630),
-                    focusedColor = Color(0x88281630),
-                    focusedScale = 1.06f,
-                ) {
-                    Txt("Snooze ${s.alarm.snoozeMin} min", 30, Modifier.align(Alignment.Center))
-                }
-                Focusable(
-                    onClick = onStop,
-                    modifier = Modifier.size(240.dp, 80.dp),
-                    shape = RoundedCornerShape(40.dp),
-                    color = Color.White.copy(alpha = 0.85f),
-                    focusedColor = Color.White,
-                    focusedScale = 1.08f,
-                    focusRequester = stopFocus,
-                ) {
-                    Txt("Stop", 32, Modifier.align(Alignment.Center), FontWeight.ExtraBold, Color(0xFF1A1420))
-                }
+            Row(Modifier.padding(top = 56.dp), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                BigButton("Snooze ${s.alarm.snoozeMin} min", onSnooze)
+                BigButton("Stop", onStop, stopFocus)
             }
         }
     }
 }
 
+/** A low sun under the bottom edge: lamp light fading out over the dark room. Dithered so it doesn't band. */
 @Composable
-private fun InfoPill(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Row(
-        Modifier.height(72.dp).clip(RoundedCornerShape(36.dp)).background(Color(0x44281630)).padding(horizontal = 32.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Icon(icon, 36.dp, Color(0xFFFFE2B0))
-        Txt(text, 28)
+private fun SunriseGlow(rise: Float, modifier: Modifier) {
+    val paint = remember { android.graphics.Paint().apply { isDither = true } }
+    Canvas(modifier) {
+        val r = size.height * (0.6f + 0.3f * rise)
+        val cx = size.width / 2
+        val cy = size.height + r * 0.3f
+        val lamp = 0xF2B35E
+        fun a(alpha: Float) = ((alpha * 255).toInt().coerceIn(0, 255) shl 24) or lamp
+        paint.shader = android.graphics.RadialGradient(
+            cx, cy, r,
+            intArrayOf(a(0.62f * rise), a(0.22f * rise), a(0f)),
+            floatArrayOf(0f, 0.5f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        drawIntoCanvas { it.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint) }
+    }
+}
+
+@Composable
+private fun BigButton(label: String, onClick: () -> Unit, focus: FocusRequester? = null) {
+    Focusable(
+        onClick = onClick,
+        modifier = Modifier.size(300.dp, 96.dp),
+        shape = RoundedCornerShape(48.dp),
+        color = C.Raised,
+        focusedScale = 1.06f,
+        focusRequester = focus,
+    ) { focused ->
+        Txt(label, T.CardTitle, Modifier.align(Alignment.Center), ink(focused), size = 32)
+    }
+}
+
+@Composable
+private fun Info(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Icon(icon, 36.dp, C.Stone)
+        Txt(text, T.Body, color = C.Stone, size = 30)
     }
 }
 

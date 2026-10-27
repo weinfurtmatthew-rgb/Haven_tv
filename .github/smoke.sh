@@ -46,7 +46,7 @@ key DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT
 shot 13-home-room-focus-right
 key DPAD_UP DPAD_UP DPAD_UP DPAD_UP
 shot 14-home-topbar-focus
-home 3
+key DPAD_DOWN DPAD_RIGHT
 adb shell input keyevent --longpress KEYCODE_DPAD_CENTER
 sleep 2
 shot 15-home-app-menu
@@ -59,24 +59,31 @@ key DPAD_RIGHT DPAD_RIGHT
 shot 22-lights-brightness-up
 key DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT
 shot 23-lights-speakers-focus
+key DPAD_DOWN DPAD_CENTER
+sleep 1
+shot 24-lights-speaker-toggled
 
 screen Settings 30-settings-top
-key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 31-settings-ha
-key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 32-settings-art
-key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 33-settings-sports
-key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 34-settings-bottom
-screen Settings 35-settings-reopened 3
 key DPAD_CENTER
-sleep 3
+shot 31-settings-first-row
+key DPAD_LEFT DPAD_DOWN DPAD_DOWN DPAD_CENTER DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_CENTER
+sleep 1
+shot 32-settings-art-phone-hint
+key DPAD_LEFT DPAD_DOWN DPAD_DOWN DPAD_DOWN
+shot 33-settings-home-button
+key DPAD_DOWN DPAD_DOWN
+shot 34-settings-about
+key DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_CENTER DPAD_CENTER
+sleep 2
 shot 36-settings-text-dialog
 key BACK BACK
 
 screen Alarm 40-alarm-editor
 screen Sleep 41-sleep-timer
+key DPAD_CENTER
+sleep 2
+shot 41-sleep-timer-running
+key DPAD_DOWN DPAD_DOWN DPAD_CENTER
 screen Briefing 42-briefing 15
 screen Sports 43-sports 12
 
@@ -104,12 +111,12 @@ sleep 3
 shot 70-crash-report
 key BACK
 
+# Score alerts draw over other apps (Android hides them over its own Settings, so show one over Haven).
 adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
-adb shell am start -W -a android.settings.SETTINGS > /dev/null
-sleep 3
+home 4
 demo POPUP
 sleep 2
-shot 80-score-alert-over-settings
+shot 80-score-alert
 
 home 4
 shot 90-home-end

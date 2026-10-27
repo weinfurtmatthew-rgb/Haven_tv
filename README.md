@@ -140,7 +140,7 @@ so only install Haven builds from this repo's releases.
 | `concept/` | The original Haven concept: mockups, web ad and film renderers (see `concept/README.md`) |
 
 The UI is laid out on the mockups' 1920×1080 canvas (`DesignCanvas`): one `dp` is one design pixel, whatever the
-box's resolution. Colors and type (Manrope) match the mockups.
+box's resolution. Colours, type, focus and voice follow the design language in [DESIGN.md](DESIGN.md).
 
-Third-party assets: Manrope font (SIL OFL 1.1), Lucide icons (ISC), artwork images from the Art Institute of
-Chicago API (public domain works, CC0 data).
+Third-party assets: Fraunces and Atkinson Hyperlegible Next fonts (SIL OFL 1.1, see `licenses/`), Lucide icons
+(ISC), artwork images from the Art Institute of Chicago API (public domain works, CC0 data).

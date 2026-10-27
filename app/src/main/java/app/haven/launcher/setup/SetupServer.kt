@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import app.haven.launcher.BuildConfig
 import app.haven.launcher.Haven
+import app.haven.launcher.R
 import app.haven.launcher.art.ArtRepository
 import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.ArtCare
@@ -100,6 +101,11 @@ class SetupServer(private val context: Context) {
         if (req.method == "GET" && (path == "/" || path == "/index.html")) {
             val html = context.assets.open("setup.html").use { it.readBytes() }
             return send(out, 200, "text/html; charset=utf-8", html)
+        }
+        // Haven's fonts for the page. Not secret, so no code needed; the page must work without the internet.
+        if (req.method == "GET" && path.startsWith("/font/")) {
+            val id = FONTS[path.removePrefix("/font/")] ?: return send(out, 404, "text/plain", "Not found".toByteArray())
+            return send(out, 200, "font/ttf", context.resources.openRawResource(id).use { it.readBytes() })
         }
         if (!path.startsWith("/api/")) return send(out, 404, "text/plain", "Not found".toByteArray())
         if (req.query["k"]?.uppercase() != code) return json(out, 403, JSONObject().put("error", "The code doesn't match the one on the TV. Scan the QR code again."))
@@ -334,6 +340,12 @@ class SetupServer(private val context: Context) {
 
     companion object {
         private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        private val FONTS = mapOf(
+            "fraunces.ttf" to R.font.fraunces_title,
+            "atkinson-500.ttf" to R.font.atkinson_medium,
+            "atkinson-600.ttf" to R.font.atkinson_semibold,
+            "atkinson-700.ttf" to R.font.atkinson_bold,
+        )
         private val PORTS = listOf(8765, 8766, 8767, 0)
         private val PRESENCE_CLASSES = setOf("motion", "occupancy", "presence")
         private val DOOR_CLASSES = setOf("door", "garage_door", "window", "opening", "lock")

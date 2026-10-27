@@ -26,6 +26,9 @@ enum class League(val id: String, val label: String, val path: String) {
     UCL("uefa.champions", "Champions League", "soccer/uefa.champions"),
     ;
 
+    /** Football (soccer) lists the home team first ("ARS 2 – 1 LIV"); North American leagues the away team. */
+    val homeFirst: Boolean get() = path.startsWith("soccer/")
+
     companion object {
         fun byId(id: String): League? = values().firstOrNull { it.id == id }
     }
@@ -33,6 +36,9 @@ enum class League(val id: String, val label: String, val path: String) {
 
 data class Team(val league: League, val id: String, val name: String, val abbr: String, val color: String, val logo: String) {
     fun toFavorite() = FavoriteTeam(league.id, id, name, abbr, color, logo)
+
+    /** ESPN's version of the logo drawn for dark backgrounds (navy logos vanish on Haven's dark cards). */
+    val darkLogo: String get() = logo.replace("/500/", "/500-dark/")
 }
 
 enum class GameState { Scheduled, Live, Final, Postponed }
@@ -51,7 +57,16 @@ data class Game(
     val broadcasts: List<String>,
 ) {
     fun involves(teamIds: Set<String>): Boolean = "${league.id}:${home.team.id}" in teamIds || "${league.id}:${away.team.id}" in teamIds
-    val scoreLine: String get() = "${away.team.abbr} ${away.score ?: ""} – ${home.score ?: ""} ${home.team.abbr}".replace("  ", " ")
+
+    /** The side written first: home for football (soccer), away elsewhere. */
+    val first: Side get() = if (league.homeFirst) home else away
+    val second: Side get() = if (league.homeFirst) away else home
+
+    /** "BUF 17 – 21 KC", "ARS 2 – 1 LIV". */
+    val scoreLine: String get() = "${first.team.abbr} ${first.score ?: ""} – ${second.score ?: ""} ${second.team.abbr}".replace("  ", " ")
+
+    /** "BOS at NYY", "ARS v LIV". */
+    val matchup: String get() = if (league.homeFirst) "${home.team.abbr} v ${away.team.abbr}" else "${away.team.abbr} at ${home.team.abbr}"
 }
 
 /** A source of teams and games. ESPN's public feed is the default; others can be dropped in later. */
@@ -229,6 +244,11 @@ class SportsRepository(private val store: SettingsStore) {
     /** Followed teams' games that start today (for the morning briefing). */
     fun today(): List<Game> = _games.value.filter { isToday(it) }
 
+    /** Every game in [league] today, for the scoreboard on the sports screen. */
+    suspend fun board(league: League): List<Game> =
+        if (app.haven.launcher.demo.Demo.active) app.haven.launcher.demo.Demo.games().filter { it.league == league }
+        else provider.scoreboard(league, LocalDate.now())
+
     // ---- change detection for alerts ----------------------------------------------------------
 
     private val seen = HashMap<String, Triple<GameState, String?, String?>>()
@@ -242,7 +262,7 @@ class SportsRepository(private val store: SettingsStore) {
             val before = seen.put(g.id, now) ?: continue
             when {
                 before.first == GameState.Scheduled && g.state == GameState.Live && cfg.alertStart ->
-                    out += "${g.away.team.abbr} at ${g.home.team.abbr} is starting" to g.broadcasts.firstOrNull().orEmpty()
+                    out += "${g.matchup} is starting" to g.broadcasts.firstOrNull().orEmpty()
                 before.first != GameState.Final && g.state == GameState.Final && cfg.alertFinal ->
                     out += "Final: ${g.scoreLine}" to g.league.label
                 g.state == GameState.Live && (before.second != now.second || before.third != now.third) && cfg.alertScore ->
