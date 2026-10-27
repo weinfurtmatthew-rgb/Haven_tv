@@ -7,6 +7,7 @@ import app.haven.launcher.data.Accent
 import app.haven.launcher.data.AlarmSound
 import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
+import app.haven.launcher.data.BackgroundConfig
 import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.BriefSection
 import app.haven.launcher.data.HomeRow
@@ -103,6 +104,57 @@ class CustomizeTest {
         assertNull(ProfilesMeta.fromJson(JSONObject("""{"order":[]}""")))
         // An active profile that no longer exists falls back to the first one.
         assertEquals("p1", ProfilesMeta.fromJson(JSONObject("""{"order":["p1","p2"],"active":"p9"}"""))!!.active)
+    }
+
+    /** Settings saved by 1.0.12, before profiles, become the first profile with nothing lost. */
+    @Test
+    fun settingsFromBeforeProfilesStillLoad() {
+        val old = JSONObject(
+            """{"roomName":"Bedroom","haArea":"bedroom","bedroomExtras":true,"profileName":"Alex",
+            "haUrl":"http://homeassistant.local:8123","haToken":"abc.def","weatherEntity":"weather.home",
+            "hiddenEntities":["light.closet"],"favorites":["com.att.tv","com.netflix.ninja"],"favoritesInitialized":true,
+            "hiddenApps":["com.example.junk"],"use24h":true,"artSource":"Photos","artIntervalMin":7,"artIdleMin":15,
+            "artCare":{"style":"Gallery","panel":"Oled","dimPct":20,"quietStart":23,"quietEnd":6,"quietMode":"Black",
+              "presenceEntity":"","presenceDelayMin":10,"maxHours":4},
+            "brief":{"calendars":["calendar.family"],"commuteEntity":"sensor.commute","commuteLabel":"work",
+              "statusEntities":[],"headlinesFeed":"https://feeds.npr.org/1001/rss.xml","autoCloseMin":10},
+            "sports":{"teams":[{"league":"nfl","id":"9","name":"Green Bay Packers","abbr":"GB","color":"204E32","logo":""}],
+              "alerts":true,"alertStart":false,"alertScore":true,"alertFinal":true},
+            "homeOverride":true,"alarm":{"enabled":true,"hour":6,"minute":45,"days":[1,2,3,4,5],"sunriseMin":15,"snoozeMin":9},
+            "sleepLightsOff":true,"sleepBox":false}""",
+        )
+        val s = Settings.fromJson(old)
+        assertEquals("Bedroom", s.roomName)
+        assertEquals("bedroom", s.haArea)
+        assertTrue(s.bedroomExtras)
+        assertEquals("Alex", s.profileName)
+        assertEquals("http://homeassistant.local:8123", s.haUrl)
+        assertEquals("abc.def", s.haToken)
+        assertEquals("weather.home", s.weatherEntity)
+        assertEquals(setOf("light.closet"), s.hiddenEntities)
+        assertEquals(listOf("com.att.tv", "com.netflix.ninja"), s.favorites)
+        assertTrue(s.favoritesInitialized)
+        assertEquals(setOf("com.example.junk"), s.hiddenApps)
+        assertTrue(s.use24h)
+        assertEquals(7, s.artIntervalMin)
+        assertEquals(15, s.artIdleMin)
+        assertEquals(20, s.artCare.dimPct)
+        assertEquals(setOf("calendar.family"), s.brief.calendars)
+        assertEquals("sensor.commute", s.brief.commuteEntity)
+        assertEquals("Green Bay Packers", s.sports.teams.single().name)
+        assertEquals(false, s.sports.alertStart)
+        assertTrue(s.alarm.enabled)
+        assertEquals(6 to 45, s.alarm.hour to s.alarm.minute)
+        assertEquals(5, s.alarm.days.size)
+        assertEquals(15, s.alarm.sunriseMin)
+        assertEquals(false, s.sleepBox)
+        // Everything new starts as Haven's own look and behaviour.
+        assertEquals(LookConfig(), s.look)
+        assertEquals(BackgroundConfig(), s.background)
+        assertTrue(s.appLooks.isEmpty())
+        assertEquals(AlarmSound.Chime, s.alarm.sound)
+        assertEquals(BriefSection.values().toSet(), s.brief.shown)
+        assertEquals(s, Settings.fromJson(JSONObject(s.toJson().toString())))
     }
 
     @Test
