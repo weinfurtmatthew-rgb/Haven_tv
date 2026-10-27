@@ -1,6 +1,7 @@
 package app.haven.launcher.brief
 
 import app.haven.launcher.Haven
+import app.haven.launcher.data.BriefSection
 import app.haven.launcher.ha.CalEvent
 import app.haven.launcher.ha.Forecast
 import app.haven.launcher.ha.HaEntity
@@ -38,20 +39,27 @@ data class BriefData(
 object Briefing {
     private val http = OkHttpClient.Builder().connectTimeout(6, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
 
+    /** Loads only what the profile's briefing shows, all in parallel. */
     suspend fun load(): BriefData = coroutineScope {
         val s = Haven.settings.value
         val cfg = s.brief
+        val want = cfg.sections.toSet()
         val ha = Haven.ha
-        val news = async { headlines(cfg.headlinesFeed) }
-        val sports = async { runCatching { Haven.sports.refresh(maxAgeMs = 5 * 60_000L); Haven.sports.today() }.getOrDefault(emptyList()) }
+        val news = async { if (BriefSection.Headlines in want && cfg.headlines > 0) headlines(cfg.headlinesFeed, cfg.headlines) else emptyList<String>() }
+        val sports = async {
+            if (BriefSection.Teams !in want) emptyList<Game>()
+            else runCatching { Haven.sports.refresh(maxAgeMs = 5 * 60_000L); Haven.sports.today() }.getOrDefault(emptyList())
+        }
         if (!s.haConfigured) {
             return@coroutineScope BriefData(headlines = news.await(), games = sports.await())
         }
         ha.refresh()
         val weather = ha.weather(s)
-        val hourly = async { weather?.let { ha.forecast(it.id, "hourly") }.orEmpty() }
-        val daily = async { weather?.let { ha.forecast(it.id, "daily") }.orEmpty() }
-        val calendarIds = async { cfg.calendars.ifEmpty { Haven.ha.calendars().map { it.first }.toSet() } }
+        val hourly = async { if (BriefSection.Hourly in want) weather?.let { ha.forecast(it.id, "hourly") }.orEmpty() else emptyList<Forecast>() }
+        val daily = async { if (BriefSection.Weather in want) weather?.let { ha.forecast(it.id, "daily") }.orEmpty() else emptyList<Forecast>() }
+        val calendarIds = async {
+            if (BriefSection.Calendar !in want) emptySet<String>() else cfg.calendars.ifEmpty { Haven.ha.calendars().map { it.first }.toSet() }
+        }
         val events = async { calendarToday(calendarIds.await()) }
         val now = ZonedDateTime.now()
         BriefData(
@@ -60,8 +68,8 @@ object Briefing {
                 .take(12).filterIndexed { i, _ -> i % 2 == 0 }.take(5),
             today = daily.await().firstOrNull(),
             events = events.await(),
-            commute = commute(cfg.commuteEntity, cfg.commuteLabel),
-            status = status(cfg.statusEntities),
+            commute = if (BriefSection.Commute in want) commute(cfg.commuteEntity, cfg.commuteLabel) else null,
+            status = if (BriefSection.Home in want) status(cfg.statusEntities) else emptyList(),
             headlines = news.await(),
             games = sports.await(),
             hasCalendars = calendarIds.await().isNotEmpty(),
@@ -107,11 +115,11 @@ object Briefing {
         else -> StatusItem(e.name, e.state.replaceFirstChar { it.uppercase() }, true)
     }
 
-    private suspend fun headlines(url: String): List<String> = withContext(Dispatchers.IO) {
+    private suspend fun headlines(url: String, max: Int): List<String> = withContext(Dispatchers.IO) {
         if (url.isBlank()) return@withContext emptyList()
         runCatching {
             http.newCall(Request.Builder().url(url).header("User-Agent", "Haven TV").build()).execute().use { r ->
-                if (r.isSuccessful) Rss.titles(r.body!!.string(), 4) else emptyList()
+                if (r.isSuccessful) Rss.titles(r.body!!.string(), max) else emptyList()
             }
         }.getOrDefault(emptyList())
     }

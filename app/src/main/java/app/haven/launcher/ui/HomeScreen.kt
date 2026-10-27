@@ -2,11 +2,11 @@ package app.haven.launcher.ui
 
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings as AndroidSettings
 import android.os.SystemClock
+import android.provider.Settings as AndroidSettings
 import android.text.format.DateFormat
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.KeyEventType
@@ -42,11 +45,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.unit.max
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -54,15 +55,26 @@ import app.haven.launcher.Haven
 import app.haven.launcher.Nav
 import app.haven.launcher.Screen
 import app.haven.launcher.bedroom.Bedroom
+import app.haven.launcher.data.AppArt
+import app.haven.launcher.data.AppLook
+import app.haven.launcher.data.AppNames
+import app.haven.launcher.data.AppStyle
+import app.haven.launcher.data.ClockStyle
+import app.haven.launcher.data.HomeRow
+import app.haven.launcher.data.ProfileInfo
 import app.haven.launcher.data.Settings
+import app.haven.launcher.data.TileColor
 import app.haven.launcher.data.TvApp
+import app.haven.launcher.data.moved
 import app.haven.launcher.ha.HaEntity
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.ScoreAlerts
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Where focus is on the home screen. [lastKey] is restored when you come back from another screen; it only
@@ -81,13 +93,15 @@ private const val SIDE = 116
 fun HomeScreen(nav: Nav) {
     val settings by Haven.settings.state.collectAsState()
     val apps by Haven.apps.apps.collectAsState()
+    val lastUsed by Haven.apps.lastUsed.collectAsState()
     val haStatus by Haven.ha.status.collectAsState()
     Haven.ha.entities.collectAsState().value // recompose on Home Assistant updates
     Haven.ha.areas.collectAsState().value
     val sleepEndsAt by Bedroom.sleepEndsAt.collectAsState()
     val update by Haven.updater.available.collectAsState()
     val games by Haven.sports.games.collectAsState()
-    val appCtx = LocalContext.current.applicationContext
+    val ctx = LocalContext.current
+    val appCtx = ctx.applicationContext
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     val requesters = remember { HashMap<String, FocusRequester>() }
@@ -104,14 +118,22 @@ fun HomeScreen(nav: Nav) {
     val visibleApps = apps.filter { it.pkg !in settings.hiddenApps }
     val byPkg = apps.associateBy { it.pkg }
     val favorites = settings.favorites.mapNotNull { byPkg[it] }
+    val used = lastUsed[Haven.settings.activeId].orEmpty()
+    val recent = visibleApps.filter { it.pkg in used }.sortedByDescending { used[it.pkg] }.take(12)
+    val rows = settings.look.rows
     var menuFor by remember { mutableStateOf<TvApp?>(null) }
+    var renaming by remember { mutableStateOf<TvApp?>(null) }
+    var picturing by remember { mutableStateOf<TvApp?>(null) }
+    var coloring by remember { mutableStateOf<TvApp?>(null) }
 
     val favState = rememberLazyListState()
+    val recentState = rememberLazyListState()
     val appState = rememberLazyListState()
     val roomState = rememberLazyListState()
+    val scroll = rememberScrollState()
 
     // First run: pin a few apps so the top row isn't empty.
-    LaunchedEffect(apps.isNotEmpty()) {
+    LaunchedEffect(apps.isNotEmpty(), Haven.settings.activeId) {
         if (apps.isNotEmpty() && !Haven.settings.value.favoritesInitialized) {
             Haven.settings.update { it.copy(favorites = defaultFavorites(apps), favoritesInitialized = true) }
         }
@@ -120,6 +142,7 @@ fun HomeScreen(nav: Nav) {
     // Poll Home Assistant while the home screen is on screen; start art mode after the idle time.
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if (BriefingTrigger.due(appCtx)) nav.go(Screen.Briefing)
             launch {
                 while (true) {
                     Haven.ha.refresh()
@@ -144,20 +167,25 @@ fun HomeScreen(nav: Nav) {
         }
     }
 
-    // Focus the first favorite (DIRECTV on the DIRECTV box), or whatever the user had focused before leaving.
-    // "Home pressed while already home" starts over from the first favorite.
-    LaunchedEffect(nav.homeResets, apps.isNotEmpty(), favorites.isNotEmpty()) {
+    // Focus the first thing in the first row (DIRECTV on the DIRECTV box), or whatever the user had focused
+    // before leaving. "Home pressed while already home" starts over from the top.
+    val fallback = rows.firstNotNullOfOrNull { r ->
+        when (r) {
+            HomeRow.Favorites -> "fav:0".takeIf { favorites.isNotEmpty() }
+            HomeRow.Recent -> "recent:0".takeIf { recent.isNotEmpty() }
+            HomeRow.Apps -> "app:0".takeIf { visibleApps.isNotEmpty() }
+            HomeRow.Room -> null
+        }
+    } ?: "top:settings"
+    LaunchedEffect(nav.homeResets, apps.isNotEmpty(), fallback, Haven.settings.activeId) {
         if (nav.homeResets != lastResetSeen) {
             lastResetSeen = nav.homeResets
             HomeFocus.lastKey = null
             favState.scrollToItem(0)
+            recentState.scrollToItem(0)
             appState.scrollToItem(0)
             roomState.scrollToItem(0)
-        }
-        val fallback = when {
-            favorites.isNotEmpty() -> "fav:0"
-            visibleApps.isNotEmpty() -> "app:0"
-            else -> "top:settings"
+            scroll.scrollTo(0)
         }
         var target = HomeFocus.lastKey ?: fallback
         // Ask until it sticks: the window may give its first focus to the top bar after this runs.
@@ -172,7 +200,8 @@ fun HomeScreen(nav: Nav) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(top = 48.dp)
+            .verticalScroll(scroll)
+            .padding(top = 48.dp, bottom = 64.dp)
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) {
                     HomeFocus.userMoved = true
@@ -182,66 +211,145 @@ fun HomeScreen(nav: Nav) {
             },
     ) {
         TopBar(settings, haStatus, update != null, ::req, ::track, nav)
-
-        // ---- Favorites
-        SectionTitle("Favorites", Modifier.padding(start = SIDE.dp, top = 32.dp))
-        if (favorites.isEmpty()) {
-            Panel(Modifier.padding(start = SIDE.dp, top = 24.dp, bottom = 55.dp).size(400.dp, 225.dp), padding = 32.dp) {
-                Txt("Hold OK on an app below to pin it here.", T.Body, color = C.Stone, maxLines = 3)
-            }
-        } else {
-            LazyRow(
-                state = favState,
-                contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-            ) {
-                itemsIndexed(favorites, key = { _, a -> "fav:" + a.pkg }) { i, app ->
-                    AppCard(
-                        app = app,
-                        width = 400.dp,
-                        height = 225.dp,
-                        iconSize = 96.dp,
-                        onClick = { Haven.apps.launch(app) },
-                        onLongClick = { menuFor = app },
-                        focusRequester = req("fav:$i"),
-                        onFocus = track("fav:$i"),
-                    )
+        for (row in rows) {
+            when (row) {
+                HomeRow.Favorites -> {
+                    RowTitle("Favorites")
+                    if (favorites.isEmpty()) {
+                        Panel(Modifier.padding(start = SIDE.dp, top = 24.dp, bottom = 32.dp).size(L.fav(400), L.fav(225)), padding = 32.dp) {
+                            Txt("Hold OK on an app below to pin it here.", T.Body, color = C.Stone, maxLines = 3)
+                        }
+                    } else {
+                        AppRow(favorites, "fav", favState, settings, L.fav(400), L.fav(225), L.fav(96), L.gap(32), ::req, ::track) { menuFor = it }
+                    }
+                }
+                HomeRow.Recent -> {
+                    RowTitle("Recently used")
+                    if (recent.isEmpty()) {
+                        Txt(
+                            "Apps you open from Haven show up here.", T.Body,
+                            Modifier.padding(start = SIDE.dp, top = 16.dp, bottom = 32.dp), C.Stone,
+                        )
+                    } else {
+                        AppRow(recent, "recent", recentState, settings, L.app(256), L.app(144), L.app(72), L.gap(24), ::req, ::track) { menuFor = it }
+                    }
+                }
+                HomeRow.Apps -> {
+                    RowTitle("Apps")
+                    AppRow(visibleApps, "app", appState, settings, L.app(256), L.app(144), L.app(72), L.gap(24), ::req, ::track) { menuFor = it }
+                }
+                HomeRow.Room -> {
+                    RowTitle(settings.roomName.ifBlank { "This room" })
+                    RoomRow(settings, haStatus, sleepEndsAt, games, nav, roomState, ::req, ::track)
                 }
             }
         }
-
-        // ---- Apps
-        SectionTitle("Apps", Modifier.padding(start = SIDE.dp, top = 8.dp))
-        LazyRow(
-            state = appState,
-            contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            itemsIndexed(visibleApps, key = { _, a -> "app:" + a.pkg }) { i, app ->
-                AppCard(
-                    app = app,
-                    width = 256.dp,
-                    height = 144.dp,
-                    iconSize = 72.dp,
-                    onClick = { Haven.apps.launch(app) },
-                    onLongClick = { menuFor = app },
-                    focusRequester = req("app:$i"),
-                    onFocus = track("app:$i"),
-                )
-            }
-        }
-
-        // ---- This room
-        SectionTitle(settings.roomName.ifBlank { "This room" }, Modifier.padding(start = SIDE.dp, top = 8.dp))
-        RoomRow(settings, haStatus, sleepEndsAt, games, nav, roomState, ::req, ::track)
     }
 
     menuFor?.let { app ->
-        AppMenu(app, settings, onDismiss = { menuFor = null })
+        AppMenu(
+            app, settings,
+            onDismiss = { menuFor = null },
+            onRename = { renaming = app },
+            onPicture = { picturing = app },
+        )
+    }
+    renaming?.let { app ->
+        val look = settings.appLook(app.pkg)
+        TextEditDialog(
+            TextEdit("Rename ${app.label}", look.name.ifBlank { app.label }, app.label) { v ->
+                val name = v.trim().takeIf { it != app.label }.orEmpty()
+                Haven.settings.update { it.withAppLook(app.pkg, it.appLook(app.pkg).copy(name = name)) }
+            },
+        ) { renaming = null }
+    }
+    picturing?.let { app ->
+        val look = settings.appLook(app.pkg)
+        val choices = buildList {
+            add(Choice(AppStyle.Auto.name, AppStyle.Auto.label, settings.look.appArt.label))
+            if (app.banner != null) add(Choice(AppStyle.Banner.name, AppStyle.Banner.label))
+            add(Choice(AppStyle.Icon.name, AppStyle.Icon.label, "Then pick the tile's colour"))
+            add(
+                Choice(
+                    AppStyle.Picture.name, AppStyle.Picture.label,
+                    if (look.image.isBlank()) "Upload one first: open Settings and scan the code with your phone" else "The picture from your phone",
+                ),
+            )
+        }
+        ChoiceDialog(
+            "Picture for ${look.name.ifBlank { app.label }}", choices, look.style.name,
+            onPick = { v ->
+                picturing = null
+                val style = AppStyle.values().firstOrNull { it.name == v } ?: AppStyle.Auto
+                if (style == AppStyle.Picture && look.image.isBlank()) {
+                    Toast.makeText(ctx, "Upload a picture for ${app.label} from your phone first: Settings, then scan the code.", Toast.LENGTH_LONG).show()
+                } else {
+                    Haven.settings.update { it.withAppLook(app.pkg, it.appLook(app.pkg).copy(style = style)) }
+                    if (style == AppStyle.Icon) coloring = app
+                }
+            },
+            onDismiss = { picturing = null },
+        )
+    }
+    coloring?.let { app ->
+        val look = settings.appLook(app.pkg)
+        ChoiceDialog(
+            "Tile colour for ${look.name.ifBlank { app.label }}",
+            TileColor.values().map { Choice(it.argb.toString(), it.label, swatch = if (it.argb == 0L) C.Surface else Color(it.argb)) },
+            look.color.toString(),
+            onPick = { v ->
+                coloring = null
+                Haven.settings.update { it.withAppLook(app.pkg, it.appLook(app.pkg).copy(color = v.toLongOrNull() ?: 0L)) }
+            },
+            onDismiss = { coloring = null },
+        )
     }
 }
 
 private var lastResetSeen = 0
+
+@Composable
+private fun RowTitle(title: String) {
+    SectionTitle(title, Modifier.padding(start = SIDE.dp, top = L.gap(24)))
+}
+
+/** A row of apps: favorites, recently used or all apps. */
+@Composable
+private fun AppRow(
+    apps: List<TvApp>,
+    prefix: String,
+    state: LazyListState,
+    settings: Settings,
+    width: Dp,
+    height: Dp,
+    iconSize: Dp,
+    gap: Dp,
+    req: (String) -> FocusRequester,
+    track: (String) -> (Boolean) -> Unit,
+    onMenu: (TvApp) -> Unit,
+) {
+    LazyRow(
+        state = state,
+        contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = max(16.dp, L.gap(24)), bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(gap),
+    ) {
+        itemsIndexed(apps, key = { _, a -> "$prefix:" + a.pkg }) { i, app ->
+            AppCard(
+                app = app,
+                look = settings.appLook(app.pkg),
+                art = settings.look.appArt,
+                names = settings.look.appNames,
+                width = width,
+                height = height,
+                iconSize = iconSize,
+                onClick = { Haven.apps.launch(app) },
+                onLongClick = { onMenu(app) },
+                focusRequester = req("$prefix:$i"),
+                onFocus = track("$prefix:$i"),
+            )
+        }
+    }
+}
 
 @Composable
 private fun TopBar(
@@ -255,32 +363,65 @@ private fun TopBar(
     val ctx = LocalContext.current
     val now by rememberNow()
     val use24 = settings.use24h || DateFormat.is24HourFormat(ctx)
+    val profiles by Haven.settings.profiles.collectAsState()
+    val me = profiles.firstOrNull { it.active }
+    val look = settings.look
     Haven.ha.entities.collectAsState().value // weather
     Row(
         Modifier.fillMaxWidth().height(96.dp).padding(horizontal = SIDE.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Txt(formatTime(now, use24), T.Clock, Modifier.alignByBaseline())
-            if (!use24) Txt(amPm(now), T.Label, Modifier.alignByBaseline().padding(start = 14.dp), C.Stone)
-            Txt(formatDate(now), T.Body, Modifier.alignByBaseline().padding(start = 36.dp), C.Stone)
+        if (look.clock != ClockStyle.Hidden || look.showDate) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                if (look.clock != ClockStyle.Hidden) {
+                    val size = if (look.clock == ClockStyle.Small) 56 else 88
+                    Txt(formatTime(now, use24), T.Clock, Modifier.alignByBaseline(), size = size)
+                    if (!use24) Txt(amPm(now), T.Label, Modifier.alignByBaseline().padding(start = 14.dp), C.Stone)
+                }
+                if (look.showDate) {
+                    val pad = if (look.clock == ClockStyle.Hidden) 0.dp else 36.dp
+                    Txt(formatDate(now), if (look.clock == ClockStyle.Hidden) T.Title else T.Body, Modifier.alignByBaseline().padding(start = pad), C.Stone)
+                }
+            }
         }
         Box(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             // Information, not a button: no surface, so it doesn't look focusable.
-            Haven.ha.weather(settings)?.takeIf { it.available }?.let { WeatherNote(it, Modifier.padding(end = 16.dp)) }
+            if (look.showWeather) {
+                Haven.ha.weather(settings)?.takeIf { it.available }?.let { WeatherNote(it, Modifier.padding(end = 16.dp)) }
+            }
             if (updateReady) {
                 Chip("Update ready", { nav.go(Screen.Settings) }, icon = Icons.Download, focusRequester = req("top:update"), onFocus = track("top:update"))
             }
-            Chip(
-                settings.roomName.ifBlank { "This room" },
-                { nav.go(if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights) },
-                icon = Icons.House,
-                focusRequester = req("top:room"),
-                onFocus = track("top:room"),
-            )
+            if (look.showRoomChip) {
+                Chip(
+                    settings.roomName.ifBlank { "This room" },
+                    { nav.go(if (haStatus == HaStatus.NotConfigured) Screen.Settings else Screen.Lights) },
+                    icon = Icons.House,
+                    focusRequester = req("top:room"),
+                    onFocus = track("top:room"),
+                )
+            }
+            if (me != null) ProfileButton(me, req("top:profile"), track("top:profile")) { nav.go(Screen.Profiles) }
             IconButton(Icons.Settings, { nav.go(Screen.Settings) }, focusRequester = req("top:settings"), onFocus = track("top:settings"))
         }
+    }
+}
+
+/** The active profile's picture; selecting it opens "Who's watching?". */
+@Composable
+private fun ProfileButton(me: ProfileInfo, focus: FocusRequester, onFocus: (Boolean) -> Unit, onClick: () -> Unit) {
+    Focusable(
+        onClick = onClick,
+        modifier = Modifier.size(64.dp),
+        shape = L.pill(64.dp),
+        color = Color.Transparent,
+        style = FocusStyle.Picture,
+        focusedScale = 1.08f,
+        focusRequester = focus,
+        onFocus = onFocus,
+    ) {
+        Avatar(me.name, ACCENTS.getValue(me.avatar).bright, 64.dp)
     }
 }
 
@@ -296,12 +437,15 @@ private fun WeatherNote(w: HaEntity, modifier: Modifier = Modifier) {
 }
 
 /**
- * An app as a picture: its TV banner, or its icon on a plain tile. The name appears under the card only while
- * it has focus, so rows stay quiet and nothing is cut mid-word at the edge of the screen.
+ * An app as a picture: its TV banner, its icon on a tile, or the profile's own picture for it. The name shows
+ * under the card while it has focus (or always, or never, as the profile chose).
  */
 @Composable
 private fun AppCard(
     app: TvApp,
+    look: AppLook,
+    art: AppArt,
+    names: AppNames,
     width: Dp,
     height: Dp,
     iconSize: Dp,
@@ -311,13 +455,20 @@ private fun AppCard(
     onFocus: (Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val labelAlpha by animateFloatAsState(if (focused) 1f else 0f, tween(160), label = "label")
+    val labelAlpha by animateFloatAsState(if (focused || names == AppNames.Always) 1f else 0f, motion(), label = "label")
+    val style = when (look.style) {
+        AppStyle.Auto -> if (art == AppArt.Banner && app.banner != null) AppStyle.Banner else AppStyle.Icon
+        AppStyle.Banner -> if (app.banner != null) AppStyle.Banner else AppStyle.Icon
+        AppStyle.Picture -> if (look.image.isNotBlank()) AppStyle.Picture else AppStyle.Icon
+        AppStyle.Icon -> AppStyle.Icon
+    }
+    val tile = if (style == AppStyle.Icon && look.color != 0L) Color(look.color) else C.Surface
     Column(Modifier.width(width)) {
         Focusable(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = Modifier.size(width, height),
-            color = C.Surface,
+            color = tile,
             style = FocusStyle.Picture,
             focusedScale = 1.06f,
             focusRequester = focusRequester,
@@ -326,13 +477,23 @@ private fun AppCard(
                 onFocus(it)
             },
         ) {
-            if (app.banner != null) {
-                Image(app.banner, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            } else {
-                IconArt(app.icon, iconSize)
+            when (style) {
+                AppStyle.Picture -> AsyncImage(
+                    model = File(Haven.apps.imagesDir, look.image),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                AppStyle.Banner -> app.banner?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                else -> IconArt(app.icon, iconSize)
             }
         }
-        Txt(app.label, T.Label, Modifier.padding(top = 24.dp).alpha(labelAlpha))
+        if (names != AppNames.Never) {
+            Txt(
+                look.name.ifBlank { app.label }, T.Label, Modifier.padding(top = 24.dp).alpha(labelAlpha),
+                color = if (focused || names != AppNames.Always) C.Linen else C.Stone,
+            )
+        }
     }
 }
 
@@ -361,7 +522,7 @@ private fun RoomRow(
     sleepEndsAt: Long,
     games: List<Game>,
     nav: Nav,
-    state: androidx.compose.foundation.lazy.LazyListState,
+    state: LazyListState,
     req: (String) -> FocusRequester,
     track: (String) -> (Boolean) -> Unit,
 ) {
@@ -424,12 +585,14 @@ private fun RoomRow(
             }
         }
         add(RoomTile("art", Icons.Image, "Art mode", settings.artSource.label, Glow.None) { nav.go(Screen.Art) })
-        if (settings.sports.teams.isNotEmpty()) {
+        if (settings.sports.teams.isNotEmpty() && settings.sports.homeTile) {
             val g = games.firstOrNull()
+            val hide = settings.sports.noSpoilers
             val (title, sub) = when {
                 g == null -> "Your teams" to "No games scheduled"
-                g.state == GameState.Live -> g.scoreLine to listOf(g.detail, g.league.label).filter { it.isNotBlank() }.joinToString(" · ")
-                g.state == GameState.Final -> g.scoreLine to "Final"
+                g.state == GameState.Live -> (if (hide) g.matchup else g.scoreLine) to
+                    listOf(if (hide) "Live" else g.detail, g.league.label).filter { it.isNotBlank() }.joinToString(" · ")
+                g.state == GameState.Final -> (if (hide) g.matchup else g.scoreLine) to "Final"
                 else -> g.matchup to gameStatus(g, settings.use24h)
             }
             add(
@@ -447,8 +610,8 @@ private fun RoomRow(
     }
     LazyRow(
         state = state,
-        contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = max(16.dp, L.gap(24)), bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(L.gap(32)),
     ) {
         itemsIndexed(tiles, key = { _, t -> t.key }) { _, t ->
             Focusable(
@@ -467,7 +630,7 @@ private fun RoomRow(
                     Icon(
                         t.icon, 40.dp,
                         when {
-                            focused -> C.Ink
+                            lit(focused) -> C.Ink
                             t.glow == Glow.On -> C.Lamp
                             t.glow == Glow.Alert -> C.Clay
                             else -> C.Stone
@@ -484,12 +647,13 @@ private fun RoomRow(
 }
 
 @Composable
-private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit) {
+private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit, onRename: () -> Unit, onPicture: () -> Unit) {
     val isFav = app.pkg in settings.favorites
+    val look = settings.appLook(app.pkg)
     val first = remember { FocusRequester() }
     HavenDialog(onDismiss) {
         Panel(Modifier.width(640.dp)) {
-            Txt(app.label, T.Title)
+            Txt(look.name.ifBlank { app.label }, T.Title)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 MenuItem(if (isFav) "Remove from favorites" else "Add to favorites", if (isFav) Icons.X else Icons.Star, first) {
                     Haven.settings.update {
@@ -499,11 +663,25 @@ private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit) {
                 }
                 if (isFav) {
                     MenuItem("Move left", Icons.ArrowLeft) {
-                        Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, -1)) }
+                        Haven.settings.update { it.copy(favorites = it.favorites.moved(app.pkg, -1)) }
                         onDismiss()
                     }
                     MenuItem("Move right", Icons.ArrowRight) {
-                        Haven.settings.update { it.copy(favorites = it.favorites.move(app.pkg, 1)) }
+                        Haven.settings.update { it.copy(favorites = it.favorites.moved(app.pkg, 1)) }
+                        onDismiss()
+                    }
+                }
+                MenuItem("Rename", Icons.Pencil) {
+                    onDismiss()
+                    onRename()
+                }
+                MenuItem("Change its picture", Icons.Image) {
+                    onDismiss()
+                    onPicture()
+                }
+                if (!look.isDefault) {
+                    MenuItem("Back to its own name and picture", Icons.RefreshCw) {
+                        Haven.settings.update { it.withAppLook(app.pkg, AppLook()) }
                         onDismiss()
                     }
                 }
@@ -518,57 +696,12 @@ private fun AppMenu(app: TvApp, settings: Settings, onDismiss: () -> Unit) {
             }
         }
     }
-    LaunchedEffect(Unit) {
-        delay(50)
-        runCatching { first.requestFocus() }
-    }
-}
-
-@Composable
-fun MenuItem(label: String, icon: ImageVector, focusRequester: FocusRequester? = null, onClick: () -> Unit) {
-    Focusable(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(80.dp),
-        focusedScale = 1.03f,
-        focusRequester = focusRequester,
-    ) { focused ->
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Icon(icon, 32.dp, if (focused) C.Ink else C.Stone)
-            Txt(label, T.Body, color = ink(focused))
-        }
-    }
-}
-
-/** A dialog window (so D-pad focus stays inside it) drawn on the 1920x1080 canvas over a dimmed screen. */
-@Composable
-fun HavenDialog(onDismiss: () -> Unit, alignment: Alignment = Alignment.Center, content: @Composable () -> Unit) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        DesignCanvas {
-            Box(Modifier.fillMaxSize(), contentAlignment = alignment) { content() }
-        }
-    }
-}
-
-private fun List<String>.move(item: String, by: Int): List<String> {
-    val i = indexOf(item)
-    if (i < 0) return this
-    val j = (i + by).coerceIn(0, size - 1)
-    if (i == j) return this
-    val m = toMutableList()
-    m.removeAt(i)
-    m.add(j, item)
-    return m
+    FocusOnOpen(first, 50)
 }
 
 /** First run: DIRECTV (live TV on the DIRECTV box) first, then the first few apps with banners. */
 private fun defaultFavorites(apps: List<TvApp>): List<String> {
-    val provider = apps.filter { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
-        .sortedByDescending { it.launchIntent.hasCategory(Intent.CATEGORY_HOME) }
-        .take(1)
+    val provider = listOfNotNull(Haven.apps.provider())
     val rest = apps.filter { it !in provider && it.banner != null }
     return (provider + rest).take(5).map { it.pkg }
 }

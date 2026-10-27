@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.File
 
 data class TvApp(
     val pkg: String,
@@ -30,8 +31,11 @@ data class TvApp(
     val launchIntent: Intent,
 )
 
-/** Installed apps a TV launcher should show: leanback apps first, then phone-style launcher apps. */
-class AppsRepository(private val context: Context, private val scope: CoroutineScope) {
+/**
+ * Installed apps a TV launcher should show: leanback apps first, then phone-style launcher apps. [profile] says
+ * whose "recently used" list a launch counts towards.
+ */
+class AppsRepository(private val context: Context, private val scope: CoroutineScope, private val profile: () -> String) {
     private val pm: PackageManager = context.packageManager
     private val prefs = context.getSharedPreferences("haven_apps", Context.MODE_PRIVATE)
 
@@ -39,7 +43,12 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
     val apps: StateFlow<List<TvApp>> = _apps
 
     private val _lastUsed = MutableStateFlow(loadLastUsed())
-    val lastUsed: StateFlow<Map<String, Long>> = _lastUsed
+
+    /** Profile id to (package to last launch time). */
+    val lastUsed: StateFlow<Map<String, Map<String, Long>>> = _lastUsed
+
+    /** Pictures people chose for apps (from the phone page). */
+    val imagesDir = File(context.filesDir, "appimages").apply { mkdirs() }
 
     init {
         val filter = IntentFilter().apply {
@@ -75,7 +84,8 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
                     .setClassName(ai.packageName, ai.name)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
                 val banner = (ai.loadBanner(pm) ?: ai.applicationInfo.loadBanner(pm))?.toImage(400, 225)
-                val icon = if (banner == null) ri.loadIcon(pm)?.toImage(160, 160) else null
+                // Every app gets its icon too: a profile may prefer icons on tiles to banners.
+                val icon = ri.loadIcon(pm)?.toImage(160, 160)
                 out += TvApp(ai.packageName, ri.loadLabel(pm).toString().trim(), banner, icon, intent)
             }
         }
@@ -103,6 +113,12 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
         toBitmap((w * s).toInt().coerceAtLeast(1), (h * s).toInt().coerceAtLeast(1)).asImageBitmap()
     }.getOrNull()
 
+    /** The TV provider's app (DIRECTV on its own box): live TV. Its home-screen entry wins over a plain one. */
+    fun provider(): TvApp? = _apps.value
+        .filter { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
+        .sortedByDescending { it.launchIntent.hasCategory(Intent.CATEGORY_HOME) }
+        .firstOrNull()
+
     fun launch(app: TvApp) {
         try {
             context.startActivity(app.launchIntent)
@@ -122,13 +138,26 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
     }
 
     private fun markUsed(pkg: String) {
-        val next = _lastUsed.value + (pkg to System.currentTimeMillis())
+        val id = profile()
+        val all = _lastUsed.value
+        val mine = (all[id].orEmpty() + (pkg to System.currentTimeMillis())).entries
+            .sortedByDescending { it.value }.take(40).associate { it.key to it.value }
+        val next = all + (id to mine)
         _lastUsed.value = next
-        prefs.edit().putString("lastUsed", JSONObject(next).toString()).apply()
+        val o = JSONObject()
+        for ((p, m) in next) o.put(p, JSONObject(m))
+        prefs.edit().putString("lastUsedByProfile", o.toString()).apply()
     }
 
-    private fun loadLastUsed(): Map<String, Long> = runCatching {
-        val o = JSONObject(prefs.getString("lastUsed", "{}")!!)
-        o.keys().asSequence().associateWith { o.optLong(it) }
+    private fun loadLastUsed(): Map<String, Map<String, Long>> = runCatching {
+        fun map(o: JSONObject): Map<String, Long> = o.keys().asSequence().associateWith { o.optLong(it) }
+        val saved = prefs.getString("lastUsedByProfile", null)
+        if (saved != null) {
+            val o = JSONObject(saved)
+            o.keys().asSequence().associateWith { k -> o.optJSONObject(k)?.let(::map).orEmpty() }
+        } else {
+            // From before profiles: the history belongs to the first profile.
+            mapOf(ProfilesMeta.FIRST to map(JSONObject(prefs.getString("lastUsed", "{}")!!)))
+        }
     }.getOrDefault(emptyMap())
 }

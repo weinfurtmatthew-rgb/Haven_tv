@@ -1,0 +1,157 @@
+package app.haven.launcher
+
+import app.haven.launcher.bedroom.Tones
+import app.haven.launcher.bg.BackgroundFeeds
+import app.haven.launcher.bg.BoxBlur
+import app.haven.launcher.data.Accent
+import app.haven.launcher.data.AlarmSound
+import app.haven.launcher.data.AppLook
+import app.haven.launcher.data.AppStyle
+import app.haven.launcher.data.BgKind
+import app.haven.launcher.data.BriefSection
+import app.haven.launcher.data.HomeRow
+import app.haven.launcher.data.LookConfig
+import app.haven.launcher.data.Options
+import app.haven.launcher.data.ProfilesMeta
+import app.haven.launcher.data.Settings
+import app.haven.launcher.data.ThemePreset
+import app.haven.launcher.data.completeOrder
+import app.haven.launcher.data.moved
+import org.json.JSONObject
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CustomizeTest {
+    @Test
+    fun optionIdsAreUnique() {
+        val ids = Options.all.map { it.id }
+        assertEquals(ids.size, ids.toSet().size)
+    }
+
+    /** Every choice of every option sticks, and survives being saved and loaded. */
+    @Test
+    fun everyChoiceRoundTrips() {
+        for (opt in Options.all) {
+            if (opt.order != null || opt.text) continue
+            for (c in opt.choices(Settings())) {
+                val s = opt.with(Settings(), c.value)
+                assertEquals("${opt.id} = ${c.value}", c.value, opt.value(s))
+                val back = Settings.fromJson(JSONObject(s.toJson().toString()))
+                assertEquals("${opt.id} = ${c.value} after saving", c.value, opt.value(back))
+            }
+        }
+    }
+
+    @Test
+    fun unknownValuesAreIgnored() {
+        val s = Settings()
+        assertEquals(s, Options["look.theme"]!!.with(s, "Neon"))
+        assertEquals(s, Options["alarm.volume"]!!.with(s, "loud"))
+    }
+
+    @Test
+    fun anyColourFromThePhone() {
+        val s = Options["bg.color"]!!.with(Settings(), "4294902015")
+        assertEquals(0xFFFF00FFL, s.background.color)
+        assertEquals("#FF00FF", Options.hex(s.background.color))
+    }
+
+    @Test
+    fun rowsKeepTheirOrderAndVisibility() {
+        val rows = Options["home.rows"]!!.order!!
+        val s = rows.set(Settings(), listOf("Recent", "Room"), setOf("Recent", "Room"))
+        assertEquals(listOf(HomeRow.Recent, HomeRow.Room), s.look.rows)
+        // Rows missing from a saved order come back at the end, hidden.
+        assertEquals(HomeRow.values().toSet(), s.look.rowOrder.toSet())
+        val back = Settings.fromJson(JSONObject(s.toJson().toString()))
+        assertEquals(s.look, back.look)
+        val sections = Options["brief.sections"]!!.order!!.set(Settings(), listOf("Teams", "Weather"), setOf("Teams"))
+        assertEquals(listOf(BriefSection.Teams), sections.brief.sections)
+    }
+
+    @Test
+    fun orderHelpers() {
+        assertEquals(listOf(HomeRow.Apps, HomeRow.Favorites, HomeRow.Recent, HomeRow.Room), completeOrder(listOf(HomeRow.Apps)))
+        assertEquals(listOf("b", "a", "c"), listOf("a", "b", "c").moved("a", 1))
+        assertEquals(listOf("a", "b", "c"), listOf("a", "b", "c").moved("a", -1))
+    }
+
+    @Test
+    fun lookAndAppsRoundTrip() {
+        val s = Settings(
+            look = LookConfig(theme = ThemePreset.Daylight, accent = Accent.Mint, avatar = Accent.Rose),
+            appLooks = mapOf("com.example.tv" to AppLook(name = "Movies", style = AppStyle.Icon, color = 0xFF14403F)),
+        ).copy(background = Settings().background.copy(kind = BgKind.Posters, tmdbKey = "abc"))
+        val back = Settings.fromJson(JSONObject(s.toJson().toString()))
+        assertEquals(s.look, back.look)
+        assertEquals(s.appLooks, back.appLooks)
+        assertEquals(s.background, back.background)
+        // A look reset to defaults isn't saved at all.
+        assertTrue(s.withAppLook("com.example.tv", AppLook()).appLooks.isEmpty())
+        // Settings from before this version have none of the new keys.
+        assertEquals(LookConfig(), Settings.fromJson(JSONObject("{}")).look)
+    }
+
+    @Test
+    fun profilesBookkeeping() {
+        val m = ProfilesMeta(listOf("p1", "p2", "p4"), "p2", askOnStart = true)
+        assertEquals(m, ProfilesMeta.fromJson(JSONObject(m.toJson().toString())))
+        assertEquals("p3", ProfilesMeta.newId(m.order))
+        assertNull(ProfilesMeta.fromJson(JSONObject("""{"order":[]}""")))
+        // An active profile that no longer exists falls back to the first one.
+        assertEquals("p1", ProfilesMeta.fromJson(JSONObject("""{"order":["p1","p2"],"active":"p9"}"""))!!.active)
+    }
+
+    @Test
+    fun alarmSoundsAreRealSound() {
+        for (sound in AlarmSound.values()) {
+            val pcm = Tones.pcm(sound)
+            if (sound == AlarmSound.Silent) {
+                assertEquals(0, pcm.size)
+                continue
+            }
+            assertTrue("$sound is at least a second long", pcm.size >= Tones.RATE)
+            val peak = pcm.maxOf { kotlin.math.abs(it.toInt()) }
+            assertTrue("$sound is audible", peak > 2000)
+            assertTrue("$sound doesn't clip", peak < 32767)
+        }
+        assertNotEquals(Tones.pcm(AlarmSound.Chime).toList(), Tones.pcm(AlarmSound.Bells).toList())
+    }
+
+    @Test
+    fun blurSpreadsLightAndKeepsFlatAreasFlat() {
+        val w = 32
+        val h = 16
+        val flat = IntArray(w * h) { 0xFF404040.toInt() }
+        BoxBlur.blur(flat, w, h, 3)
+        assertTrue(flat.all { it == 0xFF404040.toInt() })
+        val dot = IntArray(w * h) { 0xFF000000.toInt() }
+        dot[8 * w + 16] = 0xFFFFFFFF.toInt()
+        BoxBlur.blur(dot, w, h, 2, passes = 1)
+        val lit = dot.count { (it and 0xFF) > 0 }
+        assertTrue("the bright pixel spread to its neighbours ($lit)", lit > 9)
+    }
+
+    @Test
+    fun bingAndTmdbParse() {
+        val bing = BackgroundFeeds.parseBing(
+            JSONObject("""{"images":[{"url":"/th?id=OHR.Lake_1920x1080.jpg","title":"A quiet lake","copyright":"© Someone"}]}"""),
+        )!!
+        assertEquals("https://www.bing.com/th?id=OHR.Lake_1920x1080.jpg", bing.url)
+        assertEquals("A quiet lake", bing.title)
+        assertNull(BackgroundFeeds.parseBing(JSONObject("""{"images":[]}""")))
+        val posters = BackgroundFeeds.parseTmdb(
+            JSONObject(
+                """{"results":[{"title":"A film","backdrop_path":"/b.jpg","poster_path":"/p.jpg"},
+                   {"name":"A show","backdrop_path":null,"poster_path":"/s.jpg"},{"title":"Hidden","adult":true}]}""",
+            ),
+        )
+        assertEquals(listOf("A film", "A show"), posters.map { it.title })
+        assertEquals("https://image.tmdb.org/t/p/w1280/b.jpg", posters[0].backdrop)
+        assertNull(posters[1].backdrop)
+        assertEquals("https://image.tmdb.org/t/p/w342/s.jpg", posters[1].poster)
+    }
+}

@@ -260,12 +260,14 @@ class SportsRepository(private val store: SettingsStore) {
         for (g in games) {
             val now = Triple(g.state, g.home.score, g.away.score)
             val before = seen.put(g.id, now) ?: continue
+            // Without spoilers: starts and ends are announced, scores never are.
+            val hide = cfg.noSpoilers
             when {
                 before.first == GameState.Scheduled && g.state == GameState.Live && cfg.alertStart ->
                     out += "${g.matchup} is starting" to g.broadcasts.firstOrNull().orEmpty()
                 before.first != GameState.Final && g.state == GameState.Final && cfg.alertFinal ->
-                    out += "Final: ${g.scoreLine}" to g.league.label
-                g.state == GameState.Live && (before.second != now.second || before.third != now.third) && cfg.alertScore ->
+                    out += (if (hide) "${g.matchup} is over" else "Final: ${g.scoreLine}") to g.league.label
+                g.state == GameState.Live && (before.second != now.second || before.third != now.third) && cfg.alertScore && !hide ->
                     out += g.scoreLine to g.detail
             }
         }

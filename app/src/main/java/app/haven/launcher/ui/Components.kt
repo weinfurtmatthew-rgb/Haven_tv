@@ -2,8 +2,10 @@ package app.haven.launcher.ui
 
 import android.text.format.DateFormat
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -43,8 +46,11 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -60,13 +66,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.haven.launcher.data.FocusLook
+import app.haven.launcher.data.GreetingStyle
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val LONG_PRESS_MS = 600L
-private val FocusMotion = tween<Float>(160, easing = FastOutSlowInEasing)
+
+/** Haven's motion (DESIGN.md, "Motion"), or none at all when the profile asks for reduced motion. */
+fun <T> motion(ms: Int = 160): FiniteAnimationSpec<T> = if (Look.reduced) snap() else tween(ms, easing = FastOutSlowInEasing)
 
 /** Tracks one OK press so a key-up only clicks the element that saw the key-down. */
 private class PressState {
@@ -78,24 +88,27 @@ fun KeyEvent.isSelectKey(): Boolean = key == Key.DirectionCenter || key == Key.E
 
 /** How a focusable shows focus (DESIGN.md, "Focus and state"). */
 enum class FocusStyle {
-    /** Buttons, chips, rows and text tiles: the surface turns linen and the content turns hearth. */
+    /**
+     * Buttons, chips, rows and text tiles: the surface turns linen and the content turns hearth, or, when the
+     * profile picked a frame ([FocusLook]), the control keeps its colours and gets a frame.
+     */
     Control,
 
-    /** App banners, posters and art: a linen frame just outside the picture. */
+    /** App banners, posters and art: a frame just outside the picture. */
     Picture,
 }
 
 /**
- * Every interactive element. A D-pad focusable surface that lifts when focused and shows focus the Haven way
- * ([FocusStyle]), dips while OK is held, clicks on OK and long-clicks when OK is held. [onKey] sees every other
- * key while focused. The content gets `focused` so it can switch to [ink] colours.
+ * Every interactive element. A D-pad focusable surface that lifts when focused and shows focus the profile's way
+ * ([FocusStyle], [FocusLook]), dips while OK is held, clicks on OK and long-clicks when OK is held. [onKey] sees
+ * every other key while focused. The content gets `focused` so it can switch to [ink] colours.
  */
 @Composable
 fun Focusable(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
-    shape: Shape = RoundedCornerShape(12.dp),
+    shape: Shape = L.shape,
     color: Color = C.Raised,
     style: FocusStyle = FocusStyle.Control,
     focusedScale: Float = 1.04f,
@@ -107,19 +120,20 @@ fun Focusable(
     var focused by remember { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
     val press = remember { PressState() }
+    val lift = 1f + (focusedScale - 1f) * Look.cfg.zoom.factor
     val scale by animateFloatAsState(
         when {
-            pressed -> 0.97f
-            focused -> focusedScale
+            pressed && !Look.reduced -> 0.97f
+            focused -> lift
             else -> 1f
         },
-        FocusMotion, label = "scale",
+        motion(), label = "scale",
     )
-    val bg by animateColorAsState(
-        if (focused && style == FocusStyle.Control) C.Linen else color,
-        tween(160, easing = FastOutSlowInEasing), label = "bg",
-    )
-    val frame by animateFloatAsState(if (focused && style == FocusStyle.Picture) 1f else 0f, FocusMotion, label = "frame")
+    val fill = Look.fill
+    val bg by animateColorAsState(if (focused && style == FocusStyle.Control && fill) C.Linen else color, motion(), label = "bg")
+    val framed = focused && (style == FocusStyle.Picture || !fill)
+    val frame by animateFloatAsState(if (framed) 1f else 0f, motion(), label = "frame")
+    val frameColor = if (Look.cfg.focus == FocusLook.ColorFrame) C.Lamp else C.Linen
     Box(
         modifier
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
@@ -172,12 +186,13 @@ fun Focusable(
             .drawWithContent {
                 drawContent()
                 if (frame > 0f) {
-                    // 4 px linen frame, 4 px outside the picture, following its corners. Drawn outside the clip.
+                    // 4 px frame, 4 px outside the element, following its corners. Drawn outside the clip.
                     val w = 4.dp.toPx()
                     val gap = 4.dp.toPx() + w / 2
-                    val radius = 12.dp.toPx() + gap
+                    val corner = (shape as? CornerBasedShape)?.topStart?.toPx(size, this) ?: 0f
+                    val radius = corner + gap
                     drawRoundRect(
-                        color = C.Linen.copy(alpha = frame),
+                        color = frameColor.copy(alpha = frame),
                         topLeft = Offset(-gap, -gap),
                         size = Size(size.width + 2 * gap, size.height + 2 * gap),
                         cornerRadius = CornerRadius(radius, radius),
@@ -215,7 +230,7 @@ fun IconButton(
     Focusable(
         onClick = onClick,
         modifier = modifier.size(size),
-        shape = CircleShape,
+        shape = L.pill(size),
         color = C.Surface,
         focusedScale = 1.08f,
         focusRequester = focusRequester,
@@ -243,26 +258,27 @@ fun Chip(
     Focusable(
         onClick = onClick,
         modifier = modifier.height(height),
-        shape = RoundedCornerShape(height / 2),
+        shape = L.pill(height),
         color = if (selected) C.LampSoft else C.Raised,
         focusedScale = 1.06f,
         focusRequester = focusRequester,
         onFocus = onFocus,
     ) { focused ->
+        val l = lit(focused)
         Row(
             Modifier.fillMaxHeight().padding(horizontal = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (selected) {
-                Box(Modifier.size(12.dp).clip(CircleShape).background(if (focused) C.Ember else C.Lamp))
+                Box(Modifier.size(12.dp).clip(CircleShape).background(if (l) C.Ember else C.Lamp))
             } else if (icon != null) {
-                Icon(icon, 28.dp, ink(focused))
+                Icon(icon, 28.dp, if (l) C.Ink else C.Linen)
             }
             Txt(
                 label, T.Label,
                 color = when {
-                    focused -> C.Ink
+                    l -> C.Ink
                     selected -> C.Lamp
                     else -> C.Linen
                 },
@@ -271,18 +287,19 @@ fun Chip(
     }
 }
 
-/** On/off switch (72x40). On is lamp light; on a focused row the track turns hearth and the knob keeps the lamp. */
+/** On/off switch (72x40). On is lamp light; on a filled focused row the track turns hearth and the knob keeps the lamp. */
 @Composable
 fun Toggle(on: Boolean, focused: Boolean = false, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val knob by animateFloatAsState(if (on) 1f else 0f, FocusMotion, label = "knob")
+    val knob by animateFloatAsState(if (on) 1f else 0f, motion(), label = "knob")
+    val l = lit(focused)
     val track = when {
-        !enabled -> if (focused) C.TrackOnLinen else C.Line
-        focused -> if (on) C.Ink else C.TrackOnLinen
+        !enabled -> if (l) C.TrackOnLinen else C.Line
+        l -> if (on) C.Ink else C.TrackOnLinen
         else -> if (on) C.Lamp else C.Track
     }
     val dot = when {
-        !enabled -> if (focused) C.InkMuted else C.Dust
-        focused -> if (on) C.Lamp else C.Ink
+        !enabled -> if (l) C.InkMuted else C.Dust
+        l -> if (on) C.Lamp else C.Ink
         else -> if (on) C.Ink else C.Linen
     }
     Box(
@@ -304,11 +321,12 @@ fun Toggle(on: Boolean, focused: Boolean = false, modifier: Modifier = Modifier,
 /** Level bar (brightness, volume). [fraction] in 0..1. */
 @Composable
 fun LevelBar(fraction: Float, modifier: Modifier = Modifier, focused: Boolean = false, height: Dp = 12.dp) {
+    val l = lit(focused)
     Box(
         modifier
             .height(height)
             .clip(RoundedCornerShape(height / 2))
-            .background(if (focused) C.TrackOnLinen else C.Track),
+            .background(if (l) C.TrackOnLinen else C.Track),
     ) {
         if (fraction > 0f) {
             Box(
@@ -316,7 +334,7 @@ fun LevelBar(fraction: Float, modifier: Modifier = Modifier, focused: Boolean = 
                     .fillMaxHeight()
                     .fillMaxWidth(fraction.coerceIn(0.02f, 1f))
                     .clip(RoundedCornerShape(height / 2))
-                    .background(if (focused) C.Ink else C.Lamp),
+                    .background(if (l) C.Ink else C.Lamp),
             )
         }
     }
@@ -369,7 +387,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, trailing: String? 
 fun Panel(modifier: Modifier = Modifier, padding: Dp = 40.dp, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(L.panelShape)
             .background(C.Surface)
             .padding(padding),
         verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -438,23 +456,42 @@ fun greeting(hour: Int): String = when (hour) {
     else -> "Good evening"
 }
 
+/** The greeting a profile chose: with their name, plain, their own words, or none (null). */
+fun greetingLine(style: GreetingStyle, message: String, name: String, hour: Int, stop: String = ""): String? = when (style) {
+    GreetingStyle.WithName -> greeting(hour) + (if (name.isBlank()) "" else ", ${name.trim()}") + stop
+    GreetingStyle.Plain -> greeting(hour) + stop
+    GreetingStyle.Custom -> message.trim().ifBlank { null }
+    GreetingStyle.None -> null
+}
+
 @Composable
 fun Spacer(width: Dp = 0.dp, height: Dp = 0.dp) {
     Box(Modifier.width(width).height(height))
 }
 
-/** Fills the rest of a list's area with a fade, so a cut-off row reads as "more below", not a glitch. */
+/**
+ * Fades a list out over its last [height] pixels, so a cut-off row reads as "more below", not a glitch. It fades
+ * the content itself, so it works over any background.
+ */
+fun Modifier.fadeBottom(height: Dp = 64.dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val h = height.toPx().coerceAtMost(size.height)
+        drawRect(
+            brush = Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - h, endY = size.height),
+            topLeft = Offset(0f, size.height - h),
+            size = Size(size.width, h),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/** A profile's picture: their initial on their colour. */
 @Composable
-fun BoxScope.BottomFade(height: Dp = 64.dp) {
-    Box(
-        Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .height(height)
-            .background(
-                androidx.compose.ui.graphics.Brush.verticalGradient(listOf(C.Hearth.copy(alpha = 0f), C.Hearth)),
-            ),
-    )
+fun Avatar(name: String, color: Color, size: Dp, modifier: Modifier = Modifier) {
+    Box(modifier.size(size).clip(CircleShape).background(color), contentAlignment = Alignment.Center) {
+        Txt(name.trim().take(1).uppercase().ifBlank { "?" }, T.Title, color = C.OnBright, size = (size.value * 0.46f).toInt())
+    }
 }
 
 @Composable

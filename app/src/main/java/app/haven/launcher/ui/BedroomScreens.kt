@@ -5,17 +5,21 @@ import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -33,6 +37,8 @@ import app.haven.launcher.Screen
 import app.haven.launcher.bedroom.AlarmActivity
 import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.AlarmConfig
+import app.haven.launcher.data.Opt
+import app.haven.launcher.data.OptSection
 import app.haven.launcher.system.HomeButtonService
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
@@ -49,18 +55,18 @@ fun AlarmScreen(nav: Nav) {
     val now by rememberNow()
     val a = settings.alarm
     val first = remember { FocusRequester() }
+    var openOption by remember { mutableStateOf<Opt?>(null) }
     LaunchedEffect(Unit) {
         delay(60)
         runCatching { first.requestFocus() }
     }
     fun edit(block: (AlarmConfig) -> AlarmConfig) {
         Haven.settings.update { it.copy(alarm = block(it.alarm)) }
-        Bedroom.scheduleAlarm(ctx)
     }
 
     Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(48.dp)) {
         ScreenHeader("Alarm", settings.roomName, onBack = { nav.go(Screen.Home) })
-        Row(horizontalArrangement = Arrangement.spacedBy(96.dp)) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(80.dp)) {
             Column(Modifier.width(800.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     val h12 = if (a.hour % 12 == 0) 12 else a.hour % 12
@@ -95,28 +101,38 @@ fun AlarmScreen(nav: Nav) {
                     }
                 }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                now.minute // re-read "in 7 hr 12 min" every minute
-                SettingRow("Alarm", nextAlarmText(a, settings.use24h), toggle = a.enabled) { edit { it.copy(enabled = !it.enabled) } }
-                SettingRow(
-                    "Sunrise lights",
-                    when {
-                        !settings.haConfigured -> "Needs Home Assistant"
-                        a.sunriseMin == 0 -> "Off"
-                        else -> "The room's lights fade in over ${a.sunriseMin} min"
-                    },
-                ) { edit { it.copy(sunriseMin = SUNRISE_STEPS.next(it.sunriseMin)) } }
-                SettingRow("Snooze", "${a.snoozeMin} min") { edit { it.copy(snoozeMin = SNOOZE_STEPS.next(it.snoozeMin)) } }
-                SettingRow("Try the alarm now", "It rings for real") {
-                    ctx.startActivity(Intent(ctx, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            // Everything else about the alarm, in a list: sound, snooze, how to stop it, what comes after.
+            LazyColumn(
+                Modifier.weight(1f).fillMaxHeight().bleed(16.dp).fadeBottom(64.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+            ) {
+                item(key = "on") {
+                    now.minute // re-read "in 7 hr 12 min" every minute
+                    SettingRow("Alarm", nextAlarmText(a, settings.use24h), toggle = a.enabled) { edit { it.copy(enabled = !it.enabled) } }
                 }
-                Txt(
-                    "Leave the box plugged in. In deep standby it may not wake the TV, so try the alarm once at night.",
-                    T.Body, Modifier.padding(top = 8.dp), C.Dust, maxLines = 3,
-                )
+                optionRows(OptSection.Alarm, settings, Modifier, null, onPhone = {}, onOpen = { openOption = it })
+                item(key = "look") { SectionTitle(OptSection.AlarmScreen.label, Modifier.padding(top = 24.dp, bottom = 4.dp)) }
+                optionRows(OptSection.AlarmScreen, settings, Modifier, null, onPhone = {}, onOpen = { openOption = it })
+                item(key = "try") {
+                    SettingRow("Try the alarm now", "It rings for real, with everything set above") {
+                        ctx.startActivity(
+                            Intent(ctx, AlarmActivity::class.java)
+                                .putExtra(Bedroom.EXTRA_PROFILE, Haven.settings.activeId)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                }
+                item(key = "note") {
+                    Txt(
+                        "Leave the box plugged in. In deep standby it may not wake the TV, so try the alarm once at night.",
+                        T.Body, Modifier.padding(top = 8.dp), C.Dust, maxLines = 3,
+                    )
+                }
             }
         }
     }
+    openOption?.let { o -> OptionDialog(o) { openOption = null } }
 }
 
 /** One part of the alarm time. Up and down change it; the chevrons show only while it has focus. */
@@ -139,13 +155,13 @@ private fun TimeField(text: String, focus: FocusRequester? = null, small: Boolea
         },
     ) { focused ->
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.ChevronUp, 36.dp, if (focused) C.Ink else Color.Transparent)
+            Icon(Icons.ChevronUp, 36.dp, if (focused) inkIcon(true) else Color.Transparent)
             if (small) {
                 Txt(text, T.CardTitle, Modifier.padding(vertical = 30.dp), ink(focused), size = 44)
             } else {
                 Txt(text, T.Display, color = ink(focused), size = 120, align = TextAlign.Center)
             }
-            Icon(Icons.ChevronDown, 36.dp, if (focused) C.Ink else Color.Transparent)
+            Icon(Icons.ChevronDown, 36.dp, if (focused) inkIcon(true) else Color.Transparent)
         }
     }
 }
@@ -156,15 +172,16 @@ private fun DayChip(label: String, on: Boolean, onClick: () -> Unit) {
     Focusable(
         onClick = onClick,
         modifier = Modifier.size(100.dp, 72.dp),
-        shape = RoundedCornerShape(36.dp),
+        shape = L.pill(72.dp),
         color = if (on) C.LampSoft else C.Raised,
         focusedScale = 1.08f,
     ) { focused ->
         Txt(
             label, T.Label, Modifier.align(Alignment.Center),
             color = when {
-                focused -> C.Ink
+                lit(focused) -> C.Ink
                 on -> C.Lamp
+                focused -> C.Linen
                 else -> C.Stone
             },
         )
@@ -252,11 +269,6 @@ private val WEEK = listOf(
     DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY,
     DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY,
 )
-private val SUNRISE_STEPS = listOf(0, 5, 10, 15, 20, 30)
-private val SNOOZE_STEPS = listOf(5, 9, 10, 15)
-
-private fun List<Int>.next(current: Int): Int = this[(indexOf(current).coerceAtLeast(-1) + 1) % size]
-
 /** "On. Rings tomorrow at 6:30 AM, in 7 hr 12 min". */
 private fun nextAlarmText(a: AlarmConfig, use24h: Boolean): String {
     if (!a.enabled) return "Off"

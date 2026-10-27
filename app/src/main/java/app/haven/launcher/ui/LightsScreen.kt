@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -143,7 +142,7 @@ private fun LightsColumn(modifier: Modifier, scope: CoroutineScope, firstFocus: 
         } else {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(
-                    Modifier.fillMaxSize().bleed(16.dp),
+                    Modifier.fillMaxSize().bleed(16.dp).fadeBottom(48.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                 ) {
@@ -176,7 +175,6 @@ private fun LightsColumn(modifier: Modifier, scope: CoroutineScope, firstFocus: 
                         )
                     }
                 }
-                BottomFade(48.dp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                 KeyHint("on or off", key = "OK")
@@ -230,7 +228,7 @@ private fun SpeakersColumn(modifier: Modifier, scope: CoroutineScope) {
             val title = playing.attrs.optString("media_title")
             val by = playing.attrs.optString("media_artist").ifBlank { playing.attrs.optString("app_name") }
             Row(
-                Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(12.dp)).background(C.LampSoft).padding(horizontal = 28.dp),
+                Modifier.fillMaxWidth().height(80.dp).clip(L.shape).background(C.LampSoft).padding(horizontal = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -244,7 +242,7 @@ private fun SpeakersColumn(modifier: Modifier, scope: CoroutineScope) {
         } else {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(
-                    Modifier.fillMaxSize().bleed(16.dp),
+                    Modifier.fillMaxSize().bleed(16.dp).fadeBottom(48.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                 ) {
@@ -271,7 +269,6 @@ private fun SpeakersColumn(modifier: Modifier, scope: CoroutineScope) {
                         )
                     }
                 }
-                BottomFade(48.dp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
                 KeyHint("on or off", key = "OK")

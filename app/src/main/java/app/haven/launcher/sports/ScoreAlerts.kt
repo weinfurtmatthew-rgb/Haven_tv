@@ -10,7 +10,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -26,10 +25,16 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.ServiceCompat
 import androidx.core.content.res.ResourcesCompat
 import app.haven.launcher.Haven
 import app.haven.launcher.R
+import app.haven.launcher.bedroom.AlarmTone
+import app.haven.launcher.data.AlertCorner
+import app.haven.launcher.data.GameAction
+import app.haven.launcher.data.TvApp
+import app.haven.launcher.ui.Look
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -52,25 +57,56 @@ object Watch {
 
     private fun norm(s: String) = s.lowercase().replace("+", "").replace(".", "").replace(" tv", "").replace("tv ", "").trim()
 
-    fun open(ctx: Context, game: Game) {
+    /** One way to watch a game: an app to open and what to tell the viewer. */
+    class Way(val label: String, val app: TvApp, val message: String)
+
+    /** The ways to watch [game] on this TV: streaming apps that carry it first, then DIRECTV. */
+    fun ways(game: Game): List<Way> {
         val apps = Haven.apps.apps.value
-        val directv = apps.firstOrNull { it.pkg.contains("directv", true) || it.label.contains("directv", true) }
-        val onTv = game.broadcasts.firstOrNull { b -> TV_NETWORKS.any { norm(b).startsWith(it) } }
-        val streaming = if (onTv == null) {
-            game.broadcasts.firstNotNullOfOrNull { b ->
-                val n = norm(b)
-                apps.firstOrNull { a -> a != directv && n.isNotBlank() && (norm(a.label).contains(n) || n.contains(norm(a.label))) }
-            }
-        } else null
-        val target = streaming ?: directv
-        if (target != null) Haven.apps.launch(target)
-        val channel = onTv ?: game.broadcasts.firstOrNull()
-        val msg = when {
-            streaming != null -> "Opening ${streaming.label} for ${game.matchup}"
-            channel != null -> "${game.matchup} is on $channel. Find it in the guide."
-            else -> "${game.matchup}: no channel is listed yet"
+        val directv = Haven.apps.provider()
+        val out = mutableListOf<Way>()
+        for (b in game.broadcasts) {
+            val n = norm(b)
+            if (n.isBlank() || TV_NETWORKS.any { n.startsWith(it) }) continue
+            apps.firstOrNull { a -> a != directv && (norm(a.label).contains(n) || n.contains(norm(a.label))) }
+                ?.takeIf { a -> out.none { it.app == a } }
+                ?.let { out += Way(it.label, it, "Opening ${it.label} for ${game.matchup}") }
         }
-        Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+        if (directv != null) {
+            val channel = game.broadcasts.firstOrNull { b -> TV_NETWORKS.any { norm(b).startsWith(it) } } ?: game.broadcasts.firstOrNull()
+            out += Way(
+                directv.label + (channel?.let { " ($it)" } ?: ""), directv,
+                if (channel != null) "${game.matchup} is on $channel. Find it in the guide." else "${game.matchup}: no channel is listed yet",
+            )
+        }
+        return out
+    }
+
+    fun go(ctx: Context, way: Way) {
+        Haven.apps.launch(way.app)
+        Toast.makeText(ctx, way.message, Toast.LENGTH_LONG).show()
+    }
+
+    /** Opens the game the profile's way; returns the choices when it should ask instead. */
+    fun open(ctx: Context, game: Game, action: GameAction = Haven.settings.value.sports.onSelect): List<Way>? {
+        val ways = ways(game)
+        if (ways.isEmpty()) {
+            Toast.makeText(ctx, "${game.matchup}: no app on this TV shows it", Toast.LENGTH_LONG).show()
+            return null
+        }
+        return when (action) {
+            GameAction.Ask -> ways
+            GameAction.Directv -> {
+                go(ctx, ways.last())
+                null
+            }
+            GameAction.Auto -> {
+                // A game on a TV channel opens DIRECTV; one only on a streaming service opens that app.
+                val onTv = game.broadcasts.any { b -> TV_NETWORKS.any { norm(b).startsWith(it) } }
+                go(ctx, if (onTv) ways.last() else ways.first())
+                null
+            }
+        }
     }
 }
 
@@ -95,33 +131,37 @@ object ScorePopup {
 
     fun show(ctx: Context, title: String, line: String) = main.post {
         val app = ctx.applicationContext
+        val cfg = Haven.settings.value.sports
+        if (cfg.alertSound) runCatching { AlarmTone.ping() }
         if (!canOverlay(app)) {
             Toast.makeText(app, if (line.isBlank()) title else "$title\n$line", Toast.LENGTH_LONG).show()
             return@post
         }
         runCatching {
             val wm = app.getSystemService(WindowManager::class.java)
-            val dp = { v: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), app.resources.displayMetrics).toInt() }
-            // Haven's colours and type (DESIGN.md), fully opaque so the picture behind never shows through the text.
+            val k = cfg.alertSize.factor
+            val dp = { v: Int -> TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v * k, app.resources.displayMetrics).toInt() }
+            val p = Look.r.palette
+            // The profile's colours and fonts, fully opaque so the picture behind never shows through the text.
             val card = LinearLayout(app).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(22), dp(14), dp(22), dp(16))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
-                    setColor(Color.rgb(0x28, 0x24, 0x1F))
-                    setStroke(dp(1), Color.rgb(0x4A, 0x43, 0x3B))
+                    cornerRadius = dp(Look.cfg.corners.px + 4).toFloat()
+                    setColor(p.surface.toArgb())
+                    setStroke(dp(1), p.line.toArgb())
                 }
                 addView(TextView(app).apply {
                     text = title
-                    setTextColor(Color.rgb(0xF2, 0xED, 0xE4))
-                    textSize = 20f
+                    setTextColor(p.linen.toArgb())
+                    textSize = 20f * k
                     typeface = font(app, R.font.atkinson_bold, Typeface.DEFAULT_BOLD)
                     fontFeatureSettings = "tnum"
                 })
                 if (line.isNotBlank()) addView(TextView(app).apply {
                     text = line
-                    setTextColor(Color.rgb(0xB9, 0xB0, 0xA3))
-                    textSize = 16f
+                    setTextColor(p.stone.toArgb())
+                    textSize = 16f * k
                     typeface = font(app, R.font.atkinson_medium, Typeface.DEFAULT)
                     setPadding(0, dp(2), 0, 0)
                 })
@@ -135,12 +175,17 @@ object ScorePopup {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT,
             ).apply {
-                gravity = Gravity.TOP or Gravity.END
+                gravity = when (cfg.alertCorner) {
+                    AlertCorner.TopRight -> Gravity.TOP or Gravity.END
+                    AlertCorner.TopLeft -> Gravity.TOP or Gravity.START
+                    AlertCorner.BottomRight -> Gravity.BOTTOM or Gravity.END
+                    AlertCorner.BottomLeft -> Gravity.BOTTOM or Gravity.START
+                }
                 x = dp(32)
                 y = dp(28)
             }
             wm.addView(card, lp)
-            main.postDelayed({ runCatching { wm.removeView(card) } }, 8_000)
+            main.postDelayed({ runCatching { wm.removeView(card) } }, cfg.alertSeconds * 1000L)
         }.onFailure {
             Toast.makeText(app, if (line.isBlank()) title else "$title\n$line", Toast.LENGTH_LONG).show()
         }

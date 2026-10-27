@@ -19,15 +19,20 @@ header svg{flex:none}
 h1,h2{font-family:Fraunces,Georgia,serif;font-weight:600;letter-spacing:0}
 h1{font-size:28px;margin:0;line-height:1.1}
 h2{font-size:21px;margin:0 0 2px}
+h3{font-size:15px;margin:10px 0 0;color:var(--muted);font-weight:700}
 .sub{color:var(--muted);font-size:14px}
 section{background:var(--card);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px}
 label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)}
 input[type=text],input[type=url],input[type=time],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-weight:500}
+input[type=color]{width:56px;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--hi);padding:4px}
 textarea{min-height:84px;resize:vertical;font-family:ui-monospace,monospace;font-size:13px}
 input:focus,textarea:focus,select:focus{outline:2px solid var(--text);outline-offset:1px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:0}
 button{background:var(--hi);color:var(--text);border:0;border-radius:999px;padding:11px 20px;font:700 15px Atkinson,system-ui,sans-serif;cursor:pointer}
 button.primary{background:var(--text);color:var(--bg)}
+button.small{padding:6px 12px;font-size:14px}
+button.danger{color:var(--bad)}
 button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
 button:disabled{opacity:.5}
 .check{flex-direction:row;align-items:center;gap:10px;color:var(--text);font-size:15px;font-weight:500;padding:8px 0}
@@ -41,6 +46,18 @@ button:disabled{opacity:.5}
 .photo{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--hi)}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
 .photo button{position:absolute;top:4px;right:4px;padding:2px 8px;font-size:13px;background:rgba(20,18,15,.85)}
+.opt{display:flex;flex-direction:column;gap:6px}
+.opt .help{font-size:13px;color:var(--dust);font-weight:500}
+.order{display:flex;flex-direction:column;gap:6px}
+.order .item{display:flex;align-items:center;gap:8px;background:var(--hi);border-radius:12px;padding:6px 8px 6px 12px}
+.order .item label{flex:1}
+.profiles{display:flex;gap:10px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:8px;background:var(--hi);border:2px solid transparent;border-radius:999px;padding:6px 14px 6px 6px;color:var(--text);font:600 15px Atkinson,system-ui,sans-serif}
+.chip.on{border-color:var(--text)}
+.dot{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#14120F;font-weight:700;font-size:14px}
+.app{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.app img,.app .ph{width:112px;height:63px;object-fit:cover;border-radius:8px;background:var(--hi);flex:none}
+.app .grow{display:flex;flex-direction:column;gap:8px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--hi);border:1px solid var(--line);padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 #toast.show{opacity:1}
 .hidden{display:none!important}
@@ -55,6 +72,31 @@ a{color:var(--lamp)}
   </header>
 
   <div id="error" class="status bad hidden"></div>
+
+  <section>
+    <h2>Profile</h2>
+    <div class="sub">Everyone has their own look, apps, alarm, briefing and teams. Pick whose settings to change.</div>
+    <div class="profiles" id="profiles"></div>
+    <div class="sub" id="profileNote"></div>
+    <div class="row">
+      <label class="grow">Name <input type="text" id="pName" placeholder="Used in greetings and the profile picker"></label>
+    </div>
+    <div class="row">
+      <label class="grow">Colour <select id="pColor"></select></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="pSave">Save</button>
+      <button id="pShow">Show it on the TV</button>
+      <button class="danger" id="pRemove">Remove</button>
+    </div>
+    <label class="check"><input type="checkbox" id="askOnStart"> Ask who's watching when the TV turns on</label>
+    <h3>Add a profile</h3>
+    <div class="row">
+      <input type="text" id="newName" class="grow" placeholder="Their name">
+      <select id="newFrom" class="grow"><option value="fresh">Haven's own look</option><option value="copy">A copy of this profile</option></select>
+      <button id="pAdd">Add</button>
+    </div>
+  </section>
 
   <section>
     <h2>Home Assistant</h2>
@@ -81,7 +123,6 @@ a{color:var(--lamp)}
     <label>Weather from
       <select id="weather"></select>
     </label>
-    <label>Your name (for the morning greeting) <input type="text" id="profile"></label>
     <label class="check"><input type="checkbox" id="bedroom"> Bedroom features: alarm clock and sleep timer</label>
     <div class="row"><button class="primary" id="roomSave">Save</button></div>
   </section>
@@ -92,45 +133,48 @@ a{color:var(--lamp)}
     <div id="entities" class="list"></div>
   </section>
 
-  <section>
-    <h2>Art mode</h2>
-    <label>Show <select id="artSource"></select></label>
-    <label>Change the picture every
-      <select id="artInterval"><option value="1">1 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option></select>
-    </label>
-    <label>Start art mode
-      <select id="artIdle"><option value="0">Only when I choose it</option><option value="5">After 5 min idle</option><option value="10">After 10 min idle</option><option value="15">After 15 min idle</option><option value="30">After 30 min idle</option></select>
-    </label>
-    <label>Style
-      <select id="careStyle"><option value="ThinFrame">Thin frame (fills about 95% of the screen)</option><option value="FullScreen">Full screen (edge to edge, may crop)</option><option value="Gallery">Gallery frame and mat</option></select>
-    </label>
-    <label>TV type (for burn-in protection)
-      <select id="carePanel"><option value="Unknown">Not set</option><option value="Oled">OLED (strong protection)</option><option value="Lcd">LCD / LED</option></select>
-    </label>
-    <label>Dim the art
-      <select id="careDim"><option value="0">Off</option><option value="15">15% darker</option><option value="30">30% darker</option><option value="45">45% darker</option></select>
-    </label>
-    <div class="row">
-      <label style="flex:1">Quiet from <select id="careQs"><option value="0">12 AM</option><option value="1">1 AM</option><option value="2">2 AM</option><option value="3">3 AM</option><option value="4">4 AM</option><option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option><option value="11">11 AM</option><option value="12">12 PM</option><option value="13">1 PM</option><option value="14">2 PM</option><option value="15">3 PM</option><option value="16">4 PM</option><option value="17">5 PM</option><option value="18">6 PM</option><option value="19">7 PM</option><option value="20">8 PM</option><option value="21">9 PM</option><option value="22">10 PM</option><option value="23">11 PM</option></select></label>
-      <label style="flex:1">until <select id="careQe"><option value="0">12 AM</option><option value="1">1 AM</option><option value="2">2 AM</option><option value="3">3 AM</option><option value="4">4 AM</option><option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option><option value="11">11 AM</option><option value="12">12 PM</option><option value="13">1 PM</option><option value="14">2 PM</option><option value="15">3 PM</option><option value="16">4 PM</option><option value="17">5 PM</option><option value="18">6 PM</option><option value="19">7 PM</option><option value="20">8 PM</option><option value="21">9 PM</option><option value="22">10 PM</option><option value="23">11 PM</option></select></label>
+  <section data-opts="Look">
+    <h2>Look</h2>
+    <div class="sub">Colours, fonts and shapes. The TV changes as soon as you pick.</div>
+    <div class="opts"></div>
+  </section>
+
+  <section data-opts="Home">
+    <h2>Home screen</h2>
+    <div class="opts"></div>
+  </section>
+
+  <section data-opts="Background">
+    <h2>Background</h2>
+    <div class="opts"></div>
+    <div id="bgPhotos" class="hidden">
+      <h3>Background photos</h3>
+      <div class="sub">Shared by every profile on this TV. Each profile picks one, or takes turns through them all.</div>
+      <div class="row" style="margin-top:8px">
+        <input type="file" id="bgFiles" accept="image/*" multiple class="hidden">
+        <button class="primary" id="bgPick">Upload photos</button>
+        <span class="status" id="bgStatus"></span>
+      </div>
+      <div class="photos" id="bgList" style="margin-top:8px"></div>
     </div>
-    <div class="sub">Same time in both boxes turns quiet hours off.</div>
-    <label>During quiet hours
-      <select id="careQm"><option value="Black">Go black</option><option value="Dim">Dim the art</option></select>
-    </label>
+  </section>
+
+  <section>
+    <h2>Apps</h2>
+    <div class="sub">Rename apps and give them your own pictures on this profile's home screen. A wide picture (16:9) fits best.</div>
+    <input type="file" id="appFile" accept="image/*" class="hidden">
+    <div id="apps"></div>
+  </section>
+
+  <section data-opts="Art">
+    <h2>Art mode</h2>
+    <div class="opts"></div>
     <label>Only show art when someone is in the room
       <select id="carePresence"></select>
     </label>
-    <label>Go black after nobody's there for
-      <select id="careDelay"><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
-    </label>
-    <label>Art time limit
-      <select id="careMax"><option value="0">No limit</option><option value="2">2 hours</option><option value="4">4 hours</option><option value="8">8 hours</option></select>
-    </label>
-    <h2 style="margin-top:8px">Your photos</h2>
+    <h3>Your photos</h3>
     <div class="sub">Name a photo before uploading ("Lake day.jpg") and the name shows under it on the TV.</div>
     <div class="row">
-      <label class="hidden" for="files"></label>
       <input type="file" id="files" accept="image/*" multiple class="hidden">
       <button class="primary" id="pick">Upload photos</button>
       <span class="status" id="uploadStatus"></span>
@@ -138,9 +182,22 @@ a{color:var(--lamp)}
     <div class="photos" id="photos"></div>
   </section>
 
-  <section id="briefCard">
+  <section id="alarmCard">
+    <h2>Alarm</h2>
+    <label class="check"><input type="checkbox" id="alarmOn"> Alarm on</label>
+    <label>Time <input type="time" id="alarmTime"></label>
+    <div class="days" id="days"></div>
+    <div class="row"><button class="primary" id="alarmSave">Save alarm time</button></div>
+    <div class="opts" data-opts-inner="Alarm"></div>
+    <h3>Alarm screen</h3>
+    <div class="opts" data-opts-inner="AlarmScreen"></div>
+  </section>
+
+  <section data-opts="Briefing" id="briefCard">
     <h2>Morning briefing</h2>
-    <div class="sub">Shown when you stop the alarm. Leave lists unticked to use the defaults (all calendars; locks and garage doors).</div>
+    <div class="opts"></div>
+    <h3>Where it gets things</h3>
+    <div class="sub">Leave lists unticked to use the defaults (all calendars; locks and garage doors).</div>
     <div class="sub" style="margin-top:4px">Calendars</div>
     <div id="briefCals" class="list"></div>
     <label>Commute time sensor (for example Waze travel time)
@@ -152,10 +209,7 @@ a{color:var(--lamp)}
     <label>Headlines feed (any RSS link; empty hides headlines)
       <input type="url" id="briefFeed" autocapitalize="off">
     </label>
-    <label>Close the briefing after
-      <select id="briefClose"><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
-    </label>
-    <div class="row"><button class="primary" id="briefSave">Save briefing</button></div>
+    <div class="row"><button class="primary" id="briefSave">Save sources</button></div>
   </section>
 
   <section>
@@ -166,26 +220,9 @@ a{color:var(--lamp)}
       <label style="flex:1">League <select id="league"></select></label>
     </div>
     <div id="teamList" class="list"></div>
-    <label class="check"><input type="checkbox" id="spAlerts"> Score alerts on the TV</label>
-    <div class="row" style="gap:16px">
-      <label class="check"><input type="checkbox" id="spStart"> Game starts</label>
-      <label class="check"><input type="checkbox" id="spScore"> Scoring</label>
-      <label class="check"><input type="checkbox" id="spFinal"> Finals</label>
-    </div>
-  </section>
-
-  <section id="alarmCard">
-    <h2>Alarm</h2>
-    <label class="check"><input type="checkbox" id="alarmOn"> Alarm on</label>
-    <label>Time <input type="time" id="alarmTime"></label>
-    <div class="days" id="days"></div>
-    <label>Sunrise lights (fade the room's lights up before the alarm)
-      <select id="sunrise"><option value="0">Off</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
-    </label>
-    <label>Snooze
-      <select id="snooze"><option value="5">5 min</option><option value="9">9 min</option><option value="10">10 min</option><option value="15">15 min</option></select>
-    </label>
-    <div class="row"><button class="primary" id="alarmSave">Save alarm</button></div>
+    <div class="opts" data-opts-inner="Sports"></div>
+    <h3>Score alerts</h3>
+    <div class="opts" data-opts-inner="Alerts"></div>
   </section>
 </main>
 <div id="toast"></div>
@@ -194,10 +231,13 @@ a{color:var(--lamp)}
 const key = new URLSearchParams(location.search).get('k') || '';
 const $ = (id) => document.getElementById(id);
 let state = null;
+let profile = '';
+const AVATARS = { Lamp: '#F2B35E', Coral: '#F4927A', Rose: '#F29BBA', Lilac: '#BFA8F5', Sky: '#86C8F2', Mint: '#82DDBF', Sage: '#AFCB9F', Gold: '#E9CB5E', Red: '#F5857B', Mono: '#FFFFFF' };
+const AVATAR_NAMES = { Lamp: 'Lamp amber', Coral: 'Coral', Rose: 'Rose', Lilac: 'Lilac', Sky: 'Sky blue', Mint: 'Mint', Sage: 'Sage green', Gold: 'Gold', Red: 'Red' };
 
 async function api(path, opts = {}) {
   const sep = path.includes('?') ? '&' : '?';
-  const r = await fetch(`/api/${path}${sep}k=${encodeURIComponent(key)}`, opts);
+  const r = await fetch(`/api/${path}${sep}k=${encodeURIComponent(key)}&p=${encodeURIComponent(profile)}`, opts);
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Error ${r.status}`);
   return j;
@@ -216,12 +256,18 @@ function showError(e) {
   $('error').classList.remove('hidden');
 }
 
+function take(s) { state = s; profile = s.profile; render(); }
+
 async function save(patch, msg = 'Saved') {
-  try {
-    state = await api('settings', { method: 'POST', body: JSON.stringify(patch) });
-    render();
-    toast(msg);
-  } catch (e) { showError(e); }
+  try { take(await api('settings', { method: 'POST', body: JSON.stringify(patch) })); toast(msg); } catch (e) { showError(e); }
+}
+
+async function setOpt(body, msg = 'Saved') {
+  try { take(await api('option', { method: 'POST', body: JSON.stringify(body) })); toast(msg); } catch (e) { showError(e); }
+}
+
+async function profileAction(body, msg) {
+  try { take(await api('profiles', { method: 'POST', body: JSON.stringify(body) })); if (msg) toast(msg); } catch (e) { showError(e); }
 }
 
 function opt(value, label, selected) {
@@ -230,11 +276,110 @@ function opt(value, label, selected) {
   return o;
 }
 
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+const me = () => state.profiles.find(p => p.id === profile) || state.profiles[0];
+
+// ---- options from the TV's registry
+const hex = (argb) => '#' + (Number(argb) % 0x1000000).toString(16).padStart(6, '0');
+const argb = (h) => String(0xFF000000 + parseInt(h.slice(1), 16));
+
+function renderOption(o) {
+  const box = el('div', 'opt');
+  if (o.kind === 'toggle') {
+    const l = el('label', 'check');
+    const c = document.createElement('input'); c.type = 'checkbox'; c.checked = o.value === 'on';
+    c.addEventListener('change', () => setOpt({ id: o.id, value: c.checked ? 'on' : 'off' }));
+    l.append(c, document.createTextNode(' ' + o.title));
+    box.append(l);
+  } else if (o.kind === 'text') {
+    const l = el('label', null, o.title);
+    const row = el('div', 'row');
+    const i = document.createElement('input'); i.type = 'text'; i.value = o.value; i.className = 'grow';
+    i.autocapitalize = 'off'; i.spellcheck = false;
+    const b = el('button', null, 'Save');
+    b.addEventListener('click', () => setOpt({ id: o.id, value: i.value }));
+    row.append(i, b); l.append(row); box.append(l);
+  } else if (o.kind === 'order') {
+    box.append(el('label', null, o.title));
+    const list = el('div', 'order');
+    const shown = new Set(o.shown);
+    const order = [...o.order];
+    const send = () => setOpt({ id: o.id, order, shown: [...shown] });
+    order.forEach((k, i) => {
+      const item = o.items.find(x => x.value === k); if (!item) return;
+      const row = el('div', 'item');
+      const l = el('label', 'check');
+      const c = document.createElement('input'); c.type = 'checkbox'; c.checked = shown.has(k);
+      c.addEventListener('change', () => { c.checked ? shown.add(k) : shown.delete(k); send(); });
+      l.append(c, document.createTextNode(' ' + item.label));
+      const up = el('button', 'small', '↑'); up.disabled = i === 0; up.setAttribute('aria-label', 'Move up');
+      up.addEventListener('click', () => { order.splice(i - 1, 0, order.splice(i, 1)[0]); send(); });
+      const down = el('button', 'small', '↓'); down.disabled = i === order.length - 1; down.setAttribute('aria-label', 'Move down');
+      down.addEventListener('click', () => { order.splice(i + 1, 0, order.splice(i, 1)[0]); send(); });
+      row.append(l, up, down); list.append(row);
+    });
+    box.append(list);
+  } else {
+    const l = el('label', null, o.title);
+    const row = el('div', 'row');
+    const sel = document.createElement('select'); sel.className = 'grow';
+    o.choices.forEach(c => sel.append(opt(c.value, c.label, c.value === o.value)));
+    sel.addEventListener('change', () => setOpt({ id: o.id, value: sel.value }));
+    row.append(sel);
+    if (o.kind === 'color') {
+      const pick = document.createElement('input'); pick.type = 'color'; pick.value = hex(o.value);
+      pick.title = 'Any colour';
+      pick.addEventListener('change', () => setOpt({ id: o.id, value: argb(pick.value) }));
+      row.append(pick);
+    }
+    l.append(row); box.append(l);
+  }
+  if (o.help) box.append(el('div', 'help', o.help));
+  return box;
+}
+
+function renderOptions() {
+  const sections = Object.fromEntries(state.options.map(s => [s.id, s]));
+  const fill = (container, id) => {
+    container.innerHTML = '';
+    const sec = sections[id]; if (!sec) return;
+    sec.options.filter(o => o.visible).forEach(o => container.append(renderOption(o)));
+  };
+  document.querySelectorAll('section[data-opts]').forEach(s => fill(s.querySelector('.opts'), s.dataset.opts));
+  document.querySelectorAll('[data-opts-inner]').forEach(c => fill(c, c.dataset.optsInner));
+}
+
+// ---- rendering
 function render() {
   const s = state;
+  const p = me();
   $('title').textContent = `Haven · ${s.room.name}`;
-  $('version').textContent = `Version ${s.version}`;
+  $('version').textContent = `Version ${s.version} · changing ${p.name}'s settings`;
   $('error').classList.add('hidden');
+
+  // profiles
+  const pr = $('profiles'); pr.innerHTML = '';
+  for (const x of s.profiles) {
+    const b = el('button', 'chip' + (x.id === profile ? ' on' : ''));
+    const d = el('span', 'dot', x.name.slice(0, 1).toUpperCase()); d.style.background = AVATARS[x.avatar] || AVATARS.Lamp;
+    b.append(d, document.createTextNode(x.name + (x.active ? ' (on the TV)' : '')));
+    b.addEventListener('click', async () => { profile = x.id; try { take(await api('state')); } catch (e) { showError(e); } });
+    pr.append(b);
+  }
+  $('profileNote').textContent = p.active ? 'This profile is on the TV now, so changes show there right away.' : `${p.name}'s changes show when they pick their profile on the TV.`;
+  if (document.activeElement !== $('pName')) $('pName').value = s.room.profile;
+  const pc = $('pColor'); pc.innerHTML = '';
+  Object.entries(AVATAR_NAMES).forEach(([k, v]) => pc.append(opt(k, v, k === p.avatar)));
+  $('pShow').classList.toggle('hidden', p.active);
+  $('pRemove').classList.toggle('hidden', s.profiles.length < 2);
+  $('askOnStart').checked = s.askOnStart;
+  $('pAdd').disabled = s.profiles.length >= s.maxProfiles;
 
   const st = $('haStatus');
   st.textContent = s.ha.status;
@@ -243,7 +388,6 @@ function render() {
   $('haToken').placeholder = s.ha.tokenSet ? 'Saved. Leave empty to keep it.' : 'Paste the token here';
 
   if (document.activeElement !== $('roomName')) $('roomName').value = s.room.name;
-  if (document.activeElement !== $('profile')) $('profile').value = s.room.profile;
   $('bedroom').checked = s.room.bedroom;
   const area = $('area'); area.innerHTML = '';
   area.append(opt('', s.ha.areas.length ? 'All areas (show everything)' : 'No areas found', s.room.area === ''));
@@ -258,10 +402,10 @@ function render() {
   for (const [name, items] of groups) {
     if (!items.length) continue;
     any = true;
-    const h = document.createElement('div'); h.className = 'sub'; h.style.marginTop = '8px'; h.textContent = name;
+    const h = el('div', 'sub', name); h.style.marginTop = '8px';
     ent.append(h);
     for (const it of items) {
-      const l = document.createElement('label'); l.className = 'check';
+      const l = el('label', 'check');
       const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !it.hidden;
       c.addEventListener('change', () => {
         const hidden = new Set(allHidden());
@@ -274,25 +418,14 @@ function render() {
   }
   $('entitiesCard').classList.toggle('hidden', !any);
 
-  const src = $('artSource'); src.innerHTML = '';
-  s.art.sources.forEach(o => src.append(opt(o.id, o.label, o.id === s.art.source)));
-  $('artInterval').value = String(s.art.interval);
-  $('artIdle').value = String(s.art.idle);
-
-  const ph = $('photos'); ph.innerHTML = '';
-  for (const name of s.photos) {
-    const d = document.createElement('div'); d.className = 'photo';
-    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = name;
-    img.src = `/api/photo?name=${encodeURIComponent(name)}&k=${encodeURIComponent(key)}`;
-    const b = document.createElement('button'); b.textContent = 'Delete';
-    b.addEventListener('click', async () => {
-      if (!confirm(`Delete ${name} from the TV?`)) return;
-      try { state = await api(`photos/delete?name=${encodeURIComponent(name)}`, { method: 'POST' }); render(); } catch (e) { showError(e); }
-    });
-    d.append(img, b); ph.append(d);
-  }
-
+  renderOptions();
+  renderPhotos($('photos'), s.photos, 'photo', 'photos/delete');
+  const bgKind = (state.options.find(x => x.id === 'Background').options.find(o => o.id === 'bg.kind') || {}).value;
+  $('bgPhotos').classList.toggle('hidden', bgKind !== 'Photo');
+  renderPhotos($('bgList'), s.backgrounds, 'background', 'backgrounds/delete');
+  renderApps();
   renderExtras();
+
   $('alarmCard').classList.toggle('hidden', !s.room.bedroom);
   const a = s.alarm;
   $('alarmOn').checked = a.enabled;
@@ -303,8 +436,68 @@ function render() {
     const c = document.createElement('input'); c.type = 'checkbox'; c.value = String(i + 1); c.checked = a.days.includes(i + 1);
     l.append(c, document.createTextNode(n)); days.append(l);
   });
-  $('sunrise').value = String(a.sunriseMin);
-  $('snooze').value = String(a.snoozeMin);
+}
+
+function renderPhotos(container, names, getPath, deletePath) {
+  container.innerHTML = '';
+  for (const name of names) {
+    const d = el('div', 'photo');
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = name;
+    img.src = `/api/${getPath}?name=${encodeURIComponent(name)}&k=${encodeURIComponent(key)}`;
+    const b = el('button', null, 'Delete');
+    b.addEventListener('click', async () => {
+      if (!confirm(`Delete ${name} from the TV?`)) return;
+      try { take(await api(`${deletePath}?name=${encodeURIComponent(name)}`, { method: 'POST' })); } catch (e) { showError(e); }
+    });
+    d.append(img, b); container.append(d);
+  }
+}
+
+let appTarget = null;
+function renderApps() {
+  const box = $('apps'); box.innerHTML = '';
+  for (const a of state.apps) {
+    const row = el('div', 'app');
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = '';
+    img.src = a.image && a.style === 'Picture'
+      ? `/api/appimage?name=${encodeURIComponent(a.image)}&k=${encodeURIComponent(key)}`
+      : `/api/appicon?pkg=${encodeURIComponent(a.pkg)}&k=${encodeURIComponent(key)}`;
+    const g = el('div', 'grow');
+    const name = document.createElement('input'); name.type = 'text'; name.value = a.name || a.label; name.setAttribute('aria-label', `Name for ${a.label}`);
+    name.addEventListener('change', () => appSave({ pkg: a.pkg, name: name.value }));
+    const r = el('div', 'row');
+    const style = document.createElement('select'); style.className = 'grow';
+    state.appStyles.forEach(x => {
+      if (x.id === 'Banner' && !a.banner) return;
+      if (x.id === 'Picture' && !a.image) return;
+      style.append(opt(x.id, x.label, x.id === a.style));
+    });
+    style.addEventListener('change', () => appSave({ pkg: a.pkg, style: style.value }));
+    r.append(style);
+    if (a.style === 'Icon') {
+      const c = document.createElement('input'); c.type = 'color'; c.value = a.color ? hex(a.color) : '#28241F'; c.title = 'Tile colour';
+      c.addEventListener('change', () => appSave({ pkg: a.pkg, color: Number(argb(c.value)) }));
+      r.append(c);
+    }
+    const up = el('button', 'small', a.image ? 'New picture' : 'Upload picture');
+    up.addEventListener('click', () => { appTarget = a.pkg; $('appFile').click(); });
+    const fav = el('button', 'small', a.favorite ? 'Unpin' : 'Pin to favorites');
+    fav.addEventListener('click', () => appSave({ pkg: a.pkg, favorite: !a.favorite }));
+    const hide = el('button', 'small', a.hidden ? 'Show' : 'Hide');
+    hide.addEventListener('click', () => appSave({ pkg: a.pkg, hidden: !a.hidden }));
+    const r2 = el('div', 'row'); r2.append(up, fav, hide);
+    if (a.name || a.style !== 'Auto' || a.color) {
+      const reset = el('button', 'small', 'Reset');
+      reset.addEventListener('click', () => appSave({ pkg: a.pkg, reset: true }));
+      r2.append(reset);
+    }
+    g.append(name, r, r2);
+    row.append(img, g); box.append(row);
+  }
+}
+
+async function appSave(body) {
+  try { take(await api('app', { method: 'POST', body: JSON.stringify(body) })); toast('Saved'); } catch (e) { showError(e); }
 }
 
 function allHidden() {
@@ -312,6 +505,25 @@ function allHidden() {
   return [...s.lights, ...s.speakers, ...s.scenes].filter(e => e.hidden).map(e => e.id);
 }
 
+// ---- profile
+$('pSave').addEventListener('click', async () => {
+  await profileAction({ action: 'rename', id: profile, name: $('pName').value });
+  await profileAction({ action: 'avatar', id: profile, avatar: $('pColor').value }, 'Saved');
+});
+$('pShow').addEventListener('click', () => profileAction({ action: 'switch', id: profile }, 'On the TV now'));
+$('pRemove').addEventListener('click', () => {
+  if (!confirm(`Remove ${me().name}'s profile from the TV?`)) return;
+  profileAction({ action: 'remove', id: profile }, 'Removed');
+});
+$('askOnStart').addEventListener('change', () => profileAction({ action: 'ask', on: $('askOnStart').checked }, 'Saved'));
+$('pAdd').addEventListener('click', async () => {
+  const name = $('newName').value.trim();
+  if (!name) return toast('Type their name first');
+  await profileAction({ action: 'add', name, copy: $('newFrom').value === 'copy' }, `Added ${name}`);
+  $('newName').value = '';
+});
+
+// ---- Home Assistant and room
 $('haTest').addEventListener('click', async () => {
   try {
     const r = await api('test', { method: 'POST', body: JSON.stringify({ url: $('haUrl').value, token: $('haToken').value }) });
@@ -325,33 +537,37 @@ $('haSave').addEventListener('click', async () => {
   $('haToken').value = '';
 });
 $('roomSave').addEventListener('click', () => save({
-  roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value,
-  profileName: $('profile').value, bedroomExtras: $('bedroom').checked,
+  roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value, bedroomExtras: $('bedroom').checked,
 }));
-$('artSource').addEventListener('change', () => save({ artSource: $('artSource').value }));
-$('artInterval').addEventListener('change', () => save({ artIntervalMin: Number($('artInterval').value) }));
-$('artIdle').addEventListener('change', () => save({ artIdleMin: Number($('artIdle').value) }));
 $('alarmSave').addEventListener('click', () => {
   const [h, m] = ($('alarmTime').value || '06:30').split(':').map(Number);
   const days = [...document.querySelectorAll('#days input:checked')].map(c => Number(c.value));
-  save({ alarm: { enabled: $('alarmOn').checked, hour: h, minute: m, days, sunriseMin: Number($('sunrise').value), snoozeMin: Number($('snooze').value) } }, 'Alarm saved');
+  save({ alarm: { enabled: $('alarmOn').checked, hour: h, minute: m, days } }, 'Alarm saved');
 });
 
-$('pick').addEventListener('click', () => $('files').click());
-$('files').addEventListener('change', async (ev) => {
-  const files = [...ev.target.files];
-  ev.target.value = '';
+// ---- uploads: art photos, background photos, app pictures
+async function upload(files, path, statusEl, extra = '') {
   let done = 0;
   for (const f of files) {
-    $('uploadStatus').textContent = `Uploading ${done + 1} of ${files.length}…`;
+    statusEl.textContent = `Uploading ${done + 1} of ${files.length}…`;
     try {
       const { blob, name } = await prepare(f);
-      await api(`photos?name=${encodeURIComponent(name)}&taken=${f.lastModified || ''}`, { method: 'POST', body: blob });
+      await api(`${path}?name=${encodeURIComponent(name)}&taken=${f.lastModified || ''}${extra}`, { method: 'POST', body: blob });
       done++;
     } catch (e) { showError(e); }
   }
-  $('uploadStatus').textContent = done ? `${done} uploaded` : '';
-  state = await api('state'); render();
+  statusEl.textContent = done ? `${done} uploaded` : '';
+  take(await api('state'));
+}
+$('pick').addEventListener('click', () => $('files').click());
+$('files').addEventListener('change', async (ev) => { const f = [...ev.target.files]; ev.target.value = ''; await upload(f, 'photos', $('uploadStatus')); });
+$('bgPick').addEventListener('click', () => $('bgFiles').click());
+$('bgFiles').addEventListener('change', async (ev) => { const f = [...ev.target.files]; ev.target.value = ''; await upload(f, 'backgrounds', $('bgStatus')); });
+$('appFile').addEventListener('change', async (ev) => {
+  const f = [...ev.target.files]; ev.target.value = '';
+  if (!appTarget || !f.length) return;
+  await upload(f.slice(0, 1), 'appimage', $('bgStatus'), `&pkg=${encodeURIComponent(appTarget)}`);
+  toast('Picture saved');
 });
 
 // Big or unusual photos are scaled to 2560 px JPEGs so the TV doesn't fill up.
@@ -371,24 +587,12 @@ async function prepare(file) {
   }
 }
 
-
-// ---- art care, briefing, sports
-function careSave(patch) { save({ artCare: Object.assign({}, state.artCare, patch) }); }
-$('careStyle').addEventListener('change', () => careSave({ style: $('careStyle').value }));
-$('carePanel').addEventListener('change', () => careSave({ panel: $('carePanel').value }));
-$('careDim').addEventListener('change', () => careSave({ dimPct: Number($('careDim').value) }));
-$('careQs').addEventListener('change', () => careSave({ quietStart: Number($('careQs').value) }));
-$('careQe').addEventListener('change', () => careSave({ quietEnd: Number($('careQe').value) }));
-$('careQm').addEventListener('change', () => careSave({ quietMode: $('careQm').value }));
-$('carePresence').addEventListener('change', () => careSave({ presenceEntity: $('carePresence').value }));
-$('careDelay').addEventListener('change', () => careSave({ presenceDelayMin: Number($('careDelay').value) }));
-$('careMax').addEventListener('change', () => careSave({ maxHours: Number($('careMax').value) }));
-
+// ---- briefing sources, presence sensor, sports teams
 function checks(container, items, selected) {
   container.innerHTML = '';
-  if (!items.length) { const d = document.createElement('div'); d.className = 'sub'; d.textContent = 'None found in Home Assistant'; container.append(d); return; }
+  if (!items.length) { container.append(el('div', 'sub', 'None found in Home Assistant')); return; }
   for (const it of items) {
-    const l = document.createElement('label'); l.className = 'check';
+    const l = el('label', 'check');
     const c = document.createElement('input'); c.type = 'checkbox'; c.value = it.id; c.checked = selected.includes(it.id);
     l.append(c, document.createTextNode(' ' + it.name)); container.append(l);
   }
@@ -397,12 +601,9 @@ const checked = (container) => [...container.querySelectorAll('input:checked')].
 
 function renderExtras() {
   const s = state, c = s.artCare, b = s.brief, sp = s.sports;
-  $('careStyle').value = c.style; $('carePanel').value = c.panel; $('careDim').value = String(c.dimPct);
-  $('careQs').value = String(c.quietStart); $('careQe').value = String(c.quietEnd); $('careQm').value = c.quietMode;
   const pr = $('carePresence'); pr.innerHTML = '';
   pr.append(opt('', 'Off (always show art)', c.presenceEntity === ''));
   s.choices.presence.forEach(e => pr.append(opt(e.id, e.name, e.id === c.presenceEntity)));
-  $('careDelay').value = String(c.presenceDelayMin); $('careMax').value = String(c.maxHours);
 
   checks($('briefCals'), s.choices.calendars, b.calendars);
   const cm = $('briefCommute'); cm.innerHTML = '';
@@ -411,25 +612,24 @@ function renderExtras() {
   if (document.activeElement !== $('briefLabel')) $('briefLabel').value = b.commuteLabel;
   checks($('briefStatus'), s.choices.status, b.statusEntities);
   if (document.activeElement !== $('briefFeed')) $('briefFeed').value = b.headlinesFeed;
-  $('briefClose').value = String(b.autoCloseMin);
 
   const fav = $('favTeams'); fav.innerHTML = '';
-  if (!sp.teams.length) { const d = document.createElement('div'); d.className = 'sub'; d.textContent = 'No teams yet. Pick a league below.'; fav.append(d); }
+  if (!sp.teams.length) fav.append(el('div', 'sub', 'No teams yet. Pick a league below.'));
   for (const t of sp.teams) {
-    const row = document.createElement('div'); row.className = 'row';
-    const name = document.createElement('span'); name.style.flex = '1'; name.textContent = `${t.name} (${(s.leagues.find(l => l.id === t.league) || {}).label || t.league})`;
-    const rm = document.createElement('button'); rm.textContent = 'Remove';
-    rm.addEventListener('click', () => save({ sports: Object.assign({}, sp, { teams: sp.teams.filter(x => !(x.league === t.league && x.id === t.id)) }) }, 'Removed'));
+    const row = el('div', 'row');
+    const name = el('span', 'grow', `${t.name} (${(s.leagues.find(l => l.id === t.league) || {}).label || t.league})`);
+    const rm = el('button', 'small', 'Remove');
+    rm.addEventListener('click', () => save({ teams: sp.teams.filter(x => !(x.league === t.league && x.id === t.id)) }, 'Removed'));
     row.append(name, rm); fav.append(row);
   }
   const lg = $('league');
   if (!lg.options.length) { lg.append(opt('', 'Choose a league…', true)); s.leagues.forEach(l => lg.append(opt(l.id, l.label, false))); }
-  $('spAlerts').checked = sp.alerts; $('spStart').checked = sp.alertStart; $('spScore').checked = sp.alertScore; $('spFinal').checked = sp.alertFinal;
 }
 
+$('carePresence').addEventListener('change', () => save({ presenceEntity: $('carePresence').value }));
 $('briefSave').addEventListener('click', () => save({ brief: {
   calendars: checked($('briefCals')), commuteEntity: $('briefCommute').value, commuteLabel: $('briefLabel').value || 'work',
-  statusEntities: checked($('briefStatus')), headlinesFeed: $('briefFeed').value.trim(), autoCloseMin: Number($('briefClose').value),
+  statusEntities: checked($('briefStatus')), headlinesFeed: $('briefFeed').value.trim(),
 } }, 'Briefing saved'));
 
 $('league').addEventListener('change', async () => {
@@ -441,23 +641,20 @@ $('league').addEventListener('change', async () => {
     const r = await api(`sports/teams?league=${encodeURIComponent(id)}`);
     list.innerHTML = '';
     for (const t of r.teams) {
-      const row = document.createElement('div'); row.className = 'row';
-      const name = document.createElement('span'); name.style.flex = '1'; name.textContent = t.name;
-      const add = document.createElement('button'); add.textContent = 'Follow';
+      const row = el('div', 'row');
+      const name = el('span', 'grow', t.name);
+      const add = el('button', 'small', 'Follow');
       add.addEventListener('click', () => {
-        const sp = state.sports;
-        if (sp.teams.some(x => x.league === t.league && x.id === t.id)) return toast('Already following');
-        save({ sports: Object.assign({}, sp, { teams: [...sp.teams, t] }) }, `Following ${t.name}`);
+        const teams = state.sports.teams;
+        if (teams.some(x => x.league === t.league && x.id === t.id)) return toast('Already following');
+        save({ teams: [...teams, t] }, `Following ${t.name}`);
       });
       row.append(name, add); list.append(row);
     }
   } catch (e) { list.textContent = ''; showError(e); }
 });
-for (const [id, key] of [['spAlerts', 'alerts'], ['spStart', 'alertStart'], ['spScore', 'alertScore'], ['spFinal', 'alertFinal']]) {
-  $(id).addEventListener('change', () => save({ sports: Object.assign({}, state.sports, { [key]: $(id).checked }) }));
-}
 
-api('state').then(s => { state = s; render(); }).catch(showError);
+api('state').then(take).catch(showError);
 </script>
 </body>
 </html>

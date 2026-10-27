@@ -3,13 +3,27 @@ package app.haven.launcher.demo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import app.haven.launcher.Haven
 import app.haven.launcher.bedroom.AlarmActivity
+import app.haven.launcher.bedroom.Bedroom
+import app.haven.launcher.data.Accent
 import app.haven.launcher.data.AlarmConfig
+import app.haven.launcher.data.AppLook
+import app.haven.launcher.data.AppStyle
 import app.haven.launcher.data.BriefConfig
+import app.haven.launcher.data.HeadingFont
+import app.haven.launcher.data.Options
 import app.haven.launcher.data.SportsConfig
+import app.haven.launcher.data.TextFont
+import app.haven.launcher.data.ThemePreset
 import app.haven.launcher.data.TvPanel
 import app.haven.launcher.data.enumOr
+import java.io.File
 import app.haven.launcher.ha.CalEvent
 import app.haven.launcher.ha.Forecast
 import app.haven.launcher.ha.HaArea
@@ -55,10 +69,81 @@ object Demo {
                 artCare = it.artCare.copy(panel = TvPanel.Oled),
             )
         }
+        // A second person with a different look, for the profile picker and theme screenshots.
+        if (Haven.settings.profiles.value.none { it.name == "Sam" }) {
+            val sam = Haven.settings.addProfile("Sam", copy = true)
+            Haven.settings.updateProfile(sam) {
+                it.copy(
+                    look = it.look.copy(theme = ThemePreset.Midnight, accent = Accent.Sky, headingFont = HeadingFont.Outfit, textFont = TextFont.Inter, avatar = Accent.Sky),
+                    alarm = it.alarm.copy(enabled = true, hour = 7, minute = 15),
+                )
+            }
+        }
         Haven.scope.launch {
             Haven.ha.refresh()
             Haven.sports.refresh()
         }
+    }
+
+    /** "id=value;id=value" from the registry, applied to the profile on the TV. */
+    fun setOptions(spec: String) {
+        for (pair in spec.split(';').map { it.trim() }.filter { it.contains('=') }) {
+            val opt = Options[pair.substringBefore('=')] ?: continue
+            val value = pair.substringAfter('=')
+            Haven.settings.update { s ->
+                val order = opt.order
+                if (order != null) {
+                    // Rows or sections: "Recent,Favorites,Room" in that order, all shown.
+                    val keys = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                    order.set(s, keys, keys.toSet())
+                } else {
+                    opt.with(s, value)
+                }
+            }
+        }
+    }
+
+    /** A painted landscape saved as an uploaded background photo, so the emulator has one to show. */
+    fun backgroundPhoto(): String {
+        val f = File(Haven.backgrounds.dir, "Demo hills.jpg")
+        if (!f.exists()) {
+            val bmp = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { isDither = true }
+            p.shader = LinearGradient(0f, 0f, 0f, 760f, intArrayOf(0xFF2B3F6B.toInt(), 0xFFE8A060.toInt()), null, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, 1920f, 1080f, p)
+            p.shader = null
+            p.color = 0xFFF6D28B.toInt()
+            c.drawCircle(1340f, 560f, 120f, p)
+            p.color = 0xFF2E4A3B.toInt()
+            c.drawCircle(420f, 1300f, 700f, p)
+            p.color = 0xFF1F3329.toInt()
+            c.drawCircle(1500f, 1420f, 820f, p)
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        }
+        return f.name
+    }
+
+    /** Gives the first favorites their own names, an icon on a colour and a painted picture. */
+    fun appLooks() {
+        val favs = Haven.settings.value.favorites
+        val first = favs.getOrNull(0) ?: return
+        Haven.settings.update { it.withAppLook(first, AppLook(name = "Live TV", style = AppStyle.Icon, color = 0xFFF2B35E)) }
+        val second = favs.getOrNull(1) ?: return
+        val f = File(Haven.apps.imagesDir, "demo-picture.jpg")
+        if (!f.exists()) {
+            val bmp = Bitmap.createBitmap(800, 450, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            p.shader = LinearGradient(0f, 0f, 800f, 450f, intArrayOf(0xFF3A2348.toInt(), 0xFFE8795E.toInt()), null, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, 800f, 450f, p)
+            p.shader = null
+            p.color = 0xFFF2EDE4.toInt()
+            p.textSize = 96f
+            c.drawText("Movies", 60f, 270f, p)
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+        }
+        Haven.settings.update { it.withAppLook(second, AppLook(name = "Movie night", style = AppStyle.Picture, image = f.name)) }
     }
 
     private val FOLLOWED = setOf("KC", "NYY", "ARS")
@@ -168,7 +253,20 @@ class DemoReceiver : BroadcastReceiver() {
                 if (intent.hasExtra("bedroom")) n = n.copy(bedroomExtras = intent.getBooleanExtra("bedroom", n.bedroomExtras))
                 n
             }
-            "ALARM" -> ctx.startActivity(Intent(ctx, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "ALARM" -> ctx.startActivity(
+                Intent(ctx, AlarmActivity::class.java)
+                    .putExtra(Bedroom.EXTRA_PROFILE, Haven.settings.activeId)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            "OPT" -> Demo.setOptions(intent.getStringExtra("set").orEmpty())
+            "BGPHOTO" -> {
+                val name = Demo.backgroundPhoto()
+                Haven.settings.update { it.copy(background = it.background.copy(photo = name)) }
+            }
+            "APPLOOKS" -> Demo.appLooks()
+            "UNSNOOZE" -> Bedroom.stopped(ctx, Haven.settings.activeId)
+            "SWITCH" -> Haven.settings.profiles.value.firstOrNull { it.name == intent.getStringExtra("name") }?.let { Haven.settings.switchTo(it.id) }
+            "RESET" -> Haven.settings.update { it.copy(look = app.haven.launcher.data.LookConfig(avatar = it.look.avatar), background = app.haven.launcher.data.BackgroundConfig()) }
             "CRASH" -> {
                 CrashReport.record(ctx, IllegalStateException("Demo crash for the report screen"))
                 CrashActivity.open(ctx)

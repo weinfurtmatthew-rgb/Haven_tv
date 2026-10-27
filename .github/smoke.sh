@@ -9,8 +9,10 @@ mkdir -p "$OUT"
 
 shot() { adb exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 key() { for k in "$@"; do adb shell input keyevent "KEYCODE_$k"; sleep 0.7; done; }
+rep() { for _ in $(seq "$2"); do adb shell input keyevent "KEYCODE_$1"; sleep 0.4; done; sleep 0.4; }
 screen() { adb shell am start -W -n "$PKG/.MainActivity" --es "$PKG.SCREEN" "$1" > /dev/null; sleep "${3:-6}"; shot "$2"; }
 demo() { adb shell am broadcast -n "$PKG/.demo.DemoReceiver" -a "$PKG.demo.$1" "${@:2}" > /dev/null; sleep 1; }
+opt() { demo OPT --es set "$1"; }
 home() { adb shell am start -W -n "$PKG/.MainActivity" --es "$PKG.SCREEN" Home > /dev/null; sleep "${1:-4}"; }
 
 adb shell getprop ro.build.version.release
@@ -63,29 +65,59 @@ key DPAD_DOWN DPAD_CENTER
 sleep 1
 shot 24-lights-speaker-toggled
 
-screen Settings 30-settings-top
-key DPAD_CENTER
-shot 31-settings-first-row
-key DPAD_LEFT DPAD_DOWN DPAD_DOWN DPAD_CENTER DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_CENTER
+# Settings: the rail starts at Profiles; Left from a row goes back to its group in the rail.
+screen Settings 30-settings-profiles
+key DPAD_DOWN
+shot 32-settings-look
+key DPAD_CENTER DPAD_CENTER
 sleep 1
-shot 32-settings-art-phone-hint
-key DPAD_LEFT DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 33-settings-home-button
+shot 33-look-scheme-dialog
 key DPAD_DOWN DPAD_DOWN
-shot 34-settings-about
-key DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_CENTER DPAD_CENTER
+sleep 1
+shot 34-look-scheme-preview
+key BACK
+sleep 1
+key DPAD_DOWN DPAD_DOWN DPAD_CENTER
+sleep 1
+shot 35-look-heading-font
+key BACK
+key DPAD_LEFT DPAD_DOWN
+shot 36-settings-home-screen
+key DPAD_CENTER DPAD_CENTER
+sleep 1
+shot 37-home-rows-dialog
+key BACK
+rep DPAD_DOWN 13
+key DPAD_CENTER
+sleep 1
+shot 38-settings-phone-hint
+key DPAD_LEFT DPAD_DOWN
+shot 39-settings-background
+key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
+shot 40-settings-alarm
+key DPAD_DOWN DPAD_DOWN
+shot 41-settings-sports
+key DPAD_DOWN DPAD_DOWN
+shot 42-settings-about
+rep DPAD_UP 11
+key DPAD_CENTER DPAD_CENTER
 sleep 2
-shot 36-settings-text-dialog
+shot 31-settings-name-dialog
 key BACK BACK
 
-screen Alarm 40-alarm-editor
-screen Sleep 41-sleep-timer
+screen Alarm 43-alarm-editor
+key DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_DOWN DPAD_CENTER
+sleep 1
+shot 44-alarm-sound-dialog
+key BACK
+screen Sleep 45-sleep-timer
 key DPAD_CENTER
 sleep 2
-shot 41-sleep-timer-running
+shot 46-sleep-timer-running
 key DPAD_DOWN DPAD_DOWN DPAD_CENTER
-screen Briefing 42-briefing 15
-screen Sports 43-sports 12
+screen Briefing 47-briefing 15
+screen Sports 48-sports 12
+screen Profiles 49-profiles 5
 
 demo PATCH --es style FullScreen
 screen Art 50-art-full-screen 25
@@ -98,17 +130,95 @@ screen Art 52-art-generated 8
 key DPAD_CENTER
 demo PATCH --es source Paintings
 
+# ---- 3. Everything is an option ---------------------------------------------------------------
+# Looks: each one a whole different home screen.
+opt "look.theme=Daylight;look.accent=Coral;look.headingFont=Fredoka;look.textFont=Nunito;look.corners=Soft;look.focus=Frame"
+home 6
+shot 53-home-daylight
+key DPAD_DOWN
+shot 54-home-daylight-focus
+opt "look.theme=Plum;look.accent=Gold;look.headingFont=Bebas;look.textFont=Lexend;look.corners=Square;look.focus=ColorFrame;look.favSize=Small;look.appSize=Small;look.spacing=Compact;home.rows=Recent,Favorites,Apps,Room;look.clock=Small;look.appNames=Always"
+home 6
+shot 55-home-plum-compact
+opt "look.theme=Black;look.accent=Mint;look.headingFont=Playfair;look.textFont=Literata;look.textScale=Larger;look.favSize=Huge;look.corners=Round;look.focus=Fill;look.appArt=Icon;look.appNames=OnFocus;look.clock=Large;home.rows=Favorites,Apps,Room"
+home 6
+shot 56-home-black-large
+key DPAD_DOWN
+shot 57-home-black-icons-focus
+demo RESET
+
+# Backgrounds.
+opt "bg.kind=Gradient;bg.gradient=Aurora"
+home 5
+shot 60-bg-gradient
+demo BGPHOTO
+opt "bg.kind=Photo;bg.blur=Soft;bg.dim=30"
+home 8
+shot 61-bg-photo-soft
+opt "bg.kind=Daily;bg.blur=None;bg.dim=45"
+home 20
+shot 62-bg-photo-of-the-day
+opt "bg.kind=Art"
+home 25
+shot 63-bg-painting
+opt "bg.kind=Color;bg.color=4279179818"
+home 5
+shot 64-bg-colour
+screen Settings 65-settings-over-colour
+demo BGPHOTO
+opt "bg.kind=Photo;bg.blur=Strong;bg.dim=45"
+screen Settings 66-settings-over-photo 8
+demo RESET
+
+# Apps with their own names and pictures, then the other profile's home screen.
+demo APPLOOKS
+home 6
+shot 67-home-app-looks
+demo SWITCH --es name Sam
+home 6
+shot 68-home-sam
+demo SWITCH --es name Matt
+
+# Sports layouts and spoiler-free scores.
+opt "sports.layout=Big;sports.noSpoilers=on;sports.teamColors=on"
+screen Sports 70-sports-big-no-spoilers 12
+opt "sports.layout=Compact;sports.noSpoilers=off;sports.board=off"
+screen Sports 71-sports-compact-wide 10
+opt "sports.layout=Cards;sports.board=on;sports.teamColors=off"
+
+# Briefing layouts.
+opt "brief.layout=Single;brief.greeting=Plain;brief.background=Sunrise"
+screen Briefing 72-briefing-single 15
+opt "brief.layout=Minimal;brief.background=Art"
+screen Briefing 73-briefing-minimal 20
+opt "brief.layout=Columns;brief.greeting=WithName;brief.background=Theme"
+
+# Alarm looks and ways to stop it (Back snoozes; the demo then cancels the snooze).
+opt "alarm.stopWith=Hold;alarm.background=Art;alarm.greeting=Custom;alarm.message=Rise and shine"
+demo ALARM
+sleep 12
+shot 74-alarm-hold-painting
+key BACK
+demo UNSNOOZE
+opt "alarm.stopWith=Sum;alarm.background=Black;alarm.greeting=WithName"
+demo ALARM
+sleep 6
+shot 75-alarm-sum
+key BACK
+demo UNSNOOZE
+opt "alarm.stopWith=Press;alarm.background=Sunrise"
+
 demo ALARM
 sleep 5
-shot 60-alarm-ringing
+shot 80-alarm-ringing
 key DPAD_CENTER
 sleep 12
-shot 61-briefing-after-alarm
+shot 81-briefing-after-alarm
 key DPAD_CENTER
 
 demo CRASH
 sleep 3
-shot 70-crash-report
+shot 85-crash-report
 key BACK
 
 # Score alerts draw over other apps (Android hides them over its own Settings, so show one over Haven).
@@ -116,7 +226,13 @@ adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
 home 4
 demo POPUP
 sleep 2
-shot 80-score-alert
+shot 86-score-alert
+sleep 8
+opt "sports.alertCorner=BottomLeft;sports.alertSize=Large"
+demo POPUP
+sleep 2
+shot 87-score-alert-large-corner
+opt "sports.alertCorner=TopRight;sports.alertSize=Normal"
 
 home 4
 shot 90-home-end

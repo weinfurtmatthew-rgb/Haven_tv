@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -17,6 +18,7 @@ import app.haven.launcher.Haven
 import app.haven.launcher.MainActivity
 import app.haven.launcher.R
 import app.haven.launcher.data.AlarmConfig
+import app.haven.launcher.data.Settings
 import app.haven.launcher.system.HomeButtonService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,12 +32,16 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-/** Alarm clock, sunrise lights and sleep timer for bedroom TVs. All timing goes through AlarmManager. */
+/**
+ * Alarm clock, sunrise lights and sleep timer for bedroom TVs. All timing goes through AlarmManager. Every profile
+ * has its own alarm; each is scheduled separately and rings with that profile's sound, look and name.
+ */
 object Bedroom {
     const val ACTION_ALARM = "app.haven.launcher.action.ALARM"
     const val ACTION_SUNRISE = "app.haven.launcher.action.SUNRISE"
     const val ACTION_SLEEP_WARN = "app.haven.launcher.action.SLEEP_WARN"
     const val ACTION_SLEEP = "app.haven.launcher.action.SLEEP"
+    const val EXTRA_PROFILE = "app.haven.launcher.PROFILE"
     const val NOTIFICATION_ID = 6030
 
     private val _sleepEndsAt = MutableStateFlow(0L)
@@ -71,46 +77,81 @@ object Bedroom {
         return null
     }
 
+    /** Schedules every profile's next alarm (and its sunrise lights), cancelling ones that are off or gone. */
     fun scheduleAlarm(ctx: Context) {
         val am = ctx.getSystemService(AlarmManager::class.java) ?: return
-        am.cancel(broadcast(ctx, ACTION_ALARM))
-        am.cancel(broadcast(ctx, ACTION_SUNRISE))
-        val s = Haven.settings.value
+        // Alarms set before profiles existed carried no profile; never let one of those ring as well.
+        am.cancel(legacy(ctx, ACTION_ALARM))
+        am.cancel(legacy(ctx, ACTION_SUNRISE))
+        val all = Haven.settings.all()
+        val ids = all.map { it.first }.toSet()
+        val p = prefs(ctx)
+        for (gone in p.getStringSet("alarmProfiles", emptySet()).orEmpty() - ids) {
+            am.cancel(broadcast(ctx, ACTION_ALARM, gone))
+            am.cancel(broadcast(ctx, ACTION_SUNRISE, gone))
+        }
+        p.edit().putStringSet("alarmProfiles", ids).apply()
+        for ((id, s) in all) scheduleFor(ctx, am, id, s)
+    }
+
+    private fun scheduleFor(ctx: Context, am: AlarmManager, id: String, s: Settings) {
+        val ring = broadcast(ctx, ACTION_ALARM, id)
+        val sunrise = broadcast(ctx, ACTION_SUNRISE, id)
+        am.cancel(ring)
+        am.cancel(sunrise)
         val now = System.currentTimeMillis()
-        val snooze = prefs(ctx).getLong("snoozeUntil", 0L).takeIf { it > now }
+        val snooze = prefs(ctx).getLong("snoozeUntil:$id", 0L).takeIf { it > now }
         val next = nextAlarm(s.alarm, ZonedDateTime.now())?.toInstant()?.toEpochMilli()
         val fireAt = listOfNotNull(snooze, next).minOrNull() ?: return
         val show = PendingIntent.getActivity(
-            ctx, 10,
-            Intent(ctx, MainActivity::class.java).putExtra(MainActivity.EXTRA_SCREEN, "Alarm"),
+            ctx, 10 + code(id),
+            Intent(ctx, MainActivity::class.java).putExtra(MainActivity.EXTRA_SCREEN, "Alarm").setData(profileUri(id)),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         try {
-            am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAt, show), broadcast(ctx, ACTION_ALARM))
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAt, show), ring)
         } catch (e: SecurityException) {
-            exact(am, fireAt, broadcast(ctx, ACTION_ALARM))
+            exact(am, fireAt, ring)
         }
         val lead = s.alarm.sunriseMin * 60_000L
         if (next != null && fireAt == next && lead > 0 && s.haConfigured && next - lead > now) {
-            exact(am, next - lead, broadcast(ctx, ACTION_SUNRISE))
+            exact(am, next - lead, sunrise)
         }
     }
 
-    fun snooze(ctx: Context) {
-        val min = Haven.settings.value.alarm.snoozeMin
-        prefs(ctx).edit().putLong("snoozeUntil", System.currentTimeMillis() + min * 60_000L).apply()
+    /** Snoozes in a row for a profile's alarm, so it can stop offering snooze after the limit. */
+    fun snoozesUsed(ctx: Context, id: String): Int = prefs(ctx).getInt("snoozes:$id", 0)
+
+    fun snooze(ctx: Context, id: String) {
+        val min = Haven.settings.settingsOf(id).alarm.snoozeMin
+        prefs(ctx).edit()
+            .putLong("snoozeUntil:$id", System.currentTimeMillis() + min * 60_000L)
+            .putInt("snoozes:$id", snoozesUsed(ctx, id) + 1)
+            .apply()
         scheduleAlarm(ctx)
     }
 
-    internal fun onAlarmFired(ctx: Context) {
-        prefs(ctx).edit().remove("snoozeUntil").apply()
-        val ring = Intent(ctx, AlarmActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /** The alarm was stopped: the next one starts with a fresh snooze count. */
+    fun stopped(ctx: Context, id: String) {
+        prefs(ctx).edit().remove("snoozeUntil:$id").remove("snoozes:$id").apply()
+        scheduleAlarm(ctx)
+    }
+
+    internal fun onAlarmFired(ctx: Context, id: String) {
+        val p = prefs(ctx)
+        val snoozed = p.getLong("snoozeUntil:$id", 0L)
+        // Rang on time (not from a snooze): a new morning, a new snooze count.
+        if (snoozed == 0L || kotlin.math.abs(System.currentTimeMillis() - snoozed) > 5 * 60_000L) p.edit().remove("snoozes:$id").apply()
+        p.edit().remove("snoozeUntil:$id").apply()
+        val ring = Intent(ctx, AlarmActivity::class.java)
+            .putExtra(EXTRA_PROFILE, id)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { ctx.startActivity(ring) }
         // Fallback for when Android blocks a background start: a full-screen notification opens the same screen.
         runCatching {
             val nm = ctx.getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(NotificationChannel("alarm", "Alarm", NotificationManager.IMPORTANCE_HIGH))
-            val pi = PendingIntent.getActivity(ctx, 11, ring, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val pi = PendingIntent.getActivity(ctx, 11 + code(id), ring.setData(profileUri(id)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val n = Notification.Builder(ctx, "alarm")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle("Alarm")
@@ -125,9 +166,9 @@ object Bedroom {
         scheduleAlarm(ctx)
     }
 
-    /** Fades the room's lights up to full over the sunrise lead time (Home Assistant `transition`). */
-    internal suspend fun sunrise() {
-        val s = Haven.settings.value
+    /** Fades a profile's room lights up to full over its sunrise lead time (Home Assistant `transition`). */
+    internal suspend fun sunrise(id: String) {
+        val s = Haven.settings.settingsOf(id)
         if (!s.haConfigured) return
         Haven.ha.refresh()
         val lights = Haven.ha.roomLights(s).filter { it.domain == "light" }
@@ -180,6 +221,19 @@ object Bedroom {
 
     // ---- helpers -------------------------------------------------------------------------------
 
+    private fun code(id: String): Int = (id.hashCode() and 0x3FFF) * 4
+
+    private fun profileUri(id: String): Uri = Uri.parse("haven://profile/$id")
+
+    /** A profile's alarm or sunrise: the profile in the data makes each one a separate alarm. */
+    private fun broadcast(ctx: Context, action: String, id: String): PendingIntent = PendingIntent.getBroadcast(
+        ctx, code(id) + action.length,
+        Intent(ctx, BedroomReceiver::class.java).setAction(action).setData(profileUri(id)).putExtra(EXTRA_PROFILE, id),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private fun legacy(ctx: Context, action: String): PendingIntent = broadcast(ctx, action)
+
     private fun broadcast(ctx: Context, action: String): PendingIntent = PendingIntent.getBroadcast(
         ctx, action.hashCode(),
         Intent(ctx, BedroomReceiver::class.java).setAction(action),
@@ -213,12 +267,19 @@ object Bedroom {
 class BedroomReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
-            Bedroom.ACTION_ALARM -> Bedroom.onAlarmFired(ctx)
-            Bedroom.ACTION_SUNRISE -> async { Bedroom.sunrise() }
+            Bedroom.ACTION_ALARM -> Bedroom.onAlarmFired(ctx, profileOf(intent))
+            Bedroom.ACTION_SUNRISE -> {
+                val id = profileOf(intent)
+                async { Bedroom.sunrise(id) }
+            }
             Bedroom.ACTION_SLEEP_WARN -> Toast.makeText(ctx, "Sleep timer: 1 minute left", Toast.LENGTH_LONG).show()
             Bedroom.ACTION_SLEEP -> async { Bedroom.sleepNow(ctx.applicationContext) }
         }
     }
+
+    /** The profile an alarm belongs to; one set before profiles existed belongs to whoever is active. */
+    private fun profileOf(intent: Intent): String =
+        intent.getStringExtra(Bedroom.EXTRA_PROFILE)?.takeIf { Haven.settings.exists(it) } ?: Haven.settings.activeId
 
     private fun async(block: suspend () -> Unit) {
         val pending = goAsync()
