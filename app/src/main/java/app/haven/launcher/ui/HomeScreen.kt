@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -367,8 +368,9 @@ private fun TopBar(
     val me = profiles.firstOrNull { it.active }
     val look = settings.look
     Haven.ha.entities.collectAsState().value // weather
+    // At least 96 px tall, and taller when a big text size makes the clock taller.
     Row(
-        Modifier.fillMaxWidth().height(96.dp).padding(horizontal = SIDE.dp),
+        Modifier.fillMaxWidth().heightIn(min = 96.dp).padding(horizontal = SIDE.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (look.clock != ClockStyle.Hidden || look.showDate) {
