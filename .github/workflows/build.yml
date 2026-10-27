@@ -33,13 +33,70 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: haven-1.0.${{ github.run_number }}
+          name: haven-apk
           path: haven.apk
 
-      # Every build of main becomes the "latest" release, so this link always points at the newest APK:
-      # https://github.com/<owner>/haven_tv/releases/latest/download/haven.apk
+  # Installs the release APK on an Android TV 11 emulator (the DIRECTV box runs Android TV 11), opens every
+  # screen, and fails if Haven crashes. Screenshots and logs land on the "ci-smoke" pre-release.
+  smoke:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: haven-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Haven on an Android TV emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/smoke.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-results
+          path: smoke/
+
+      - name: Publish smoke results
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ci-smoke --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create ci-smoke smoke/* \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --prerelease --latest=false \
+            --title "CI smoke test (latest build)" \
+            --notes "Screenshots and logs from build ${{ github.run_number }} running on an Android TV 11 emulator. Not an app release."
+
+  # Every build of main that passes the emulator test becomes the "latest" release, so this link always points
+  # at the newest APK: https://github.com/<owner>/haven_tv/releases/latest/download/haven.apk
+  release:
+    needs: [apk, smoke]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: haven-apk
+
       - name: Publish release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
