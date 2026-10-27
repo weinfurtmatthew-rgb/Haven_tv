@@ -14,6 +14,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Android 11+ package visibility: the apps a launcher lists and the stock home screen. -->
     <queries>
@@ -105,6 +108,19 @@
 
         <receiver
             android:name=".bedroom.BedroomReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".sports.ScoreAlertService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Live score alerts for the sports teams the user follows, shown while other apps are open" />
+        </service>
+
+        <receiver
+            android:name=".sports.ScoreAlarmReceiver"
             android:exported="false" />
 
         <receiver

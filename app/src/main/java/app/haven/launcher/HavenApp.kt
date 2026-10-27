@@ -7,6 +7,7 @@ import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.AppsRepository
 import app.haven.launcher.data.SettingsStore
 import app.haven.launcher.ha.HomeAssistant
+import app.haven.launcher.sports.SportsRepository
 import app.haven.launcher.system.CrashReport
 import app.haven.launcher.update.Updater
 import kotlinx.coroutines.CoroutineScope
@@ -28,6 +29,8 @@ object Haven {
         private set
     lateinit var updater: Updater
         private set
+    lateinit var sports: SportsRepository
+        private set
 
     /** Uptime (ms) of the last remote key press anywhere in Haven; drives art mode's idle start. */
     @Volatile
@@ -40,6 +43,7 @@ object Haven {
         ha = HomeAssistant(settings)
         art = ArtRepository(context)
         updater = Updater(context)
+        sports = SportsRepository(settings)
     }
 
     /** Wall-clock time of the last crash, so the Home-button service stops redirecting to a broken app. */

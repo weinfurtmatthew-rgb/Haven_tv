@@ -50,6 +50,10 @@ import app.haven.launcher.Haven
 import app.haven.launcher.Nav
 import app.haven.launcher.Screen
 import app.haven.launcher.data.ArtSource
+import app.haven.launcher.data.ArtStyle
+import app.haven.launcher.data.QuietMode
+import app.haven.launcher.data.TvPanel
+import app.haven.launcher.sports.ScorePopup
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.setup.SetupServer
 import app.haven.launcher.system.HomeButtonService
@@ -191,6 +195,103 @@ fun SettingsScreen(nav: Nav) {
                 item {
                     SettingRow("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
                         openSystem(ctx, AndroidSettings.ACTION_DREAM_SETTINGS)
+                    }
+                }
+
+                item {
+                    SettingRow("Art style", s.artCare.style.label) {
+                        val all = ArtStyle.values()
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(style = all[(it.artCare.style.ordinal + 1) % all.size])) }
+                    }
+                }
+                item {
+                    SettingRow(
+                        "TV type", "${s.artCare.panel.label} · " +
+                            if (s.artCare.strongProtection) "strong burn-in protection" else "standard burn-in protection",
+                    ) {
+                        val next = if (s.artCare.panel == TvPanel.Oled) TvPanel.Lcd else TvPanel.Oled
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(panel = next)) }
+                    }
+                }
+                item {
+                    SettingRow("Dim the art", if (s.artCare.dimPct == 0) "Off" else "${s.artCare.dimPct}% darker") {
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(dimPct = cycle(listOf(0, 15, 30, 45), it.artCare.dimPct))) }
+                    }
+                }
+                item {
+                    val c = s.artCare
+                    SettingRow(
+                        "Quiet hours",
+                        if (!c.quietEnabled) "Off" else "${hourLabel(c.quietStart, s.use24h)} to ${hourLabel(c.quietEnd, s.use24h)} · ${c.quietMode.label.lowercase()}",
+                    ) {
+                        val presets = listOf(23 to 23, 23 to 6, 22 to 6, 0 to 7, 21 to 7)
+                        val i = presets.indexOf(c.quietStart to c.quietEnd)
+                        val (a, b) = presets[(i + 1) % presets.size]
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(quietStart = a, quietEnd = b)) }
+                    }
+                }
+                item {
+                    SettingRow("During quiet hours", s.artCare.quietMode.label) {
+                        val next = if (s.artCare.quietMode == QuietMode.Black) QuietMode.Dim else QuietMode.Black
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(quietMode = next)) }
+                    }
+                }
+                item {
+                    SettingRow(
+                        "Only when someone is in the room",
+                        if (s.artCare.presenceEntity.isBlank()) "Off · pick a motion sensor on your phone"
+                        else "${Haven.ha.entities.value[s.artCare.presenceEntity]?.name ?: s.artCare.presenceEntity} · black after ${s.artCare.presenceDelayMin} min",
+                    ) {}
+                }
+                item {
+                    SettingRow("Art time limit", if (s.artCare.maxHours == 0) "No limit" else "Go black after ${s.artCare.maxHours} hours") {
+                        Haven.settings.update { it.copy(artCare = it.artCare.copy(maxHours = cycle(listOf(0, 2, 4, 8), it.artCare.maxHours))) }
+                    }
+                }
+
+                item { Section("Morning briefing") }
+                item {
+                    SettingRow("Show the briefing now", "It also opens when you stop the alarm") { nav.go(Screen.Briefing) }
+                }
+                item {
+                    val b = s.brief
+                    SettingRow(
+                        "What it shows",
+                        listOf(
+                            "weather",
+                            if (b.calendars.isEmpty()) "all calendars" else "${b.calendars.size} calendar(s)",
+                            if (b.commuteEntity.isBlank()) "no commute" else "commute",
+                            if (b.statusEntities.isEmpty()) "locks and garage" else "${b.statusEntities.size} home items",
+                            if (b.headlinesFeed.isBlank()) "no headlines" else "headlines",
+                            "your teams",
+                        ).joinToString(" · ") + " — change on your phone",
+                    ) {}
+                }
+
+                item { Section("Sports") }
+                item {
+                    SettingRow(
+                        "Your teams",
+                        if (s.sports.teams.isEmpty()) "None yet · choose them on your phone" else s.sports.teams.joinToString(", ") { it.name },
+                        icon = Icons.Trophy,
+                    ) { nav.go(Screen.Sports) }
+                }
+                item {
+                    SettingRow("Score alerts", "Game start, scoring and finals for your teams, over any app", toggle = s.sports.alerts) {
+                        Haven.settings.update { it.copy(sports = it.sports.copy(alerts = !it.sports.alerts)) }
+                    }
+                }
+                item {
+                    val ok = ScorePopup.canOverlay(ctx)
+                    SettingRow(
+                        "Show alerts on top of other apps",
+                        if (ok) "Allowed" else "Not allowed · alerts show as small messages instead. Select to allow",
+                        toggle = ok,
+                    ) { ScorePopup.requestPermission(ctx) }
+                }
+                item {
+                    SettingRow("Test an alert", "Shows a sample score alert") {
+                        ScorePopup.show(ctx, "Sample: HOM 21 – 17 AWY", "Q3 4:12 · Haven score alert")
                     }
                 }
 
@@ -410,5 +511,8 @@ fun SettingRow(
 private fun Section(title: String) {
     Txt(title, 22, Modifier.padding(top = 18.dp, bottom = 2.dp), FontWeight.ExtraBold, C.Accent)
 }
+
+private fun hourLabel(h: Int, use24h: Boolean): String =
+    java.time.LocalTime.of(h, 0).format(java.time.format.DateTimeFormatter.ofPattern(if (use24h) "H:mm" else "h a"))
 
 private fun cycle(options: List<Int>, current: Int): Int = options[(options.indexOf(current) + 1) % options.size]

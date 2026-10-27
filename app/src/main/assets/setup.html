@@ -94,6 +94,32 @@ a{color:var(--acc)}
     <label>Start art mode
       <select id="artIdle"><option value="0">Only when I choose it</option><option value="5">After 5 min idle</option><option value="10">After 10 min idle</option><option value="15">After 15 min idle</option><option value="30">After 30 min idle</option></select>
     </label>
+    <label>Style
+      <select id="careStyle"><option value="ThinFrame">Thin frame (fills about 95% of the screen)</option><option value="FullScreen">Full screen (edge to edge, may crop)</option><option value="Gallery">Gallery frame and mat</option></select>
+    </label>
+    <label>TV type (for burn-in protection)
+      <select id="carePanel"><option value="Unknown">Not set</option><option value="Oled">OLED (strong protection)</option><option value="Lcd">LCD / LED</option></select>
+    </label>
+    <label>Dim the art
+      <select id="careDim"><option value="0">Off</option><option value="15">15% darker</option><option value="30">30% darker</option><option value="45">45% darker</option></select>
+    </label>
+    <div class="row">
+      <label style="flex:1">Quiet from <select id="careQs"><option value="0">12 AM</option><option value="1">1 AM</option><option value="2">2 AM</option><option value="3">3 AM</option><option value="4">4 AM</option><option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option><option value="11">11 AM</option><option value="12">12 PM</option><option value="13">1 PM</option><option value="14">2 PM</option><option value="15">3 PM</option><option value="16">4 PM</option><option value="17">5 PM</option><option value="18">6 PM</option><option value="19">7 PM</option><option value="20">8 PM</option><option value="21">9 PM</option><option value="22">10 PM</option><option value="23">11 PM</option></select></label>
+      <label style="flex:1">until <select id="careQe"><option value="0">12 AM</option><option value="1">1 AM</option><option value="2">2 AM</option><option value="3">3 AM</option><option value="4">4 AM</option><option value="5">5 AM</option><option value="6">6 AM</option><option value="7">7 AM</option><option value="8">8 AM</option><option value="9">9 AM</option><option value="10">10 AM</option><option value="11">11 AM</option><option value="12">12 PM</option><option value="13">1 PM</option><option value="14">2 PM</option><option value="15">3 PM</option><option value="16">4 PM</option><option value="17">5 PM</option><option value="18">6 PM</option><option value="19">7 PM</option><option value="20">8 PM</option><option value="21">9 PM</option><option value="22">10 PM</option><option value="23">11 PM</option></select></label>
+    </div>
+    <div class="sub">Same time in both boxes turns quiet hours off.</div>
+    <label>During quiet hours
+      <select id="careQm"><option value="Black">Go black</option><option value="Dim">Dim the art</option></select>
+    </label>
+    <label>Only show art when someone is in the room
+      <select id="carePresence"></select>
+    </label>
+    <label>Go black after nobody's there for
+      <select id="careDelay"><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
+    </label>
+    <label>Art time limit
+      <select id="careMax"><option value="0">No limit</option><option value="2">2 hours</option><option value="4">4 hours</option><option value="8">8 hours</option></select>
+    </label>
     <h2 style="margin-top:8px">Your photos</h2>
     <div class="sub">Name a photo before uploading ("Lake day.jpg") and the name shows under it on the TV.</div>
     <div class="row">
@@ -103,6 +129,42 @@ a{color:var(--acc)}
       <span class="status" id="uploadStatus"></span>
     </div>
     <div class="photos" id="photos"></div>
+  </section>
+
+  <section id="briefCard">
+    <h2>Morning briefing</h2>
+    <div class="sub">Shown when you stop the alarm. Leave lists unticked to use the defaults (all calendars; locks and garage doors).</div>
+    <div class="sub" style="margin-top:4px">Calendars</div>
+    <div id="briefCals" class="list"></div>
+    <label>Commute time sensor (for example Waze travel time)
+      <select id="briefCommute"></select>
+    </label>
+    <label>Commute destination name <input type="text" id="briefLabel" placeholder="work"></label>
+    <div class="sub" style="margin-top:4px">Home status</div>
+    <div id="briefStatus" class="list"></div>
+    <label>Headlines feed (any RSS link; empty hides headlines)
+      <input type="url" id="briefFeed" autocapitalize="off">
+    </label>
+    <label>Close the briefing after
+      <select id="briefClose"><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option></select>
+    </label>
+    <div class="row"><button class="primary" id="briefSave">Save briefing</button></div>
+  </section>
+
+  <section>
+    <h2>Sports</h2>
+    <div class="sub">Your teams show on the home screen, in the briefing, and as score alerts.</div>
+    <div id="favTeams" class="list"></div>
+    <div class="row">
+      <label style="flex:1">League <select id="league"></select></label>
+    </div>
+    <div id="teamList" class="list"></div>
+    <label class="check"><input type="checkbox" id="spAlerts"> Score alerts on the TV</label>
+    <div class="row" style="gap:16px">
+      <label class="check"><input type="checkbox" id="spStart"> Game starts</label>
+      <label class="check"><input type="checkbox" id="spScore"> Scoring</label>
+      <label class="check"><input type="checkbox" id="spFinal"> Finals</label>
+    </div>
   </section>
 
   <section id="alarmCard">
@@ -223,6 +285,7 @@ function render() {
     d.append(img, b); ph.append(d);
   }
 
+  renderExtras();
   $('alarmCard').classList.toggle('hidden', !s.room.bedroom);
   const a = s.alarm;
   $('alarmOn').checked = a.enabled;
@@ -299,6 +362,92 @@ async function prepare(file) {
   } catch (e) {
     return { blob: file, name: file.name };
   }
+}
+
+
+// ---- art care, briefing, sports
+function careSave(patch) { save({ artCare: Object.assign({}, state.artCare, patch) }); }
+$('careStyle').addEventListener('change', () => careSave({ style: $('careStyle').value }));
+$('carePanel').addEventListener('change', () => careSave({ panel: $('carePanel').value }));
+$('careDim').addEventListener('change', () => careSave({ dimPct: Number($('careDim').value) }));
+$('careQs').addEventListener('change', () => careSave({ quietStart: Number($('careQs').value) }));
+$('careQe').addEventListener('change', () => careSave({ quietEnd: Number($('careQe').value) }));
+$('careQm').addEventListener('change', () => careSave({ quietMode: $('careQm').value }));
+$('carePresence').addEventListener('change', () => careSave({ presenceEntity: $('carePresence').value }));
+$('careDelay').addEventListener('change', () => careSave({ presenceDelayMin: Number($('careDelay').value) }));
+$('careMax').addEventListener('change', () => careSave({ maxHours: Number($('careMax').value) }));
+
+function checks(container, items, selected) {
+  container.innerHTML = '';
+  if (!items.length) { const d = document.createElement('div'); d.className = 'sub'; d.textContent = 'None found in Home Assistant'; container.append(d); return; }
+  for (const it of items) {
+    const l = document.createElement('label'); l.className = 'check';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.value = it.id; c.checked = selected.includes(it.id);
+    l.append(c, document.createTextNode(' ' + it.name)); container.append(l);
+  }
+}
+const checked = (container) => [...container.querySelectorAll('input:checked')].map(c => c.value);
+
+function renderExtras() {
+  const s = state, c = s.artCare, b = s.brief, sp = s.sports;
+  $('careStyle').value = c.style; $('carePanel').value = c.panel; $('careDim').value = String(c.dimPct);
+  $('careQs').value = String(c.quietStart); $('careQe').value = String(c.quietEnd); $('careQm').value = c.quietMode;
+  const pr = $('carePresence'); pr.innerHTML = '';
+  pr.append(opt('', 'Off (always show art)', c.presenceEntity === ''));
+  s.choices.presence.forEach(e => pr.append(opt(e.id, e.name, e.id === c.presenceEntity)));
+  $('careDelay').value = String(c.presenceDelayMin); $('careMax').value = String(c.maxHours);
+
+  checks($('briefCals'), s.choices.calendars, b.calendars);
+  const cm = $('briefCommute'); cm.innerHTML = '';
+  cm.append(opt('', 'None', b.commuteEntity === ''));
+  s.choices.commute.forEach(e => cm.append(opt(e.id, e.name, e.id === b.commuteEntity)));
+  if (document.activeElement !== $('briefLabel')) $('briefLabel').value = b.commuteLabel;
+  checks($('briefStatus'), s.choices.status, b.statusEntities);
+  if (document.activeElement !== $('briefFeed')) $('briefFeed').value = b.headlinesFeed;
+  $('briefClose').value = String(b.autoCloseMin);
+
+  const fav = $('favTeams'); fav.innerHTML = '';
+  if (!sp.teams.length) { const d = document.createElement('div'); d.className = 'sub'; d.textContent = 'No teams yet. Pick a league below.'; fav.append(d); }
+  for (const t of sp.teams) {
+    const row = document.createElement('div'); row.className = 'row';
+    const name = document.createElement('span'); name.style.flex = '1'; name.textContent = `${t.name} (${(s.leagues.find(l => l.id === t.league) || {}).label || t.league})`;
+    const rm = document.createElement('button'); rm.textContent = 'Remove';
+    rm.addEventListener('click', () => save({ sports: Object.assign({}, sp, { teams: sp.teams.filter(x => !(x.league === t.league && x.id === t.id)) }) }, 'Removed'));
+    row.append(name, rm); fav.append(row);
+  }
+  const lg = $('league');
+  if (!lg.options.length) { lg.append(opt('', 'Choose a league…', true)); s.leagues.forEach(l => lg.append(opt(l.id, l.label, false))); }
+  $('spAlerts').checked = sp.alerts; $('spStart').checked = sp.alertStart; $('spScore').checked = sp.alertScore; $('spFinal').checked = sp.alertFinal;
+}
+
+$('briefSave').addEventListener('click', () => save({ brief: {
+  calendars: checked($('briefCals')), commuteEntity: $('briefCommute').value, commuteLabel: $('briefLabel').value || 'work',
+  statusEntities: checked($('briefStatus')), headlinesFeed: $('briefFeed').value.trim(), autoCloseMin: Number($('briefClose').value),
+} }, 'Briefing saved'));
+
+$('league').addEventListener('change', async () => {
+  const id = $('league').value, list = $('teamList');
+  list.innerHTML = '';
+  if (!id) return;
+  list.textContent = 'Loading teams…';
+  try {
+    const r = await api(`sports/teams?league=${encodeURIComponent(id)}`);
+    list.innerHTML = '';
+    for (const t of r.teams) {
+      const row = document.createElement('div'); row.className = 'row';
+      const name = document.createElement('span'); name.style.flex = '1'; name.textContent = t.name;
+      const add = document.createElement('button'); add.textContent = 'Follow';
+      add.addEventListener('click', () => {
+        const sp = state.sports;
+        if (sp.teams.some(x => x.league === t.league && x.id === t.id)) return toast('Already following');
+        save({ sports: Object.assign({}, sp, { teams: [...sp.teams, t] }) }, `Following ${t.name}`);
+      });
+      row.append(name, add); list.append(row);
+    }
+  } catch (e) { list.textContent = ''; showError(e); }
+});
+for (const [id, key] of [['spAlerts', 'alerts'], ['spStart', 'alertStart'], ['spScore', 'alertScore'], ['spFinal', 'alertFinal']]) {
+  $(id).addEventListener('change', () => save({ sports: Object.assign({}, state.sports, { [key]: $(id).checked }) }));
 }
 
 api('state').then(s => { state = s; render(); }).catch(showError);

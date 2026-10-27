@@ -18,6 +18,8 @@ import app.haven.launcher.system.CrashActivity
 import app.haven.launcher.system.CrashReport
 import app.haven.launcher.ui.AlarmScreen
 import app.haven.launcher.ui.ArtScreen
+import app.haven.launcher.ui.BriefingScreen
+import app.haven.launcher.ui.SportsScreen
 import app.haven.launcher.ui.C
 import app.haven.launcher.ui.DesignCanvas
 import app.haven.launcher.ui.HomeScreen
@@ -25,7 +27,7 @@ import app.haven.launcher.ui.LightsScreen
 import app.haven.launcher.ui.SettingsScreen
 import app.haven.launcher.ui.SleepScreen
 
-enum class Screen { Home, Lights, Art, Settings, Alarm, Sleep }
+enum class Screen { Home, Lights, Art, Settings, Alarm, Sleep, Briefing, Sports }
 
 /** Which full screen is showing. [homeResets] bumps whenever Home is pressed, so the home screen can scroll back. */
 class Nav {
@@ -99,6 +101,8 @@ fun HavenRoot(nav: Nav) {
             Screen.Settings -> SettingsScreen(nav)
             Screen.Alarm -> AlarmScreen(nav)
             Screen.Sleep -> SleepScreen(nav)
+            Screen.Briefing -> BriefingScreen(nav)
+            Screen.Sports -> SportsScreen(nav)
         }
     }
 }

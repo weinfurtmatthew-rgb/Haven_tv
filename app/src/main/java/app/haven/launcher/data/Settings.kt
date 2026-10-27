@@ -52,6 +52,10 @@ data class Settings(
     val artIntervalMin: Int = 5,
     /** Minutes without input on the home screen before art mode starts; 0 = never. */
     val artIdleMin: Int = 10,
+    val artCare: ArtCare = ArtCare(),
+    // Morning briefing and sports
+    val brief: BriefConfig = BriefConfig(),
+    val sports: SportsConfig = SportsConfig(),
     // Home button
     val homeOverride: Boolean = true,
     // Bedroom
@@ -77,6 +81,9 @@ data class Settings(
         .put("artSource", artSource.name)
         .put("artIntervalMin", artIntervalMin)
         .put("artIdleMin", artIdleMin)
+        .put("artCare", artCare.toJson())
+        .put("brief", brief.toJson())
+        .put("sports", sports.toJson())
         .put("homeOverride", homeOverride)
         .put("alarm", alarm.toJson())
         .put("sleepLightsOff", sleepLightsOff)
@@ -101,6 +108,9 @@ data class Settings(
                 artSource = runCatching { ArtSource.valueOf(o.optString("artSource")) }.getOrDefault(d.artSource),
                 artIntervalMin = o.optInt("artIntervalMin", d.artIntervalMin),
                 artIdleMin = o.optInt("artIdleMin", d.artIdleMin),
+                artCare = ArtCare.fromJson(o.optJSONObject("artCare")),
+                brief = BriefConfig.fromJson(o.optJSONObject("brief")),
+                sports = SportsConfig.fromJson(o.optJSONObject("sports")),
                 homeOverride = o.optBoolean("homeOverride", d.homeOverride),
                 alarm = o.optJSONObject("alarm")?.let { alarmFromJson(it) } ?: d.alarm,
                 sleepLightsOff = o.optBoolean("sleepLightsOff", d.sleepLightsOff),

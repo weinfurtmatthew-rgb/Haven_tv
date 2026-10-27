@@ -140,6 +140,53 @@ class HomeAssistant(private val store: SettingsStore) {
         }.getOrDefault(false)
     }
 
+    // ---- briefing data ------------------------------------------------------------------------
+
+    /** Hourly or daily forecast through `weather.get_forecasts` (HA 2023.9+), falling back to the old attribute. */
+    suspend fun forecast(entityId: String, type: String): List<Forecast> = withContext(Dispatchers.IO) {
+        val s = store.value
+        if (!s.haConfigured || entityId.isBlank()) return@withContext emptyList()
+        val fromService = runCatching {
+            val body = JSONObject().put("entity_id", entityId).put("type", type).toString().toRequestBody(json)
+            http.newCall(request(s, "/api/services/weather/get_forecasts?return_response").post(body).build()).execute().use { r ->
+                if (!r.isSuccessful) return@use null
+                val root = JSONObject(r.body!!.string())
+                val resp = root.optJSONObject("service_response") ?: root
+                resp.optJSONObject(entityId)?.optJSONArray("forecast")
+            }
+        }.getOrNull() ?: _entities.value[entityId]?.attrs?.optJSONArray("forecast")
+        Forecast.parse(fromService)
+    }
+
+    /** Calendar entities: id to name. */
+    suspend fun calendars(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val s = store.value
+        if (!s.haConfigured) return@withContext emptyList()
+        runCatching {
+            http.newCall(request(s, "/api/calendars").get().build()).execute().use { r ->
+                if (!r.isSuccessful) return@use emptyList()
+                val arr = JSONArray(r.body!!.string())
+                (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    o.optString("entity_id") to o.optString("name").ifBlank { o.optString("entity_id") }
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** Events between [startIso] and [endIso] (ISO-8601 with offset) for one calendar. */
+    suspend fun events(calendarId: String, startIso: String, endIso: String): List<CalEvent> = withContext(Dispatchers.IO) {
+        val s = store.value
+        if (!s.haConfigured) return@withContext emptyList()
+        runCatching {
+            val q = "?start=" + java.net.URLEncoder.encode(startIso, "UTF-8") + "&end=" + java.net.URLEncoder.encode(endIso, "UTF-8")
+            http.newCall(request(s, "/api/calendars/$calendarId$q").get().build()).execute().use { r ->
+                if (!r.isSuccessful) return@use emptyList()
+                CalEvent.parse(JSONArray(r.body!!.string()))
+            }
+        }.getOrDefault(emptyList())
+    }
+
     /** Applies a guessed state locally so the UI reacts before the next poll. */
     fun assume(entity: HaEntity) {
         _entities.value = _entities.value + (entity.id to entity)
@@ -242,6 +289,45 @@ class HomeAssistant(private val store: SettingsStore) {
             is java.net.SocketTimeoutException -> "Home Assistant didn't answer in time"
             is javax.net.ssl.SSLException -> "Secure connection failed (check http vs https)"
             else -> message ?: javaClass.simpleName
+        }
+    }
+}
+
+data class Forecast(val time: java.time.OffsetDateTime?, val temperature: Double?, val low: Double?, val condition: String) {
+    companion object {
+        fun parse(arr: JSONArray?): List<Forecast> {
+            if (arr == null) return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                Forecast(
+                    runCatching { java.time.OffsetDateTime.parse(o.optString("datetime")) }.getOrNull(),
+                    o.optDouble("temperature").takeIf { !it.isNaN() },
+                    o.optDouble("templow").takeIf { !it.isNaN() },
+                    o.optString("condition"),
+                )
+            }
+        }
+    }
+}
+
+data class CalEvent(val summary: String, val start: java.time.OffsetDateTime?, val allDay: Boolean) {
+    companion object {
+        fun parse(arr: JSONArray): List<CalEvent> = (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val start = o.optJSONObject("start")
+            val dt = start?.optString("dateTime").orEmpty()
+            val date = start?.optString("date").orEmpty()
+            CalEvent(
+                o.optString("summary").ifBlank { "Busy" },
+                when {
+                    dt.isNotBlank() -> runCatching { java.time.OffsetDateTime.parse(dt) }.getOrNull()
+                    date.isNotBlank() -> runCatching {
+                        java.time.LocalDate.parse(date).atStartOfDay(java.time.ZoneId.systemDefault()).toOffsetDateTime()
+                    }.getOrNull()
+                    else -> null
+                },
+                allDay = dt.isBlank() && date.isNotBlank(),
+            )
         }
     }
 }

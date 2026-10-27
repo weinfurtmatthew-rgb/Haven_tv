@@ -93,7 +93,7 @@ class ArtRepository(private val context: Context) {
             is ArtPiece.Generated -> emptyList()
         }
         for (data in sources) {
-            val req = ImageRequest.Builder(context).data(data).size(1600, 1000).allowHardware(false).build()
+            val req = ImageRequest.Builder(context).data(data).size(1920, 1080).allowHardware(false).build()
             val result = context.imageLoader.execute(req)
             if (result is SuccessResult) return LoadedArt(piece, result.drawable.toBitmap().asImageBitmap())
         }
@@ -146,7 +146,7 @@ class ArtRepository(private val context: Context) {
                         val w = thumb?.optDouble("width", 0.0) ?: 0.0
                         val h = thumb?.optDouble("height", 0.0) ?: 0.0
                         // Landscape works suit a TV; skip portraits and odd panoramas.
-                        if (h <= 0 || w / h < 1.15 || w / h > 2.4) continue
+                        if (h <= 0 || w / h < 1.3 || w / h > 2.1) continue
                         val artist = o.optString("artist_title").takeIf { it.isNotBlank() && it != "null" }
                         val date = o.optString("date_display").takeIf { it.isNotBlank() && it != "null" }
                         out[imageId] = ArtPiece.Painting(

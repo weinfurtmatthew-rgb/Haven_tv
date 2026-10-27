@@ -101,7 +101,12 @@ class AlarmActivity : ComponentActivity() {
         if (done) return
         done = true
         finish()
-        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Straight into the morning briefing.
+        startActivity(
+            Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_SCREEN, "Briefing")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
 

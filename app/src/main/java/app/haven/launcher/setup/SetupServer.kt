@@ -6,7 +6,11 @@ import app.haven.launcher.BuildConfig
 import app.haven.launcher.Haven
 import app.haven.launcher.art.ArtRepository
 import app.haven.launcher.bedroom.Bedroom
+import app.haven.launcher.data.ArtCare
 import app.haven.launcher.data.ArtSource
+import app.haven.launcher.data.BriefConfig
+import app.haven.launcher.data.SportsConfig
+import app.haven.launcher.sports.League
 import app.haven.launcher.data.Settings
 import app.haven.launcher.data.alarmFromJson
 import app.haven.launcher.data.strings
@@ -114,6 +118,11 @@ class SetupServer(private val context: Context) {
                     json(out, 200, JSONObject().put("ok", r.isSuccess).put("message", r.getOrNull() ?: r.exceptionOrNull()?.message))
                 }
                 "POST /api/photos" -> json(out, 200, savePhoto(req))
+                "GET /api/sports/teams" -> {
+                    val league = League.byId(req.query["league"].orEmpty()) ?: League.NFL
+                    val teams = runBlocking { Haven.sports.provider.teams(league) }
+                    json(out, 200, JSONObject().put("teams", JSONArray(teams.map { it.toFavorite().toJson() })))
+                }
                 "POST /api/photos/delete" -> {
                     val f = photoFile(req.query["name"].orEmpty())
                     if (f != null) f.delete()
@@ -226,6 +235,24 @@ class SetupServer(private val context: Context) {
             .put("photos", JSONArray(Haven.art.photos().map { it.name }))
             .put("alarm", s.alarm.toJson())
             .put("use24h", s.use24h)
+            .put("artCare", s.artCare.toJson())
+            .put("brief", s.brief.toJson())
+            .put("sports", s.sports.toJson())
+            .put("leagues", JSONArray(League.values().map { JSONObject().put("id", it.id).put("label", it.label) }))
+            .put(
+                "choices",
+                JSONObject()
+                    .put("calendars", JSONArray(runBlocking { ha.calendars() }.map { JSONObject().put("id", it.first).put("name", it.second) }))
+                    .put("presence", entityList { it.domain == "binary_sensor" && it.attrs.optString("device_class") in PRESENCE_CLASSES || it.domain == "person" })
+                    .put("commute", entityList { it.domain == "sensor" && it.attrs.optString("unit_of_measurement") in setOf("min", "minutes") })
+                    .put(
+                        "status",
+                        entityList {
+                            it.domain == "lock" || it.domain == "cover" || it.domain == "alarm_control_panel" ||
+                                (it.domain == "binary_sensor" && it.attrs.optString("device_class") in DOOR_CLASSES)
+                        },
+                    ),
+            )
     }
 
     private fun applySettings(o: JSONObject) {
@@ -245,6 +272,9 @@ class SetupServer(private val context: Context) {
             if (o.has("artIdleMin")) s = s.copy(artIdleMin = o.getInt("artIdleMin").coerceIn(0, 240))
             if (o.has("use24h")) s = s.copy(use24h = o.getBoolean("use24h"))
             if (o.has("alarm")) s = s.copy(alarm = alarmFromJson(o.getJSONObject("alarm")))
+            if (o.has("artCare")) s = s.copy(artCare = ArtCare.fromJson(o.getJSONObject("artCare")))
+            if (o.has("brief")) s = s.copy(brief = BriefConfig.fromJson(o.getJSONObject("brief")))
+            if (o.has("sports")) s = s.copy(sports = SportsConfig.fromJson(o.getJSONObject("sports")))
             s
         }
         val after = Haven.settings.value
@@ -252,7 +282,15 @@ class SetupServer(private val context: Context) {
             runBlocking { Haven.ha.refresh() }
         }
         if (after.alarm != before.alarm) Haven.scope.launch { Bedroom.scheduleAlarm(context) }
+        if (after.sports != before.sports) {
+            Haven.scope.launch { app.haven.launcher.sports.ScoreAlerts.sync(context, Haven.sports.refresh()) }
+        }
     }
+
+    private fun entityList(pick: (HaEntity) -> Boolean): JSONArray = JSONArray(
+        Haven.ha.entities.value.values.filter(pick).sortedBy { it.name.lowercase() }
+            .map { JSONObject().put("id", it.id).put("name", it.name) },
+    )
 
     private fun savePhoto(req: Req): JSONObject {
         if (req.length <= 0 || req.length > 40_000_000) error("Photos must be under 40 MB")
@@ -297,5 +335,7 @@ class SetupServer(private val context: Context) {
     companion object {
         private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         private val PORTS = listOf(8765, 8766, 8767, 0)
+        private val PRESENCE_CLASSES = setOf("motion", "occupancy", "presence")
+        private val DOOR_CLASSES = setOf("door", "garage_door", "window", "opening", "lock")
     }
 }

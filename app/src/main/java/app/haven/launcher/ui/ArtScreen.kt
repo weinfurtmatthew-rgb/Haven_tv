@@ -2,6 +2,7 @@ package app.haven.launcher.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,19 +17,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -39,6 +45,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -48,25 +55,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
+import app.haven.launcher.art.ArtCareLogic
 import app.haven.launcher.art.ArtPiece
 import app.haven.launcher.art.LoadedArt
+import app.haven.launcher.data.ArtCare
+import app.haven.launcher.data.ArtStyle
+import app.haven.launcher.data.QuietMode
+import app.haven.launcher.data.TvPanel
 import kotlinx.coroutines.delay
+import java.time.LocalTime
 import kotlin.random.Random
 
 private val Wall = Color(0xFFD8D2C6)
+private val DarkWall = Color(0xFF12100E)
 
-/** Art mode from the mockups: a framed picture on a warm wall. Any button exits. */
+/**
+ * Art mode: a picture in one of three styles (full screen, thin frame, gallery). Any button exits.
+ * Screen care: pixel shift, captions that fade, optional dimming, quiet hours, presence and a time limit,
+ * all of which end in a black screen (pixels off on OLED) with no image work going on.
+ */
 @Composable
 fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
     val settings by Haven.settings.state.collectAsState()
+    val care = settings.artCare
     val view = LocalView.current
     DisposableEffect(Unit) {
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
     }
 
+    // A clock that ticks once a minute: drives quiet hours, pixel shift and the time limit.
+    val minute by produceState(System.currentTimeMillis() / 60_000L) {
+        while (true) {
+            delay(60_000L - System.currentTimeMillis() % 60_000L)
+            value = System.currentTimeMillis() / 60_000L
+        }
+    }
+    val startedAt = remember { System.currentTimeMillis() }
+    var lastPresentAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(care.presenceEntity) {
+        if (care.presenceEntity.isBlank()) return@LaunchedEffect
+        while (true) {
+            Haven.ha.refresh()
+            if (ArtCareLogic.isPresent(Haven.ha.entities.value[care.presenceEntity]?.state)) {
+                lastPresentAt = System.currentTimeMillis()
+            }
+            delay(30_000)
+        }
+    }
+    val hour = remember(minute) { LocalTime.now().hour }
+    val rest = ArtCareLogic.restReason(care, hour, minute * 60_000L, lastPresentAt, startedAt)
+    val quietDim = rest == null && care.quietMode == QuietMode.Dim && ArtCareLogic.inQuietHours(care, hour)
+
     var shown by remember { mutableStateOf<LoadedArt?>(null) }
-    LaunchedEffect(settings.artSource, settings.artIntervalMin) {
+    LaunchedEffect(settings.artSource, settings.artIntervalMin, rest == null) {
+        if (rest != null) return@LaunchedEffect // resting: no downloads, no decoding
         var failures = 0
         while (true) {
             val piece = Haven.art.next(settings.artSource)
@@ -84,6 +127,14 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
         }
     }
 
+    // Captions show for a while after each new picture, then fade so no text sits still on the panel.
+    var captionOn by remember { mutableStateOf(true) }
+    LaunchedEffect(shown) {
+        captionOn = true
+        delay(ArtCareLogic.captionSeconds(care.strongProtection) * 1000L)
+        captionOn = false
+    }
+
     val focus = remember { FocusRequester() }
     var hint by remember { mutableStateOf(interactive) }
     LaunchedEffect(Unit) {
@@ -93,10 +144,15 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
         hint = false
     }
 
+    val (dx, dy) = ArtCareLogic.shift(care.strongProtection, minute)
+    val dim by animateFloatAsState(
+        ((care.dimPct + if (quietDim) 60 else 0).coerceAtMost(85)) / 100f, tween(3000), label = "dim",
+    )
+
     Box(
         Modifier
             .fillMaxSize()
-            .background(Wall)
+            .background(if (rest != null || care.style != ArtStyle.Gallery) Color.Black else Wall)
             .focusRequester(focus)
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) onExit()
@@ -104,8 +160,19 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
             }
             .focusable(),
     ) {
-        Crossfade(targetState = shown, animationSpec = tween(1500), label = "art") { art ->
-            if (art != null) FramedArt(art)
+        if (rest == null) {
+            Box(Modifier.fillMaxSize().offset(dx.dp, dy.dp)) {
+                Crossfade(targetState = shown, animationSpec = tween(1500), label = "art") { art ->
+                    if (art != null) {
+                        when (care.style) {
+                            ArtStyle.FullScreen -> FullScreenArt(art, captionOn)
+                            ArtStyle.ThinFrame -> ThinFrameArt(art, captionOn)
+                            ArtStyle.Gallery -> FramedArt(art, captionOn)
+                        }
+                    }
+                }
+            }
+            if (dim > 0f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
         }
         AnimatedVisibility(
             visible = hint,
@@ -123,10 +190,96 @@ fun ArtScreen(onExit: () -> Unit, interactive: Boolean = true) {
             }
         }
     }
+
+    if (interactive && care.panel == TvPanel.Unknown) TvTypeDialog()
+}
+
+/** Asked once: OLED panels get stronger burn-in protection. */
+@Composable
+private fun TvTypeDialog() {
+    val first = remember { FocusRequester() }
+    fun pick(p: TvPanel) = Haven.settings.update { it.copy(artCare = it.artCare.copy(panel = p)) }
+    HavenDialog(onDismiss = { pick(TvPanel.Oled) }) {
+        Column(
+            Modifier.width(1000.dp).clip(RoundedCornerShape(24.dp)).background(C.Card).padding(40.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt("What kind of TV is this?", 34, weight = FontWeight.ExtraBold)
+            Txt(
+                "OLED screens can keep a faint ghost of still pictures, so Haven moves art more often and hides captions " +
+                    "sooner on them. You can change this later in Settings › Art mode.",
+                20, weight = FontWeight.Medium, color = C.Muted, maxLines = 4,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                PillButton("OLED", { pick(TvPanel.Oled) }, selected = true, focusRequester = first)
+                PillButton("LCD / LED", { pick(TvPanel.Lcd) })
+                PillButton("Not sure", { pick(TvPanel.Oled) })
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        delay(100)
+        runCatching { first.requestFocus() }
+    }
 }
 
 @Composable
-private fun FramedArt(art: LoadedArt) {
+private fun ArtImage(art: LoadedArt, scale: ContentScale, modifier: Modifier) {
+    val img = art.image
+    if (img != null) {
+        Image(img, null, modifier, contentScale = scale)
+    } else if (art.piece is ArtPiece.Generated) {
+        GeneratedArt(art.piece.seed, modifier)
+    }
+}
+
+/** Small caption in the corner, used by the full-screen and thin-frame styles. */
+@Composable
+private fun CornerCaption(art: LoadedArt, visible: Boolean, modifier: Modifier) {
+    val a by animateFloatAsState(if (visible) 1f else 0f, tween(1500), label = "caption")
+    if (a <= 0f) return
+    Column(
+        modifier.alpha(a).clip(RoundedCornerShape(14.dp)).background(Color(0xB30D1014)).padding(horizontal = 20.dp, vertical = 12.dp),
+    ) {
+        if (art.piece.title.isNotBlank()) Txt(art.piece.title, 22, weight = FontWeight.Bold)
+        val line = listOf(art.piece.subtitle, art.piece.credit).filter { it.isNotBlank() }.joinToString(" · ")
+        if (line.isNotBlank()) Txt(line, 16, weight = FontWeight.Medium, color = C.Muted)
+    }
+}
+
+/** Edge to edge. Slightly enlarged so pixel shift never shows a black sliver. */
+@Composable
+private fun FullScreenArt(art: LoadedArt, captionOn: Boolean) {
+    Box(Modifier.fillMaxSize()) {
+        ArtImage(
+            art, ContentScale.Crop,
+            Modifier.fillMaxSize().graphicsLayer {
+                scaleX = 1.03f
+                scaleY = 1.03f
+            },
+        )
+        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 72.dp, bottom = 56.dp))
+    }
+}
+
+/** A slim dark frame around the whole picture, filling about 95% of the screen. */
+@Composable
+private fun ThinFrameArt(art: LoadedArt, captionOn: Boolean) {
+    val frame = 10f
+    val aspect = art.image?.let { it.width.toFloat() / it.height } ?: (16f / 9f)
+    val maxW = 1824f - 2 * frame
+    val maxH = 1026f - 2 * frame
+    val (w, h) = if (aspect > maxW / maxH) maxW to maxW / aspect else maxH * aspect to maxH
+    Box(Modifier.fillMaxSize().background(DarkWall), contentAlignment = Alignment.Center) {
+        Box(Modifier.background(Color(0xFF2E2219)).padding(frame.dp)) {
+            ArtImage(art, ContentScale.Crop, Modifier.size(w.dp, h.dp))
+        }
+        CornerCaption(art, captionOn, Modifier.align(Alignment.BottomStart).padding(start = 72.dp, bottom = 56.dp))
+    }
+}
+
+@Composable
+private fun FramedArt(art: LoadedArt, captionOn: Boolean) {
     val photo = art.piece is ArtPiece.Photo
     val frame: Dp = if (photo) 20.dp else 28.dp
     val frameColor = if (photo) Color(0xFFE9E4DA) else Color(0xFF2E2219)
@@ -139,6 +292,7 @@ private fun FramedArt(art: LoadedArt) {
     val maxW = 1560f - 2 * frame.value - 2 * side
     val maxH = 920f - 2 * frame.value - top - bottom
     val (w, h) = if (aspect > maxW / maxH) maxW to maxW / aspect else maxH * aspect to maxH
+    val captionAlpha by animateFloatAsState(if (captionOn) 1f else 0f, tween(1500), label = "mat caption")
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(
@@ -148,15 +302,8 @@ private fun FramedArt(art: LoadedArt) {
                 .padding(frame),
         ) {
             Column(Modifier.background(matColor).padding(start = side.dp, end = side.dp, top = top.dp)) {
-                Box(Modifier.size(w.dp, h.dp)) {
-                    val img = art.image
-                    if (img != null) {
-                        Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    } else if (art.piece is ArtPiece.Generated) {
-                        GeneratedArt(art.piece.seed, Modifier.fillMaxSize())
-                    }
-                }
-                Row(Modifier.size(w.dp, bottom.dp), verticalAlignment = Alignment.CenterVertically) {
+                ArtImage(art, ContentScale.Crop, Modifier.size(w.dp, h.dp))
+                Row(Modifier.size(w.dp, bottom.dp).alpha(captionAlpha), verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         if (art.piece.title.isNotBlank()) {
                             Txt(art.piece.title, 24, Modifier.weight(1f, fill = false), FontWeight.Bold, Color(0xFF5B5348))

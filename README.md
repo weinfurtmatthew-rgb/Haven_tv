@@ -14,8 +14,18 @@ design, with features that depend on the room the TV is in.
   set the alarm from your phone, with no typing on the remote.
 - **Updates in the app**: Settings › Updates downloads the newest build from this repo's releases.
 
+- **Art mode styles and screen care**: full screen, thin frame or gallery. It protects against burn-in with pixel shift,
+  captions that fade, stronger protection on OLED, optional dimming, quiet hours (dim or black), an optional
+  motion sensor (black when nobody's there) and a time limit.
+- **Sports**: follow NFL, MLB, NHL, NBA, Premier League, La Liga and Champions League teams (ESPN's public feed,
+  which is unofficial and may change). You get live scores and next games on the home screen and the Sports screen.
+  Selecting a game opens the streaming app that carries it, or DIRECTV with the channel to look for. Score alerts
+  appear over any app once "Display over other apps" is allowed; otherwise they show as small messages.
+
 **Bedroom features** (turn on in Settings › Bedroom features)
 - **Alarm** with snooze, chosen days, and *sunrise lights* that fade the room's lights up before it rings.
+  Stopping it opens the **morning briefing**: weather with an hourly strip, today's calendar, commute time, home
+  status (locks, garage), headlines from any RSS feed, and your teams' games. Pick the sources on the phone page.
 - **Sleep timer**: when time is up it pauses playback, turns off the room's lights and puts the box (and TV) to sleep.
 
 ## Install on the DIRECTV STREAM box

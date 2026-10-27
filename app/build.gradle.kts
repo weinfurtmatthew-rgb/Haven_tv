@@ -99,4 +99,5 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

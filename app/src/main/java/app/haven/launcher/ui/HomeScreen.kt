@@ -55,6 +55,9 @@ import app.haven.launcher.data.Settings
 import app.haven.launcher.data.TvApp
 import app.haven.launcher.ha.HaEntity
 import app.haven.launcher.ha.HaStatus
+import app.haven.launcher.sports.Game
+import app.haven.launcher.sports.GameState
+import app.haven.launcher.sports.ScoreAlerts
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -73,6 +76,8 @@ fun HomeScreen(nav: Nav) {
     Haven.ha.areas.collectAsState().value
     val sleepEndsAt by Bedroom.sleepEndsAt.collectAsState()
     val update by Haven.updater.available.collectAsState()
+    val games by Haven.sports.games.collectAsState()
+    val appCtx = LocalContext.current.applicationContext
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     val requesters = remember { HashMap<String, FocusRequester>() }
@@ -104,6 +109,13 @@ fun HomeScreen(nav: Nav) {
                 }
             }
             launch { Haven.updater.checkDaily() }
+            launch {
+                while (true) {
+                    val g = runCatching { Haven.sports.refresh(maxAgeMs = 60_000L) }.getOrDefault(emptyList())
+                    ScoreAlerts.sync(appCtx, g)
+                    delay(if (g.any { it.state == GameState.Live }) 60_000L else 10 * 60_000L)
+                }
+            }
             while (true) {
                 delay(10_000)
                 val idleMin = Haven.settings.value.artIdleMin
@@ -181,7 +193,7 @@ fun HomeScreen(nav: Nav) {
 
         // ---- This room
         SectionTitle(settings.roomName.ifBlank { "This room" }, Modifier.padding(start = 96.dp, top = 12.dp, bottom = 8.dp))
-        RoomRow(settings, haStatus, sleepEndsAt, nav, ::req, ::track)
+        RoomRow(settings, haStatus, sleepEndsAt, games, nav, ::req, ::track)
     }
 
     menuFor?.let { app ->
@@ -377,6 +389,7 @@ private fun RoomRow(
     settings: Settings,
     haStatus: HaStatus,
     sleepEndsAt: Long,
+    games: List<Game>,
     nav: Nav,
     req: (String) -> FocusRequester,
     rememberFocus: (String) -> (Boolean) -> Unit,
@@ -395,6 +408,16 @@ private fun RoomRow(
             add(RoomTile("sleep", Icons.MoonStar, "Sleep timer", if (sleepEndsAt > 0) "${maxOf(left, 1)} min left" else "Off") { nav.go(Screen.Sleep) })
         }
         add(RoomTile("art", Icons.Image, "Art mode", settings.artSource.label) { nav.go(Screen.Art) })
+        if (settings.sports.teams.isNotEmpty()) {
+            val g = games.firstOrNull()
+            val sub = when {
+                g == null -> "No games scheduled"
+                g.state == GameState.Live -> "${g.scoreLine} · ${g.detail}"
+                g.state == GameState.Final -> "Final: ${g.scoreLine}"
+                else -> "${g.away.team.abbr} at ${g.home.team.abbr} · ${gameStatus(g, settings.use24h)}"
+            }
+            add(RoomTile("sports", Icons.Trophy, "Your teams", sub) { nav.go(Screen.Sports) })
+        }
         val lights = ha.roomLights(settings)
         val speakers = ha.roomSpeakers(settings)
         val haNote = when (haStatus) {

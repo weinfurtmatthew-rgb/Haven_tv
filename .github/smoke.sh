@@ -23,6 +23,8 @@ screen Lights 3-lights
 screen Settings 4-settings
 screen Alarm 5-alarm
 screen Sleep 6-sleep
+screen Briefing 7a-briefing 12
+screen Sports 7b-sports 12
 screen Art 7-art 25
 key DPAD_CENTER
 sleep 3
