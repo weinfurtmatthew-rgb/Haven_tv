@@ -6,7 +6,18 @@ design, with features that depend on the room the TV is in.
 
 **On every TV**
 - Clock, date and weather (from Home Assistant), your favorite apps as big cards, and every installed app.
-- Hold OK on an app to pin it, move it, hide it or open its app info.
+- Hold OK on an app to pin it, move it, rename it, give it your own picture, hide it or open its app info.
+- **Profiles**: everyone in the house gets their own Haven. Each profile keeps its own look, home screen, apps,
+  background, alarm, morning briefing and teams. "Who's watching?" switches between them, and can ask each time
+  the TV turns on.
+- **Make it yours**: every part of Haven is a choice, set on the TV (with a live preview) or from your phone.
+  Eight colour schemes (one light) and ten accent colours; seven heading fonts and six text fonts; text size,
+  tile sizes, spacing and corners; how focus looks (a light fill, a frame or a coloured frame), zoom and motion;
+  which home rows show and in what order (favorites, recently used, all apps, the room); the clock, date, weather
+  and room button; app names and banners or icons.
+- **Backgrounds**: the theme's colour, any colour, a gradient, your own photos, Bing's photo of the day,
+  public-domain paintings, this week's movie and show posters (with your own free TMDB key), or the cover art of
+  what's playing in the room. Darken and soften pictures so text stays easy to read.
 - **Lights and speakers** for the room, through Home Assistant: scenes, on/off, brightness and volume with the remote.
 - **Art mode**: public-domain paintings (Art Institute of Chicago), your own photos, or generated art, in a frame on a
   warm wall. It can start after the home screen sits idle, and it can be the system screensaver.
@@ -19,13 +30,20 @@ design, with features that depend on the room the TV is in.
   motion sensor (black when nobody's there) and a time limit.
 - **Sports**: follow NFL, MLB, NHL, NBA, Premier League, La Liga and Champions League teams (ESPN's public feed,
   which is unofficial and may change). You get live scores and next games on the home screen and the Sports screen.
-  Selecting a game opens the streaming app that carries it, or DIRECTV with the channel to look for. Score alerts
-  appear over any app once "Display over other apps" is allowed; otherwise they show as small messages.
+  Selecting a game opens the streaming app that carries it, or DIRECTV with the channel to look for (or asks
+  which). Score alerts appear over any app once "Display over other apps" is allowed; otherwise they show as small
+  messages. Choose cards, a list or a big scoreboard, hide scores until you hold OK on a game (no spoilers), team
+  logos and colours, and where alerts appear, how long, how big and whether they chime.
 
 **Bedroom features** (turn on in Settings › Bedroom features)
-- **Alarm** with snooze, chosen days, and *sunrise lights* that fade the room's lights up before it rings.
-  Stopping it opens the **morning briefing**: weather with an hourly strip, today's calendar, commute time, home
-  status (locks, garage), headlines from any RSS feed, and your teams' games. Pick the sources on the phone page.
+- **Alarm** with snooze, chosen days, and *sunrise lights* that fade the room's lights up before it rings. Every
+  profile has its own. Pick its sound (chime, bells, marimba, digital beeps, a gentle rise, or silent), how loud
+  and how gently it starts, how many snoozes, how it's stopped (a press, holding OK, or solving a sum), what comes
+  after, and how its screen looks.
+- **Morning briefing**: weather with an hourly strip, today's calendar, commute time, home status (locks, garage),
+  headlines from any RSS feed, and your teams' games. Put the parts in any order, pick two columns, one column or
+  just the essentials, your own greeting and background, and have it read aloud. It can open after the alarm,
+  every morning, or only when you ask.
 - **Sleep timer**: when time is up it pauses playback, turns off the room's lights and puts the box (and TV) to sleep.
 
 ## Install on the DIRECTV STREAM box
@@ -57,8 +75,9 @@ them slightly differently.
      the app info screen, choose **Allow restricted settings**, then try again.
    - The service only listens for the Home button and notices when the stock home screen opens. It does not read
      what's on screen.
-6. **Set it up from your phone.** In Haven, select the round avatar button (top right) to open Settings. Scan the
-   QR code with your phone (same Wi-Fi) and fill in Home Assistant, the room and your photos.
+6. **Set it up from your phone.** In Haven, select the gear button (top right) to open Settings. Scan the QR code
+   with your phone (same Wi-Fi) and fill in Home Assistant, the room and your photos. The round picture next to it
+   is your profile; select it to switch profiles or add one.
 7. Optional: Settings › Device Preferences › **Screen saver** › choose **Haven art** to get art mode when the
    box sits idle in any app.
 
@@ -77,6 +96,20 @@ when there is one.
 3. Under **This room**, pick the Home Assistant **area** this TV is in. Haven then shows that area's lights,
    speakers (media players) and scenes. Untick anything you don't want on the TV.
 4. Weather comes from your Home Assistant weather entity (the default "Home" forecast works).
+
+### Profiles and the phone page
+
+Each profile is a complete set of settings. A new profile starts either with Haven's own look (keeping this TV's
+room and Home Assistant connection) or as a copy of the current profile. At the top of the phone page, pick whose
+settings to change: changes to the profile on the TV show right away, the others when that person picks their
+profile. Photos for art mode and backgrounds are shared by everyone; each profile picks which to show.
+
+### Movie and show posters
+
+Posters come from [The Movie Database](https://www.themoviedb.org) with your own free key: sign up, open
+Settings › API, request a developer key, and paste the "API key" (or the longer "API read access token") into
+Background › TMDB key on the phone page. This product uses the TMDB API but is not endorsed or certified by TMDB.
+The photo of the day comes from Bing's daily image feed.
 
 ## DIRECTV on its own box
 
@@ -129,11 +162,12 @@ so only install Haven builds from this repo's releases.
 | Path | What it is |
 |---|---|
 | `app/src/main/java/app/haven/launcher/MainActivity.kt` | The launcher activity and screen switching |
-| `…/ui/` | Compose screens: home, lights and speakers, art mode, alarm, sleep timer, settings; theme, icons, D-pad components |
-| `…/data/` | Settings (one JSON blob in SharedPreferences) and the installed-apps list |
+| `…/ui/` | Compose screens: home, profiles, lights and speakers, art mode, alarm, sleep timer, briefing, sports, settings; the live theme (`Theme.kt`), backgrounds, dialogs, icons, D-pad components |
+| `…/data/` | Settings per profile (one JSON blob each in SharedPreferences), looks and backgrounds (`Look.kt`), the options registry behind the TV and phone settings (`Options.kt`), and the installed-apps list |
+| `…/bg/` | Background pictures: uploaded photos, Bing's photo of the day, paintings, TMDB posters, now playing; the blur |
 | `…/ha/HomeAssistant.kt` | Home Assistant REST client: states, areas (template API), services |
 | `…/art/` | Art sources (paintings, photos, generated) and the screensaver service |
-| `…/bedroom/` | Alarm scheduling, the ringing screen and chime, sunrise lights, sleep timer |
+| `…/bedroom/` | Alarm scheduling per profile, the ringing screen and its synthesized sounds, sunrise lights, sleep timer |
 | `…/system/HomeButtonService.kt` | Home button override (accessibility service) and the boot receiver |
 | `…/setup/SetupServer.kt`, `app/src/main/assets/setup.html` | The phone setup page and its tiny HTTP server |
 | `…/update/Updater.kt` | In-app updates from GitHub releases |
@@ -142,5 +176,7 @@ so only install Haven builds from this repo's releases.
 The UI is laid out on the mockups' 1920×1080 canvas (`DesignCanvas`): one `dp` is one design pixel, whatever the
 box's resolution. Colours, type, focus and voice follow the design language in [DESIGN.md](DESIGN.md).
 
-Third-party assets: Fraunces and Atkinson Hyperlegible Next fonts (SIL OFL 1.1, see `licenses/`), Lucide icons
-(ISC), artwork images from the Art Institute of Chicago API (public domain works, CC0 data).
+Third-party assets: Fraunces, Atkinson Hyperlegible Next, Literata, Playfair Display, Bebas Neue, Fredoka, Outfit,
+Lexend, Nunito and Inter fonts (SIL OFL 1.1, see `licenses/`), Lucide icons (ISC), artwork images from the Art
+Institute of Chicago API (public domain works, CC0 data). Optional online backgrounds: Bing's photo of the day, and
+TMDB posters with the user's own key (this product uses the TMDB API but is not endorsed or certified by TMDB).

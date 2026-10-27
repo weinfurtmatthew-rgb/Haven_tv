@@ -315,15 +315,15 @@ private fun FramedArt(art: LoadedArt, captionOn: Boolean) {
     }
 }
 
-private data class Palette(val sky: Color, val deep: Color, val a: Color, val b: Color, val c: Color, val sun: Color)
+private data class PrintColors(val sky: Color, val deep: Color, val a: Color, val b: Color, val c: Color, val sun: Color)
 
 /** Mid-century prints: earth pigments, a low sun, nothing neon. */
-private val PALETTES = listOf(
-    Palette(Color(0xFF1F3A4A), Color(0xFF152A36), Color(0xFFC8553D), Color(0xFFE9D8B4), Color(0xFF7E9C7A), Color(0xFFE8A33D)),
-    Palette(Color(0xFFE9DCC3), Color(0xFF6F8F9B), Color(0xFFB5533C), Color(0xFFD9A35B), Color(0xFF3E5C50), Color(0xFFC8553D)),
-    Palette(Color(0xFF1B2233), Color(0xFF10151F), Color(0xFFA65E46), Color(0xFFD8C3A0), Color(0xFF4F6E66), Color(0xFFE8C07A)),
-    Palette(Color(0xFFE3B88A), Color(0xFF8C4F33), Color(0xFF6B2F2A), Color(0xFFF2E3C6), Color(0xFF3E5C50), Color(0xFFF4E6CC)),
-    Palette(Color(0xFFA9C2C4), Color(0xFF3F6470), Color(0xFF2F4F3F), Color(0xFF7E9C7A), Color(0xFFEFE5D2), Color(0xFFF2B35E)),
+private val PRINTS = listOf(
+    PrintColors(Color(0xFF1F3A4A), Color(0xFF152A36), Color(0xFFC8553D), Color(0xFFE9D8B4), Color(0xFF7E9C7A), Color(0xFFE8A33D)),
+    PrintColors(Color(0xFFE9DCC3), Color(0xFF6F8F9B), Color(0xFFB5533C), Color(0xFFD9A35B), Color(0xFF3E5C50), Color(0xFFC8553D)),
+    PrintColors(Color(0xFF1B2233), Color(0xFF10151F), Color(0xFFA65E46), Color(0xFFD8C3A0), Color(0xFF4F6E66), Color(0xFFE8C07A)),
+    PrintColors(Color(0xFFE3B88A), Color(0xFF8C4F33), Color(0xFF6B2F2A), Color(0xFFF2E3C6), Color(0xFF3E5C50), Color(0xFFF4E6CC)),
+    PrintColors(Color(0xFFA9C2C4), Color(0xFF3F6470), Color(0xFF2F4F3F), Color(0xFF7E9C7A), Color(0xFFEFE5D2), Color(0xFFF2B35E)),
 )
 
 /** Mid-century style shapes (sun, hills, arches, water) like the ArtPainting mockup, varied by [seed]. */
@@ -335,7 +335,7 @@ fun GeneratedArt(seed: Long, modifier: Modifier = Modifier) {
 
 private fun DrawScope.drawComposition(seed: Long) {
     val r = Random(seed)
-    val p = PALETTES[r.nextInt(PALETTES.size)]
+    val p = PRINTS[r.nextInt(PRINTS.size)]
     val w = size.width
     val h = size.height
     val horizon = h * (0.6f + r.nextFloat() * 0.18f)

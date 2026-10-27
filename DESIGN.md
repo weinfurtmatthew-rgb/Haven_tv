@@ -5,9 +5,9 @@ looking at it. It should behave like a good lamp: warm, quiet, easy to find in t
 thing in the room. The idea comes from *calm technology* (Weiser and Brown; Amber Case): ask for as little
 attention as possible, inform without demanding focus, live in the periphery.
 
-Code: tokens and type in `app/src/main/java/app/haven/launcher/ui/Theme.kt` (`C`, `T`, `Txt`), components in
+Code: tokens and type in `app/src/main/java/app/haven/launcher/ui/Theme.kt` (`C`, `T`, `L`, `Txt`), components in
 `ui/Components.kt` (`Focusable`, `Chip`, `IconButton`, `Toggle`, `LevelBar`, `KeyHint`, `ScreenHeader`,
-`SectionTitle`, `Panel`), the mark in `ui/Brand.kt`.
+`SectionTitle`, `Panel`), dialogs in `ui/Dialogs.kt`, backgrounds in `ui/Background.kt`, the mark in `ui/Brand.kt`.
 
 ## Principles
 
@@ -22,8 +22,31 @@ Code: tokens and type in `app/src/main/java/app/haven/launcher/ui/Theme.kt` (`C`
    artwork. When materials appear (art mode, frames), they are real ones: walnut, plaster, paper.
 6. **Say less.** Sentence case, plain words, numerals, no exclamation marks. Haven talks like a calm housemate.
 
+## Yours to change
+
+Haven is someone's own home screen, so nearly everything below is a choice each profile can make (Settings ›
+Look, Home screen and Background, or the phone page). This document describes the defaults; the choices are
+listed with each part. What never changes, whatever is chosen:
+
+- **Focus is always unmistakable.** A light fill, a light frame or a frame in the accent colour, plus a lift
+  (unless zoom is off), and nothing else on screen looks like it.
+- **The accent still means "on".** Whatever colour it is, it marks things that are on, active or chosen.
+- **Every scheme is contrast-checked.** Text pairs meet WCAG AA at their size in all eight schemes and with all
+  ten accents (the accent comes in a bright strength for dark schemes and a deep one for the light scheme and for
+  sitting on a focus fill).
+- **Pictures sit behind text darkened** (45% by default), never at full strength.
+- **Sizes scale together.** Text size, tile size and spacing are factors on the design pixels below, so the
+  layout keeps its proportions.
+- **The words stay calm.** Fonts, colours and greetings change; the voice doesn't.
+
+The choices live in one registry (`data/Options.kt`) that drives both the TV's Settings and the phone page. Look
+options preview live while the list is open: Back puts back what was there, OK keeps it.
+
 ## Colour
 
+The table is the default scheme, **Hearth**, with the default **Lamp** accent. The other schemes (Midnight,
+Forest, Plum, Graphite, Black for OLED, High contrast, and the light Daylight) fill the same roles with their own
+colours, and the accent can be lamp amber, coral, rose, lilac, sky blue, mint, sage green, gold, red or white.
 All colours are sRGB. Contrast ratios are against `hearth` unless noted; text pairs meet WCAG AA at their size.
 
 | Token | Hex | Use | Contrast |
@@ -47,10 +70,11 @@ On a focused (linen) surface the content switches to `Ink` (= hearth, 16:1), `In
 Art-mode materials: `Plaster #D9D2C5` (gallery wall), `Walnut #3B2A1E` (frames), `Mat #F4F0E8`,
 `LabelInk #3A332B` (museum-label ink, 10.9:1 on mat).
 
-Rules: dark backgrounds always (TVs glare and burn power on light ones; the gallery wall in art mode is the one
-exception, and it's the user's choice). No gradients except two functional ones: the alarm's sunrise (dithered)
-and the fade at the bottom of a scrolling list. Colour never carries meaning alone: every state also has a word,
-a position (switch knob) or a shape.
+Rules: dark backgrounds by default (TVs glare and burn power on light ones); Daylight and the gallery wall in art
+mode are there for people who choose them. Haven itself adds no gradients except two functional ones: the
+alarm's sunrise (dithered) and the fade at the bottom of a scrolling list, which fades the list itself so it
+works over any background. A background can be a gradient or a picture when the profile picks one. Colour never
+carries meaning alone: every state also has a word, a position (switch knob) or a shape.
 
 ## Type
 
@@ -64,6 +88,11 @@ a position (switch knob) or a shape.
 | `T.Body` | Atkinson Hyperlegible Next | 26 / 500 | Everything you read |
 | `T.Label` | Atkinson Hyperlegible Next | 24 / 600 | Values, chips, metadata, hints (the floor) |
 | `T.Numeric` | Atkinson Hyperlegible Next | 26 / 700, `tnum` | Timers, scores, times in a column |
+
+Each profile can pick other fonts. Headings (clocks, greetings, titles): Fraunces (default), Literata, Playfair
+Display, Bebas Neue, Fredoka, Outfit, or the text font. Text: Atkinson Hyperlegible Next (default), Lexend,
+Nunito, Inter, Literata, or the TV's own font. Each is nudged in size so they look alike at the same setting, and
+text size (standard, large, extra large) scales all of them, so nothing gets under 24 px.
 
 Fraunces (SIL OFL) is a soft, warm serif. Haven ships two static cuts from its variable axes, made for TV:
 36pt optical size for titles (sturdy strokes that survive a TV panel at 3 m) and 72pt for display sizes, both
@@ -85,19 +114,26 @@ before it ellipsizes.
 - Screens don't put their content in boxes. Columns of rows sit on the hearth with a section title; a `Panel`
   is for dialogs and the one card that needs grouping (phone setup).
 - Home: favourites 400×225 (all the same size), apps 256×144, room tiles 400×112. A card's name appears under
-  it only while it has focus.
+  it only while it has focus. Profiles can make favourite and app tiles small, large or extra large (0.8×, 1.2×,
+  1.4×), spacing compact or airy (0.67×, 1.4×), names always or never shown, and put the rows (favourites,
+  recently used, all apps, the room) in any order. The home screen scrolls when the rows don't fit.
 
 ## Shape
 
 - Tiles, rows, cards and app banners: 12 px radius. Panels and dialogs: 20 px. Chips and buttons: fully round.
-  Art: square corners, like the real thing.
+  Art: square corners, like the real thing. Profiles can choose square, slightly rounded (6), rounded (12), very
+  rounded (20) or extra round (32) corners; panels follow at five thirds, and chips stay round unless corners are
+  square or slight.
 - **The arch** is Haven's one signature shape: the mark (a doorway with the light on), the alarm's rising sun,
   and empty states. It is not used as decoration anywhere else.
 
 ## Focus and state
 
 - **Controls** (buttons, chips, rows, text tiles): the surface turns linen and the content turns ink, with a
-  1.03–1.08 lift (smaller for wide rows, larger for small chips). `Focusable(style = FocusStyle.Control)`.
+  1.03–1.08 lift (smaller for wide rows, larger for small chips). `Focusable(style = FocusStyle.Control)`. With
+  the profile's focus set to a frame (light or accent), controls keep their colours and get the picture frame
+  instead; content uses `ink(focused)` / `lit(focused)`, which know the difference. Zoom scales the lift (none,
+  subtle, standard, big).
 - **Pictures** (app banners, posters, art): 1.06 lift and a 4 px linen frame drawn 4 px outside the picture.
   `FocusStyle.Picture`. No shadows: on a dark room they don't read.
 - **Selected** (not focus): lamp. A selected chip is `LampSoft` with a lamp dot and lamp text; when it also has
@@ -110,8 +146,9 @@ before it ellipsizes.
 
 ## Motion
 
-Focus 160 ms ease-out (lift, linen fill, frame). Screens fade in over 240 ms. Ambient changes (art, briefing)
-crossfade over 1.5 s; the alarm's sunrise grows over a minute. No springs, bounces or parallax.
+Focus 160 ms ease-out (lift, linen fill, frame). Screens fade in over 240 ms. Ambient changes (art, briefing,
+backgrounds) crossfade over 1.5 s; the alarm's sunrise grows over a minute. No springs, bounces or parallax.
+Reduced motion (a profile choice) makes every one of these instant, which also helps slow boxes.
 
 ## Icons
 
@@ -124,7 +161,7 @@ are stone at rest, ink on focus, lamp only when the thing is on.
 - Sentence case everywhere; no title case, no exclamation marks, no emoji.
 - Short and specific: "Lights", "3 of 5 on", "Locked", "On. Rings tomorrow at 6:30 AM, in 7 hr 12 min".
 - Greet by the time of day ("Good morning" / "Good afternoon" / "Good evening"), on the alarm and the briefing
-  only.
+  only. A profile can drop its name from the greeting, write its own words, or have no greeting.
 - Errors say what happened and what to do: "Can't reach Home Assistant. Check the address in Settings, or try
   again."
 - Football (soccer) is written home team first ("ARS 2 – 1 LIV", "ARS v LIV"); North American leagues away
