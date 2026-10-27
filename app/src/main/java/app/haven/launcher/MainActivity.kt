@@ -73,13 +73,19 @@ class Nav {
 class MainActivity : ComponentActivity() {
     private val nav = Nav()
 
-    /** The TV woke up: ask who's watching, if the household wants that. */
+    /**
+     * The TV woke up: ask who's watching, if the household wants that. If another app is on screen, the question
+     * waits for the next time Home brings Haven up.
+     */
     private val screenOn = object : BroadcastReceiver() {
         override fun onReceive(c: Context, i: Intent) {
-            if (askWhoIsWatching()) nav.go(Screen.Profiles)
+            if (!askWhoIsWatching()) return
+            if (resumed) nav.go(Screen.Profiles) else askPending = true
         }
     }
     private var listening = false
+    private var resumed = false
+    private var askPending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,7 +114,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // Haven is already showing and Home was pressed (or another part of Haven asked for a screen).
-        if (!openFromIntent(intent)) nav.home()
+        if (openFromIntent(intent)) return
+        if (askPending && askWhoIsWatching()) {
+            askPending = false
+            nav.go(Screen.Profiles)
+        } else {
+            nav.home()
+        }
     }
 
     private fun openFromIntent(intent: Intent?): Boolean {
@@ -121,7 +133,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        resumed = true
         Haven.lastInput = SystemClock.uptimeMillis()
+    }
+
+    override fun onPause() {
+        resumed = false
+        super.onPause()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
