@@ -143,7 +143,8 @@ fun BriefingScreen(nav: Nav) {
         }
         val greeting = greetingLine(cfg.greeting, cfg.message, s.profileName, now.hour, stop = ".")
         when (cfg.layout) {
-            BriefLayout.Columns -> Row(Modifier.fillMaxSize().verticalScroll(scroll).padding(start = 116.dp, end = 116.dp, top = 96.dp, bottom = 128.dp)) {
+            // Long briefings scroll (Up and Down when only Back closes it) and fade out above the hint line.
+            BriefLayout.Columns -> Row(Modifier.fillMaxSize().fadeBottom(180.dp).verticalScroll(scroll).padding(start = 116.dp, end = 116.dp, top = 96.dp, bottom = 160.dp)) {
                 val left = cfg.sections.filter { it in WIDE }
                 val right = cfg.sections.filter { it !in WIDE }
                 Column(Modifier.width(840.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
@@ -156,7 +157,7 @@ fun BriefingScreen(nav: Nav) {
                 }
             }
             BriefLayout.Single -> Column(
-                Modifier.fillMaxSize().verticalScroll(scroll).padding(top = 96.dp, bottom = 128.dp),
+                Modifier.fillMaxSize().fadeBottom(180.dp).verticalScroll(scroll).padding(top = 96.dp, bottom = 160.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Column(Modifier.width(1200.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {

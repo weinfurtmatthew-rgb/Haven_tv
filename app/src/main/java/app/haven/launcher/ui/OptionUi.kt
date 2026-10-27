@@ -193,7 +193,7 @@ fun OptionDialog(opt: Opt, onClose: () -> Unit) {
 
 /** Shows choices the way they look: colours as swatches, fonts in their own font. */
 fun decorate(opt: Opt, c: OptChoice): Choice = when (opt.id) {
-    "look.theme" -> Choice(c.value, c.label, swatch = PALETTES[enumOr(c.value, ThemePreset.Hearth)]?.raised)
+    "look.theme" -> Choice(c.value, c.label, swatch = SCHEME_SWATCHES[enumOr(c.value, ThemePreset.Hearth)])
     "look.accent" -> Choice(c.value, c.label, swatch = ACCENTS[enumOr(c.value, Accent.Lamp)]?.bright)
     "look.headingFont" -> Choice(c.value, c.label, family = headingFamilyOf(enumOr(c.value, HeadingFont.Fraunces)))
     "look.textFont" -> Choice(c.value, c.label, family = textFamilyOf(enumOr(c.value, TextFont.Atkinson)))

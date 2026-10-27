@@ -47,7 +47,7 @@ fun ProfilesScreen(nav: Nav) {
     Column(Modifier.fillMaxSize().padding(top = 200.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Txt("Who's watching?", T.Headline, size = 72)
         Txt("Each profile has its own look, apps, alarm, briefing and teams.", T.Body, Modifier.padding(top = 16.dp), C.Stone)
-        Row(Modifier.padding(top = 88.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
+        Row(Modifier.padding(top = 88.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             for (p in profiles) {
                 ProfileTile(p, req(p.id)) {
                     Haven.settings.switchTo(p.id)
@@ -75,7 +75,7 @@ fun ProfilesScreen(nav: Nav) {
 @Composable
 private fun ProfileTile(p: ProfileInfo, focus: FocusRequester, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    Column(Modifier.width(220.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(260.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Focusable(
             onClick = onClick,
             modifier = Modifier.size(200.dp),
@@ -88,14 +88,14 @@ private fun ProfileTile(p: ProfileInfo, focus: FocusRequester, onClick: () -> Un
         ) {
             Avatar(p.name, ACCENTS.getValue(p.avatar).bright, 200.dp)
         }
-        Txt(p.name, T.Title, Modifier.padding(top = 28.dp), if (focused) C.Linen else C.Stone, align = TextAlign.Center)
+        Txt(p.name, T.Title, Modifier.padding(top = 28.dp), if (focused) C.Linen else C.Stone, maxLines = 2, align = TextAlign.Center)
     }
 }
 
 @Composable
 private fun AddProfileTile(focus: FocusRequester, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    Column(Modifier.width(220.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.width(260.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Focusable(
             onClick = onClick,
             modifier = Modifier.size(200.dp),
@@ -107,7 +107,7 @@ private fun AddProfileTile(focus: FocusRequester, onClick: () -> Unit) {
         ) { f ->
             Icon(Icons.UserPlus, 72.dp, inkIcon(f), Modifier.align(Alignment.Center))
         }
-        Txt("Add a profile", T.Title, Modifier.padding(top = 28.dp), if (focused) C.Linen else C.Stone, align = TextAlign.Center)
+        Txt("Add a profile", T.Title, Modifier.padding(top = 28.dp), if (focused) C.Linen else C.Stone, maxLines = 2, align = TextAlign.Center)
     }
 }
 

@@ -75,6 +75,18 @@ val PALETTES: Map<ThemePreset, Palette> = mapOf(
     ThemePreset.Daylight to pal(0xFFE8E1D5, 0xFFFBF8F3, 0xFFDDD4C6, 0xFFC9BFAF, 0xFF837A6F, 0xFF1E1A16, 0xFF544C43, 0xFF665D52, 0xFFF7F3EC, 0xFFC2B9AC, 0xFF6F665B, 0xFF3F6B33, 0xFFB23A1E, light = true),
 )
 
+/** A telling colour for each scheme, for its swatch in the list (the schemes' own backgrounds all look black there). */
+val SCHEME_SWATCHES: Map<ThemePreset, Color> = mapOf(
+    ThemePreset.Hearth to Color(0xFF7A5A3C),
+    ThemePreset.Midnight to Color(0xFF34507A),
+    ThemePreset.Forest to Color(0xFF3B6448),
+    ThemePreset.Plum to Color(0xFF61416E),
+    ThemePreset.Graphite to Color(0xFF5C5C5C),
+    ThemePreset.Black to Color(0xFF000000),
+    ThemePreset.Contrast to Color(0xFFFFFFFF),
+    ThemePreset.Daylight to Color(0xFFE8E1D5),
+)
+
 /** An accent in two strengths: bright for dark surfaces, deep for light ones (and for a linen focus fill). */
 class AccentPair(val bright: Color, val deep: Color)
 
