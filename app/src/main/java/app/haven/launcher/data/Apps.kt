@@ -29,6 +29,8 @@ data class TvApp(
     val banner: ImageBitmap?,
     val icon: ImageBitmap?,
     val launchIntent: Intent,
+    /** What kind of app it is, for the movie, sports, music and kids rows ([AppKinds]). */
+    val kinds: Set<AppKind> = emptySet(),
 )
 
 /**
@@ -86,7 +88,10 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
                 val banner = (ai.loadBanner(pm) ?: ai.applicationInfo.loadBanner(pm))?.toImage(400, 225)
                 // Every app gets its icon too: a profile may prefer icons on tiles to banners.
                 val icon = ri.loadIcon(pm)?.toImage(160, 160)
-                out += TvApp(ai.packageName, ri.loadLabel(pm).toString().trim(), banner, icon, intent)
+                val label = ri.loadLabel(pm).toString().trim()
+                val kinds = AppKinds.of(ai.packageName, label, ai.applicationInfo?.category ?: -1) +
+                    if (category == Intent.CATEGORY_HOME) setOf(AppKind.Tv) else emptySet()
+                out += TvApp(ai.packageName, label, banner, icon, intent, kinds)
             }
         }
         add(query(Intent.CATEGORY_LEANBACK_LAUNCHER), Intent.CATEGORY_LEANBACK_LAUNCHER)

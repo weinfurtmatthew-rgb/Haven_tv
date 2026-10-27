@@ -115,6 +115,13 @@ data class Settings(
     // Morning briefing and sports
     val brief: BriefConfig = BriefConfig(),
     val sports: SportsConfig = SportsConfig(),
+    // Layouts
+    /** Smart home rows: this room's devices or the whole house's. */
+    val homeScope: HomeScope = HomeScope.Room,
+    /** Two-letter country for TV schedules and where to watch; empty = the TV's own. */
+    val region: String = "",
+    val shows: List<FollowedShow> = emptyList(),
+    val kids: KidsConfig = KidsConfig(),
     // Home button
     val homeOverride: Boolean = true,
     // Bedroom
@@ -151,6 +158,10 @@ data class Settings(
         .put("artCare", artCare.toJson())
         .put("brief", brief.toJson())
         .put("sports", sports.toJson())
+        .put("homeScope", homeScope.name)
+        .put("region", region)
+        .put("shows", FollowedShow.listToJson(shows))
+        .put("kids", kids.toJson())
         .put("homeOverride", homeOverride)
         .put("alarm", alarm.toJson())
         .put("sleepLightsOff", sleepLightsOff)
@@ -181,6 +192,10 @@ data class Settings(
                 artCare = ArtCare.fromJson(o.optJSONObject("artCare")),
                 brief = BriefConfig.fromJson(o.optJSONObject("brief")),
                 sports = SportsConfig.fromJson(o.optJSONObject("sports")),
+                homeScope = enumOr(o.optString("homeScope"), d.homeScope),
+                region = o.optString("region", d.region).trim().uppercase().take(2),
+                shows = FollowedShow.listFromJson(o.optJSONArray("shows")),
+                kids = KidsConfig.fromJson(o.optJSONObject("kids")),
                 homeOverride = o.optBoolean("homeOverride", d.homeOverride),
                 alarm = o.optJSONObject("alarm")?.let { alarmFromJson(it) } ?: d.alarm,
                 sleepLightsOff = o.optBoolean("sleepLightsOff", d.sleepLightsOff),

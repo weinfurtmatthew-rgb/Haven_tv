@@ -115,24 +115,29 @@ fun Focusable(
     focusRequester: FocusRequester? = null,
     onFocus: ((Boolean) -> Unit)? = null,
     onKey: ((KeyEvent) -> Boolean)? = null,
+    glass: Boolean = false,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     var pressed by remember { mutableStateOf(false) }
     val press = remember { PressState() }
-    val lift = 1f + (focusedScale - 1f) * Look.cfg.zoom.factor
+    val zoom = 1f + (focusedScale - 1f) * Look.cfg.zoom.factor
     val scale by animateFloatAsState(
         when {
             pressed && !Look.reduced -> 0.97f
-            focused -> lift
+            focused -> zoom
             else -> 1f
         },
         motion(), label = "scale",
     )
     val fill = Look.fill
-    val bg by animateColorAsState(if (focused && style == FocusStyle.Control && fill) C.Linen else color, motion(), label = "bg")
-    val framed = focused && (style == FocusStyle.Picture || !fill)
+    // Lift: no fill and no frame; the focused thing rises with a shadow and a sheen of light across it.
+    val lifts = Look.cfg.focus == FocusLook.Lift
+    val filled = focused && style == FocusStyle.Control && fill
+    val bg by animateColorAsState(if (filled) C.Linen else if (glass) Color.Transparent else color, motion(), label = "bg")
+    val framed = focused && !lifts && (style == FocusStyle.Picture || !fill)
     val frame by animateFloatAsState(if (framed) 1f else 0f, motion(), label = "frame")
+    val raise by animateFloatAsState(if (focused && lifts) 1f else 0f, motion(), label = "raise")
     val frameColor = if (Look.cfg.focus == FocusLook.ColorFrame) C.Lamp else C.Linen
     Box(
         modifier
@@ -182,6 +187,11 @@ fun Focusable(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                if (raise > 0f) {
+                    shadowElevation = 28.dp.toPx() * raise
+                    this.shape = shape
+                    clip = false
+                }
             }
             .drawWithContent {
                 drawContent()
@@ -201,7 +211,20 @@ fun Focusable(
                 }
             }
             .clip(shape)
-            .background(bg),
+            .then(if (glass && !filled) Modifier.glassFill() else Modifier)
+            .background(bg)
+            .drawWithContent {
+                drawContent()
+                if (raise > 0f) {
+                    drawRect(
+                        Brush.linearGradient(
+                            listOf(Color.White.copy(alpha = 0.18f * raise), Color.Transparent),
+                            start = Offset.Zero,
+                            end = Offset(size.width * 0.7f, size.height),
+                        ),
+                    )
+                }
+            },
     ) {
         content(focused)
     }
@@ -226,6 +249,7 @@ fun IconButton(
     size: Dp = 64.dp,
     focusRequester: FocusRequester? = null,
     onFocus: ((Boolean) -> Unit)? = null,
+    glass: Boolean = false,
 ) {
     Focusable(
         onClick = onClick,
@@ -235,6 +259,7 @@ fun IconButton(
         focusedScale = 1.08f,
         focusRequester = focusRequester,
         onFocus = onFocus,
+        glass = glass,
     ) { focused ->
         Icon(icon, size / 2, ink(focused), Modifier.align(Alignment.Center))
     }
@@ -254,6 +279,7 @@ fun Chip(
     height: Dp = 64.dp,
     focusRequester: FocusRequester? = null,
     onFocus: ((Boolean) -> Unit)? = null,
+    glass: Boolean = false,
 ) {
     Focusable(
         onClick = onClick,
@@ -263,6 +289,7 @@ fun Chip(
         focusedScale = 1.06f,
         focusRequester = focusRequester,
         onFocus = onFocus,
+        glass = glass && !selected,
     ) { focused ->
         val l = lit(focused)
         Row(

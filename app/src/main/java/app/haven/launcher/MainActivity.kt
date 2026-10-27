@@ -35,8 +35,11 @@ import app.haven.launcher.system.CrashActivity
 import app.haven.launcher.system.CrashReport
 import app.haven.launcher.ui.AlarmScreen
 import app.haven.launcher.ui.ArtScreen
+import app.haven.launcher.ui.BedtimeScreen
 import app.haven.launcher.ui.BgPreview
 import app.haven.launcher.ui.BriefingScreen
+import app.haven.launcher.ui.GrownUp
+import app.haven.launcher.ui.PinDialog
 import app.haven.launcher.ui.C
 import app.haven.launcher.ui.DesignCanvas
 import app.haven.launcher.ui.HavenBackground
@@ -49,7 +52,7 @@ import app.haven.launcher.ui.SleepScreen
 import app.haven.launcher.ui.SportsScreen
 import app.haven.launcher.ui.rememberKeepVisible
 
-enum class Screen { Home, Lights, Art, Settings, Alarm, Sleep, Briefing, Sports, Profiles }
+enum class Screen { Home, Lights, Art, Settings, Alarm, Sleep, Briefing, Sports, Profiles, Bedtime }
 
 /** Which full screen is showing. [homeResets] bumps whenever Home is pressed, so the home screen can scroll back. */
 class Nav {
@@ -169,6 +172,12 @@ fun HavenRoot(nav: Nav) {
                 val alpha = remember { Animatable(if (Look.reduced) 1f else 0f) }
                 LaunchedEffect(Unit) { alpha.animateTo(1f, tween(240)) }
                 Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha.value }) {
+                    // A profile with a grown-up PIN asks for it before Settings and switching profiles, however they're reached.
+                    val guarded = screen == Screen.Settings || screen == Screen.Profiles
+                    if (guarded && !GrownUp.isOpen(settings)) {
+                        PinDialog(settings.kids.pin, onOk = { GrownUp.unlock() }, onDismiss = { nav.home() })
+                        return@Box
+                    }
                     when (screen) {
                         Screen.Home -> HomeScreen(nav)
                         Screen.Lights -> LightsScreen(nav)
@@ -179,6 +188,7 @@ fun HavenRoot(nav: Nav) {
                         Screen.Briefing -> BriefingScreen(nav)
                         Screen.Sports -> SportsScreen(nav)
                         Screen.Profiles -> ProfilesScreen(nav)
+                        Screen.Bedtime -> BedtimeScreen(nav)
                     }
                 }
             }

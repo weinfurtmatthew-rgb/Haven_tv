@@ -41,6 +41,7 @@ object Bedroom {
     const val ACTION_SUNRISE = "app.haven.launcher.action.SUNRISE"
     const val ACTION_SLEEP_WARN = "app.haven.launcher.action.SLEEP_WARN"
     const val ACTION_SLEEP = "app.haven.launcher.action.SLEEP"
+    const val ACTION_BEDTIME = "app.haven.launcher.action.BEDTIME"
     const val EXTRA_PROFILE = "app.haven.launcher.PROFILE"
     const val NOTIFICATION_ID = 6030
 
@@ -89,9 +90,51 @@ object Bedroom {
         for (gone in p.getStringSet("alarmProfiles", emptySet()).orEmpty() - ids) {
             am.cancel(broadcast(ctx, ACTION_ALARM, gone))
             am.cancel(broadcast(ctx, ACTION_SUNRISE, gone))
+            am.cancel(broadcast(ctx, ACTION_BEDTIME, gone))
         }
         p.edit().putStringSet("alarmProfiles", ids).apply()
-        for ((id, s) in all) scheduleFor(ctx, am, id, s)
+        for ((id, s) in all) {
+            scheduleFor(ctx, am, id, s)
+            scheduleBedtime(ctx, am, id, s)
+        }
+    }
+
+    /** A profile's bedtime (the Kids layout's "time for bed"), every evening at the time set. */
+    private fun scheduleBedtime(ctx: Context, am: AlarmManager, id: String, s: Settings) {
+        val pi = broadcast(ctx, ACTION_BEDTIME, id)
+        am.cancel(pi)
+        val m = s.kids.bedtime
+        if (m < 0) return
+        val now = ZonedDateTime.now()
+        var at = now.toLocalDate().atTime(m / 60, m % 60).atZone(now.zone)
+        if (!at.isAfter(now)) at = at.plusDays(1)
+        exact(am, at.toInstant().toEpochMilli(), pi)
+    }
+
+    /** Bedtime: if that profile is the one on the TV, say goodnight and start a five-minute sleep timer. */
+    internal fun onBedtime(ctx: Context, id: String) {
+        scheduleAlarm(ctx)
+        if (Haven.settings.activeId != id) return
+        startSleep(ctx, 5)
+        val show = Intent(ctx, MainActivity::class.java)
+            .putExtra(MainActivity.EXTRA_SCREEN, "Bedtime")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        runCatching { ctx.startActivity(show) }
+        runCatching {
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            nm.createNotificationChannel(NotificationChannel("alarm", "Alarm", NotificationManager.IMPORTANCE_HIGH))
+            val pi = PendingIntent.getActivity(ctx, 12 + code(id), show.setData(profileUri(id)), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            val n = Notification.Builder(ctx, "alarm")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentTitle("Bedtime")
+                .setContentText("Time for bed")
+                .setCategory(Notification.CATEGORY_REMINDER)
+                .setFullScreenIntent(pi, true)
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(NOTIFICATION_ID + 1, n)
+        }
     }
 
     private fun scheduleFor(ctx: Context, am: AlarmManager, id: String, s: Settings) {
@@ -274,6 +317,7 @@ class BedroomReceiver : BroadcastReceiver() {
             }
             Bedroom.ACTION_SLEEP_WARN -> Toast.makeText(ctx, "Sleep timer: 1 minute left", Toast.LENGTH_LONG).show()
             Bedroom.ACTION_SLEEP -> async { Bedroom.sleepNow(ctx.applicationContext) }
+            Bedroom.ACTION_BEDTIME -> profileOf(intent)?.let { Bedroom.onBedtime(ctx, it) }
         }
     }
 

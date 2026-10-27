@@ -133,6 +133,23 @@ a{color:var(--lamp)}
     <div id="entities" class="list"></div>
   </section>
 
+  <section data-opts="Layout">
+    <h2>Layout</h2>
+    <div class="sub">A whole home screen to start from: Standard, Spotlight, Big tiles, Game day, Cinema, Shows, Smart home, Music or Kids. Every part of it can then be changed on its own, and the TV changes as soon as you pick.</div>
+    <div class="opts"></div>
+  </section>
+
+  <section id="showsCard">
+    <h2>TV shows you follow</h2>
+    <div class="sub">Shows you follow appear in the Your shows row with their next episode, and the Shows layout features tonight's new ones. Schedules come from TVmaze.</div>
+    <div id="showList" class="list"></div>
+    <form class="row" id="showSearch" style="margin-top:8px">
+      <input type="search" id="showQuery" class="grow" placeholder="Search for a show" autocapitalize="off" aria-label="Search for a show">
+      <button class="primary" type="submit">Search</button>
+    </form>
+    <div id="showResults" class="list"></div>
+  </section>
+
   <section data-opts="Look">
     <h2>Look</h2>
     <div class="sub">Colours, fonts and shapes. The TV changes as soon as you pick.</div>
@@ -211,6 +228,12 @@ a{color:var(--lamp)}
       <input type="url" id="briefFeed" autocapitalize="off">
     </label>
     <div class="row"><button class="primary" id="briefSave">Save sources</button></div>
+  </section>
+
+  <section data-opts="Kids">
+    <h2>Grown-up lock</h2>
+    <div class="sub">With a PIN, this profile asks for it before Settings, switching profiles, app menus and changing the layout. Kids' apps are what the Kids layout shows.</div>
+    <div class="opts"></div>
   </section>
 
   <section>
@@ -303,8 +326,12 @@ function renderOption(o) {
   } else if (o.kind === 'text') {
     const l = el('label', null, o.title);
     const row = el('div', 'row');
-    const i = document.createElement('input'); i.type = 'text'; i.value = o.value; i.className = 'grow';
+    const i = document.createElement('input'); i.type = o.secret ? 'password' : 'text'; i.value = o.value; i.className = 'grow';
     i.autocapitalize = 'off'; i.spellcheck = false;
+    if (o.secret) {
+      i.inputMode = 'numeric'; i.autocomplete = 'new-password';
+      i.placeholder = o.isSet ? 'On. Type a new one, or save it empty to turn it off' : 'Off';
+    }
     const b = el('button', null, 'Save');
     b.addEventListener('click', () => setOpt({ id: o.id, value: i.value }));
     row.append(i, b); l.append(row); box.append(l);
@@ -335,6 +362,8 @@ function renderOption(o) {
     o.choices.forEach(c => sel.append(opt(c.value, c.label, c.value === o.value)));
     sel.addEventListener('change', () => setOpt({ id: o.id, value: sel.value }));
     row.append(sel);
+    const chosen = o.choices.find(c => c.value === o.value);
+    if (chosen && chosen.note) l.append(el('div', 'help', chosen.note));
     if (o.kind === 'color') {
       const pick = document.createElement('input'); pick.type = 'color'; pick.value = hex(o.value);
       pick.title = 'Any colour';
@@ -346,6 +375,46 @@ function renderOption(o) {
   if (o.help) box.append(el('div', 'help', o.help));
   return box;
 }
+
+// ---- shows
+function renderShows() {
+  const list = $('showList'); list.innerHTML = '';
+  const shows = state.shows || [];
+  if (!shows.length) list.append(el('div', 'sub', 'None yet. Search below, or press OK on a show on the TV and choose Follow.'));
+  shows.forEach(sh => {
+    const row = el('div', 'item');
+    row.append(el('span', 'grow', sh.name));
+    const b = el('button', 'small', 'Unfollow');
+    b.addEventListener('click', async () => {
+      try { take(await api('shows', { method: 'POST', body: JSON.stringify({ action: 'unfollow', id: sh.id }) })); toast(`Stopped following ${sh.name}`); } catch (e) { showError(e); }
+    });
+    row.append(b); list.append(row);
+  });
+}
+
+$('showSearch').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const q = $('showQuery').value.trim(); if (!q) return;
+  const box = $('showResults'); box.innerHTML = ''; box.append(el('div', 'sub', 'Searching…'));
+  try {
+    const r = await api(`shows/search?q=${encodeURIComponent(q)}`);
+    box.innerHTML = '';
+    if (!r.shows.length) box.append(el('div', 'sub', 'No shows by that name.'));
+    r.shows.forEach(sh => {
+      const row = el('div', 'item');
+      const following = (state.shows || []).some(f => f.id === sh.id);
+      row.append(el('span', 'grow', [sh.name, sh.year, sh.network].filter(Boolean).join(' · ')));
+      const b = el('button', 'small', following ? 'Following' : 'Follow'); b.disabled = following;
+      b.addEventListener('click', async () => {
+        try {
+          take(await api('shows', { method: 'POST', body: JSON.stringify({ action: 'follow', id: sh.id, name: sh.name, image: sh.image }) }));
+          b.textContent = 'Following'; b.disabled = true; toast(`Following ${sh.name}`);
+        } catch (e) { showError(e); }
+      });
+      row.append(b); box.append(row);
+    });
+  } catch (e) { box.innerHTML = ''; showError(e); }
+});
 
 function renderOptions() {
   const sections = Object.fromEntries(state.options.map(s => [s.id, s]));
@@ -422,6 +491,7 @@ function render() {
   $('entitiesCard').classList.toggle('hidden', !any);
 
   renderOptions();
+  renderShows();
   renderPhotos($('photos'), s.photos, 'photo', 'photos/delete');
   const bgKind = (state.options.find(x => x.id === 'Background').options.find(o => o.id === 'bg.kind') || {}).value;
   $('bgPhotos').classList.toggle('hidden', bgKind !== 'Photo');

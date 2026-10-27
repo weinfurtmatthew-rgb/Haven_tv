@@ -85,6 +85,7 @@ enum class FocusLook(val label: String) {
     Fill("Fills with light"),
     Frame("Light frame"),
     ColorFrame("Frame in the accent colour"),
+    Lift("Lifts up with a shadow"),
 }
 
 enum class Zoom(val label: String, val factor: Float) {
@@ -117,12 +118,53 @@ enum class ClockStyle(val label: String) {
     Hidden("Hidden"),
 }
 
-/** Rows on the home screen, in the order the profile chose. */
-enum class HomeRow(val label: String) {
-    Favorites("Favorites"),
-    Recent("Recently used"),
-    Apps("All apps"),
+/** What a home screen row is about, for grouping them when adding one. */
+enum class RowGroup(val label: String) {
+    Apps("Apps"),
     Room("This room"),
+    Sports("Sports"),
+    Movies("Movies"),
+    Shows("TV shows"),
+    Home("Smart home"),
+    Music("Music"),
+    Day("Your day"),
+}
+
+/** Rows on the home screen, in the order the profile chose. [note] says what a row needs or shows. */
+enum class HomeRow(val label: String, val group: RowGroup, val note: String = "") {
+    Favorites("Favorites", RowGroup.Apps, "Apps you pinned"),
+    Recent("Recently used", RowGroup.Apps, "Apps you opened from Haven"),
+    Apps("All apps", RowGroup.Apps, "Every app on this TV"),
+    Room("This room", RowGroup.Room, "Lights, speakers, alarm, art mode and your teams"),
+    TvApps("TV apps", RowGroup.Apps, "Live TV and channel apps"),
+    MovieApps("Movie apps", RowGroup.Apps, "Streaming services"),
+    SportsApps("Sports apps", RowGroup.Apps, "Sports streaming and league apps"),
+    MusicApps("Music apps", RowGroup.Apps, "Music, radio and podcasts"),
+    KidsApps("Kids' apps", RowGroup.Apps, "The apps a grown-up picked, or kids' apps Haven knows"),
+    Games("Games", RowGroup.Apps, "Games on this TV"),
+    YourTeams("Your teams", RowGroup.Sports, "Live, next and final games of the teams you follow"),
+    LiveScores("Today's games", RowGroup.Sports, "Every game today in your teams' leagues"),
+    SportsNews("Sports headlines", RowGroup.Sports, "The news from your teams' leagues"),
+    TrendingMovies("Trending movies", RowGroup.Movies, "Needs your free TMDB key"),
+    InTheaters("In theaters", RowGroup.Movies, "Needs your free TMDB key"),
+    ComingSoon("Coming soon", RowGroup.Movies, "Needs your free TMDB key"),
+    TopMovies("Top rated movies", RowGroup.Movies, "Needs your free TMDB key"),
+    YourShows("Your shows", RowGroup.Shows, "Shows you follow and when they're next on"),
+    Tonight("Tonight on TV", RowGroup.Shows, "This evening's schedule"),
+    NewStreaming("New on streaming", RowGroup.Shows, "Today's new episodes on streaming services"),
+    TrendingShows("Trending shows", RowGroup.Shows, "Needs your free TMDB key"),
+    Scenes("Scenes", RowGroup.Home, "From Home Assistant"),
+    Lights("Lights", RowGroup.Home, "From Home Assistant"),
+    Climate("Climate", RowGroup.Home, "Thermostats and temperatures"),
+    Cameras("Cameras", RowGroup.Home, "Live pictures from Home Assistant"),
+    Locks("Locks and doors", RowGroup.Home, "Locks, garage doors and blinds"),
+    Speakers("Speakers", RowGroup.Music, "Every speaker Home Assistant sees"),
+    NowPlaying("Now playing", RowGroup.Music, "What's playing, with controls"),
+    Sensors("Sensors", RowGroup.Home, "Temperature, humidity, doors and motion"),
+    Automations("Automations", RowGroup.Home, "Switch them on or off, or run one now"),
+    Weather("Weather", RowGroup.Day, "The next hours, from Home Assistant"),
+    Calendar("Today's calendar", RowGroup.Day, "From Home Assistant calendars"),
+    Headlines("Headlines", RowGroup.Day, "From the briefing's news feed"),
 }
 
 data class LookConfig(
@@ -149,8 +191,23 @@ data class LookConfig(
     val rowsShown: Set<HomeRow> = setOf(HomeRow.Favorites, HomeRow.Apps, HomeRow.Room),
     /** Profile picture colour in the profile picker. */
     val avatar: Accent = Accent.Lamp,
+    /** The layout this profile started from (data/Layouts.kt); the parts below can differ from its recipe. */
+    val layout: HomeLayout = HomeLayout.Standard,
+    /** Picking a layout also brings its colours, fonts and sizes. */
+    val layoutLook: Boolean = true,
+    val nav: NavStyle = NavStyle.Rows,
+    val hero: HeroKind = HeroKind.ClockBar,
+    val sectionOrder: List<HomeSection> = HomeSection.values().toList(),
+    val sectionsShown: Set<HomeSection> = Layouts.DEFAULT_SECTIONS,
+    val appGrid: AppGrid = AppGrid.Rows,
+    val surface: Surface = Surface.Solid,
+    val spotSource: SpotSource = SpotSource.Daily,
+    val spotClock: SpotClock = SpotClock.Behind,
+    /** In Spotlight, the photo follows the streaming app you're on (with a TMDB key). */
+    val spotFollow: Boolean = true,
 ) {
     val rows: List<HomeRow> get() = rowOrder.filter { it in rowsShown }
+    val sections: List<HomeSection> get() = sectionOrder.filter { it in sectionsShown }
 
     fun toJson(): JSONObject = JSONObject()
         .put("theme", theme.name)
@@ -174,6 +231,17 @@ data class LookConfig(
         .put("rowOrder", JSONArray(rowOrder.map { it.name }))
         .put("rowsShown", JSONArray(rowsShown.map { it.name }))
         .put("avatar", avatar.name)
+        .put("layout", layout.name)
+        .put("layoutLook", layoutLook)
+        .put("nav", nav.name)
+        .put("hero", hero.name)
+        .put("sectionOrder", JSONArray(sectionOrder.map { it.name }))
+        .put("sectionsShown", JSONArray(sectionsShown.map { it.name }))
+        .put("appGrid", appGrid.name)
+        .put("surface", surface.name)
+        .put("spotSource", spotSource.name)
+        .put("spotClock", spotClock.name)
+        .put("spotFollow", spotFollow)
 
     companion object {
         fun fromJson(o: JSONObject?): LookConfig {
@@ -201,6 +269,17 @@ data class LookConfig(
                 rowOrder = completeOrder(enumList<HomeRow>(o.optJSONArray("rowOrder"))),
                 rowsShown = if (o.has("rowsShown")) enumList<HomeRow>(o.optJSONArray("rowsShown")).toSet() else d.rowsShown,
                 avatar = enumOr(o.optString("avatar"), d.avatar),
+                layout = enumOr(o.optString("layout"), d.layout),
+                layoutLook = o.optBoolean("layoutLook", d.layoutLook),
+                nav = enumOr(o.optString("nav"), d.nav),
+                hero = enumOr(o.optString("hero"), d.hero),
+                sectionOrder = completeOrder(enumList<HomeSection>(o.optJSONArray("sectionOrder"))),
+                sectionsShown = if (o.has("sectionsShown")) enumList<HomeSection>(o.optJSONArray("sectionsShown")).toSet() else d.sectionsShown,
+                appGrid = enumOr(o.optString("appGrid"), d.appGrid),
+                surface = enumOr(o.optString("surface"), d.surface),
+                spotSource = enumOr(o.optString("spotSource"), d.spotSource),
+                spotClock = enumOr(o.optString("spotClock"), d.spotClock),
+                spotFollow = o.optBoolean("spotFollow", d.spotFollow),
             )
         }
     }
@@ -219,7 +298,7 @@ enum class BgKind(val label: String) {
     NowPlaying("What's playing"),
 }
 
-/** Gradients, dark enough for text on top (Linen is the light one, for the Daylight scheme). */
+/** Gradients, dark enough for text on top (Linen and Sky are the light ones, for the Daylight scheme). */
 enum class GradientPreset(val label: String, val colors: List<Long>) {
     Dusk("Dusk", listOf(0xFF151A2E, 0xFF3A2442, 0xFF6E3B3B)),
     Dawn("Dawn", listOf(0xFF161827, 0xFF443650, 0xFF9C6A52)),
@@ -229,6 +308,7 @@ enum class GradientPreset(val label: String, val colors: List<Long>) {
     Aurora("Aurora", listOf(0xFF07191E, 0xFF0F3A39, 0xFF392A5B)),
     Slate("Slate", listOf(0xFF0F1317, 0xFF222A32, 0xFF38434E)),
     Linen("Linen, light", listOf(0xFFF7F2EA, 0xFFEDE3D3, 0xFFE2D2BC)),
+    Sky("Sky, light", listOf(0xFFBFE3FF, 0xFFE9F6FF, 0xFFFFF3C4)),
 }
 
 /** Background colours to pick from on the TV; the phone page can set any colour. */

@@ -69,6 +69,9 @@ data class Game(
     val matchup: String get() = if (league.homeFirst) "${home.team.abbr} v ${away.team.abbr}" else "${away.team.abbr} at ${home.team.abbr}"
 }
 
+/** A sports headline from the leagues someone follows. */
+data class NewsItem(val headline: String, val description: String, val image: String?, val published: Instant?, val league: League)
+
 /** A source of teams and games. ESPN's public feed is the default; others can be dropped in later. */
 interface SportsProvider {
     suspend fun teams(league: League): List<Team>
@@ -98,8 +101,20 @@ class EspnProvider(private val http: OkHttpClient) : SportsProvider {
     override suspend fun schedule(league: League, teamId: String): List<Game> =
         parseEvents(get("$base/${league.path}/teams/$teamId/schedule"), league)
 
+    suspend fun news(league: League): List<NewsItem> = parseNews(get("$base/${league.path}/news?limit=10"), league)
+
     companion object {
         private val DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm[:ss][.SSS]X")
+
+        fun parseNews(root: JSONObject?, league: League): List<NewsItem> {
+            val arr = root?.optJSONArray("articles") ?: return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                val a = arr.optJSONObject(i) ?: return@mapNotNull null
+                val headline = a.optString("headline").trim().ifBlank { return@mapNotNull null }
+                val image = a.optJSONArray("images")?.optJSONObject(0)?.optString("url")?.takeIf { it.startsWith("http") }
+                NewsItem(headline, a.optString("description").trim(), image, parseTime(a.optString("published")), league)
+            }
+        }
 
         fun parseTime(s: String): Instant? = runCatching { OffsetDateTime.parse(s, DATE).toInstant() }.getOrNull()
 
@@ -248,6 +263,39 @@ class SportsRepository(private val store: SettingsStore) {
     suspend fun board(league: League): List<Game> =
         if (app.haven.launcher.demo.Demo.active) app.haven.launcher.demo.Demo.games().filter { it.league == league }
         else provider.scoreboard(league, LocalDate.now())
+
+    /** The leagues of the followed teams, or the NFL when nobody is followed yet. */
+    private fun leagues(): List<League> =
+        store.value.sports.teams.mapNotNull { League.byId(it.league) }.distinct().ifEmpty { listOf(League.NFL) }
+
+    private val _boards = MutableStateFlow<List<Game>>(emptyList())
+
+    /** Every game today in the followed teams' leagues, live first (the "Today's games" row). */
+    val boards: StateFlow<List<Game>> = _boards
+    private var boardsAt = 0L
+
+    suspend fun refreshBoards() {
+        val maxAge = if (_boards.value.any { it.state == GameState.Live }) 60_000L else 10 * 60_000L
+        if (_boards.value.isNotEmpty() && System.currentTimeMillis() - boardsAt < maxAge) return
+        val all = leagues().flatMap { runCatching { board(it) }.getOrDefault(emptyList()) }
+        _boards.value = all.sortedWith(compareBy<Game> { order(it.state) }.thenBy { it.start })
+        boardsAt = System.currentTimeMillis()
+    }
+
+    private val _news = MutableStateFlow<List<NewsItem>>(emptyList())
+
+    /** Headlines from the followed teams' leagues, newest first. */
+    val news: StateFlow<List<NewsItem>> = _news
+    private var newsAt = 0L
+
+    suspend fun refreshNews() {
+        if (System.currentTimeMillis() - newsAt < 30 * 60_000L && _news.value.isNotEmpty()) return
+        val espn = provider as? EspnProvider ?: return
+        val all = if (app.haven.launcher.demo.Demo.active) app.haven.launcher.demo.Demo.news()
+        else leagues().flatMap { runCatching { espn.news(it) }.getOrDefault(emptyList()) }
+        _news.value = all.sortedByDescending { it.published }.distinctBy { it.headline }.take(16)
+        newsAt = System.currentTimeMillis()
+    }
 
     // ---- change detection for alerts ----------------------------------------------------------
 

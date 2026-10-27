@@ -299,3 +299,47 @@ data class SportsConfig(
 
 inline fun <reified E : Enum<E>> enumOr(name: String?, fallback: E): E =
     enumValues<E>().firstOrNull { it.name == name } ?: fallback
+
+// ---- shows and kids ---------------------------------------------------------------------------------
+
+/** A show someone follows, from TVmaze: enough to draw its card before the schedule loads. */
+data class FollowedShow(val id: Int, val name: String, val image: String = "") {
+    fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name).put("image", image)
+
+    companion object {
+        fun fromJson(o: JSONObject): FollowedShow? {
+            val id = o.optInt("id", 0).takeIf { it > 0 } ?: return null
+            return FollowedShow(id, o.optString("name").ifBlank { "Show $id" }, o.optString("image"))
+        }
+
+        fun listToJson(list: List<FollowedShow>): JSONArray = JSONArray(list.map { it.toJson() })
+
+        fun listFromJson(arr: JSONArray?): List<FollowedShow> =
+            if (arr == null) emptyList() else (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let(::fromJson) }.distinctBy { it.id }
+    }
+}
+
+/**
+ * The grown-up lock and the kids' things. With a [pin], Settings, switching profiles, app menus and changing the
+ * layout ask for it. [apps] are the apps the Kids' apps row shows; [bedtime] is minutes after midnight, -1 = none.
+ */
+data class KidsConfig(
+    val pin: String = "",
+    val apps: List<String> = emptyList(),
+    val bedtime: Int = -1,
+) {
+    val locked: Boolean get() = pin.isNotEmpty()
+
+    fun toJson(): JSONObject = JSONObject().put("pin", pin).put("apps", JSONArray(apps)).put("bedtime", bedtime)
+
+    companion object {
+        fun fromJson(o: JSONObject?): KidsConfig {
+            if (o == null) return KidsConfig()
+            return KidsConfig(
+                pin = o.optString("pin").filter { it.isDigit() }.take(8),
+                apps = o.optJSONArray("apps").strings().distinct(),
+                bedtime = o.optInt("bedtime", -1).let { if (it in 0 until 24 * 60) it else -1 },
+            )
+        }
+    }
+}

@@ -13,6 +13,7 @@ import app.haven.launcher.data.BackgroundConfig
 import app.haven.launcher.data.BgBlur
 import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.Settings
+import app.haven.launcher.data.SpotSource
 import app.haven.launcher.ha.HomeAssistant
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -70,6 +71,33 @@ class Backgrounds(private val context: Context, private val art: ArtRepository) 
             }
             BgKind.NowPlaying -> nowPlaying(s)
             else -> null
+        }
+    }
+
+    /** A picture cropped to exactly [w] x [h] (Spotlight's photo), or null when it can't be had. */
+    suspend fun loadCrop(data: Any, w: Int, h: Int): Bitmap? {
+        val req = ImageRequest.Builder(context).data(data).size(w, h).scale(Scale.FILL).allowHardware(false).build()
+        val result = context.imageLoader.execute(req) as? SuccessResult ?: return null
+        val bmp = result.drawable.toBitmap()
+        return withContext(Dispatchers.Default) {
+            val scale = maxOf(w / bmp.width.toFloat(), h / bmp.height.toFloat())
+            val sw = maxOf(w, Math.round(bmp.width * scale))
+            val sh = maxOf(h, Math.round(bmp.height * scale))
+            val scaled = if (sw != bmp.width || sh != bmp.height) Bitmap.createScaledBitmap(bmp, sw, sh, true) else bmp
+            Bitmap.createBitmap(scaled, (sw - w) / 2, (sh - h) / 2, w, h).copy(Bitmap.Config.ARGB_8888, false)
+        }
+    }
+
+    /** What Spotlight's photo shows for [source]: a file or an address, or null when the source has nothing now. */
+    suspend fun spotlight(source: SpotSource, s: Settings, turn: Int): Any? = withContext(Dispatchers.IO) {
+        when (source) {
+            SpotSource.Daily -> daily()?.url
+            SpotSource.Photos -> files().let { all -> all.getOrNull(Math.floorMod(turn, maxOf(all.size, 1))) } ?: daily()?.url
+            SpotSource.Paintings -> (art.next(ArtSource.Paintings) as? ArtPiece.Painting)?.url(1686)
+            SpotSource.Posters -> posters(s.background).filter { it.backdrop != null }.let { list ->
+                if (list.isEmpty()) daily()?.url else list[Math.floorMod(turn, list.size)].backdrop
+            }
+            SpotSource.Background -> if (s.background.isPicture) pick(s.background, s, turn) else daily()?.url
         }
     }
 

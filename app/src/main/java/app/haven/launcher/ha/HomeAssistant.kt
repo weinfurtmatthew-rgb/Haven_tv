@@ -1,5 +1,6 @@
 package app.haven.launcher.ha
 
+import app.haven.launcher.data.HomeScope
 import app.haven.launcher.data.Settings
 import app.haven.launcher.demo.Demo
 import app.haven.launcher.data.SettingsStore
@@ -244,6 +245,85 @@ class HomeAssistant(private val store: SettingsStore) {
         val inArea = all.filter { it.id in area.entities }
         val chosen = inArea.ifEmpty { all.filter { it.name.contains(area.name, ignoreCase = true) } }
         return chosen.sortedBy { it.name.lowercase() }.take(4)
+    }
+
+    // ---- smart home rows ----------------------------------------------------------------------
+
+    /**
+     * Entities of [domains] for the smart home rows: this room's (or the whole house's, as the profile chose); when
+     * the room has none of a kind, the house's, so a room without a thermostat still shows the one in the hall.
+     */
+    fun devices(s: Settings, vararg domains: String, filter: (HaEntity) -> Boolean = { true }): List<HaEntity> {
+        val all = _entities.value.values.filter { it.domain in domains && it.id !in s.hiddenEntities && it.available && filter(it) }
+            .sortedBy { it.name.lowercase() }
+        if (s.homeScope == HomeScope.House) return all
+        val ok = inRoom(s)
+        return all.filter { ok(it.id) }.ifEmpty { all }
+    }
+
+    fun lightsFor(s: Settings): List<HaEntity> =
+        if (s.homeScope == HomeScope.House) {
+            _entities.value.values.filter { e ->
+                e.id !in s.hiddenEntities && (e.domain == "light" || (e.domain == "switch" && LIGHTISH.containsMatchIn(e.name)))
+            }.sortedBy { it.name.lowercase() }
+        } else {
+            roomLights(s)
+        }
+
+    fun scenesFor(s: Settings): List<HaEntity> =
+        if (s.homeScope == HomeScope.House) devices(s, "scene", "script") else roomScenes(s).ifEmpty { devices(s, "scene", "script") }
+
+    private val SENSOR_CLASSES = setOf("temperature", "humidity")
+    private val OPENING_CLASSES = setOf("door", "window", "opening", "garage_door", "motion", "occupancy", "moisture", "smoke")
+
+    fun sensorsFor(s: Settings): List<HaEntity> = devices(s, "sensor", "binary_sensor") { e ->
+        val cls = e.attrs.optString("device_class")
+        if (e.domain == "sensor") cls in SENSOR_CLASSES else cls in OPENING_CLASSES
+    }
+
+    /** People Home Assistant tracks (home or away). */
+    fun people(): List<HaEntity> = _entities.value.values.filter { it.domain == "person" }.sortedBy { it.name.lowercase() }
+
+    /** The full address of an entity's picture: a camera's snapshot or an album cover (signed by Home Assistant). */
+    fun picture(e: HaEntity, s: Settings = store.value): String? {
+        val pic = e.attrs.optString("entity_picture").takeIf { it.isNotBlank() && it != "null" } ?: return null
+        return if (pic.startsWith("http") || pic.startsWith("/data") || pic.startsWith("file:")) pic else normalizeUrl(s.haUrl) + pic
+    }
+
+    suspend fun setTemperature(e: HaEntity, target: Double): Boolean {
+        assume(e.copyWith(attrs = mapOf("temperature" to target)))
+        return call("climate", "set_temperature", JSONObject().put("entity_id", e.id).put("temperature", target))
+    }
+
+    suspend fun setHvacMode(e: HaEntity, mode: String): Boolean {
+        assume(e.copyWith(mode))
+        return call("climate", "set_hvac_mode", JSONObject().put("entity_id", e.id).put("hvac_mode", mode))
+    }
+
+    suspend fun stopCover(e: HaEntity): Boolean = call("cover", "stop_cover", JSONObject().put("entity_id", e.id))
+
+    suspend fun setLocked(e: HaEntity, locked: Boolean): Boolean {
+        assume(e.copyWith(if (locked) "locked" else "unlocked"))
+        return call("lock", if (locked) "lock" else "unlock", JSONObject().put("entity_id", e.id))
+    }
+
+    suspend fun setOpen(e: HaEntity, open: Boolean): Boolean {
+        assume(e.copyWith(if (open) "open" else "closed"))
+        return call("cover", if (open) "open_cover" else "close_cover", JSONObject().put("entity_id", e.id))
+    }
+
+    suspend fun setAutomation(e: HaEntity, on: Boolean): Boolean {
+        assume(e.copyWith(if (on) "on" else "off"))
+        return call("automation", if (on) "turn_on" else "turn_off", JSONObject().put("entity_id", e.id))
+    }
+
+    suspend fun runAutomation(e: HaEntity): Boolean =
+        call("automation", "trigger", JSONObject().put("entity_id", e.id))
+
+    /** Play or pause, next or previous on a speaker ("media_play_pause", "media_next_track", "media_previous_track"). */
+    suspend fun media(e: HaEntity, service: String): Boolean {
+        if (service == "media_play_pause") assume(e.copyWith(if (e.state == "playing") "paused" else "playing"))
+        return call("media_player", service, JSONObject().put("entity_id", e.id))
     }
 
     fun weather(s: Settings = store.value): HaEntity? =

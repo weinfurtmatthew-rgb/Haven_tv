@@ -75,7 +75,7 @@ class CustomizeTest {
 
     @Test
     fun orderHelpers() {
-        assertEquals(listOf(HomeRow.Apps, HomeRow.Favorites, HomeRow.Recent, HomeRow.Room), completeOrder(listOf(HomeRow.Apps)))
+        assertEquals(listOf(HomeRow.Apps) + HomeRow.values().filter { it != HomeRow.Apps }, completeOrder(listOf(HomeRow.Apps)))
         assertEquals(listOf("b", "a", "c"), listOf("a", "b", "c").moved("a", 1))
         assertEquals(listOf("a", "b", "c"), listOf("a", "b", "c").moved("a", -1))
     }

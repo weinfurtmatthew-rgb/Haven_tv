@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -25,6 +28,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
 import app.haven.launcher.art.ArtPiece
@@ -36,7 +41,9 @@ import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.GradientPreset
 import app.haven.launcher.data.PosterStyle
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.random.Random
 
 /** A background being tried in Settings: shown instead of the saved one until it's kept or let go. */
@@ -50,13 +57,14 @@ object BgPreview {
  */
 @Composable
 fun HavenBackground(cfg: BackgroundConfig, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().background(C.Hearth)) {
+    var bounds by remember { mutableStateOf(Rect.Zero) }
+    Box(modifier.fillMaxSize().background(C.Hearth).onGloballyPositioned { bounds = it.boundsInRoot() }) {
         when (cfg.kind) {
             BgKind.Theme -> Unit
             BgKind.Color -> Box(Modifier.fillMaxSize().background(Color(cfg.color)))
             BgKind.Gradient -> GradientBackground(cfg.gradient)
-            BgKind.Posters -> if (cfg.posterStyle == PosterStyle.Wall) PosterWall(cfg) else PictureBackground(cfg)
-            else -> PictureBackground(cfg)
+            BgKind.Posters -> if (cfg.posterStyle == PosterStyle.Wall) PosterWall(cfg) else PictureBackground(cfg, bounds)
+            else -> PictureBackground(cfg, bounds)
         }
     }
 }
@@ -75,7 +83,7 @@ private fun GradientBackground(g: GradientPreset) {
 }
 
 @Composable
-private fun PictureBackground(cfg: BackgroundConfig) {
+private fun PictureBackground(cfg: BackgroundConfig, bounds: Rect) {
     val s by Haven.settings.state.collectAsState()
     // What's playing changes with Home Assistant, so this reads the entities itself (CLAUDE.md).
     val entities by Haven.ha.entities.collectAsState()
@@ -99,6 +107,13 @@ private fun PictureBackground(cfg: BackgroundConfig) {
         }
     }
     Dim(cfg)
+    // Glass tiles show this picture, blurred, behind them.
+    LaunchedEffect(image, bounds, cfg.dimPct) {
+        val img = image
+        Glass.backdrop = if (img == null || bounds.isEmpty) null
+        else runCatching { withContext(Dispatchers.Default) { Glass.frost(img) } }.getOrNull()?.let { GlassBackdrop(it, bounds, cfg.dimPct / 100f) }
+    }
+    DisposableEffect(Unit) { onDispose { Glass.backdrop = null } }
 }
 
 /** This week's posters, eight across and three down. */

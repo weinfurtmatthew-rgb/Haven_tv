@@ -115,7 +115,7 @@ object Briefing {
         else -> StatusItem(e.name, e.state.replaceFirstChar { it.uppercase() }, true)
     }
 
-    private suspend fun headlines(url: String, max: Int): List<String> = withContext(Dispatchers.IO) {
+    suspend fun headlines(url: String, max: Int): List<String> = withContext(Dispatchers.IO) {
         if (url.isBlank()) return@withContext emptyList()
         runCatching {
             http.newCall(Request.Builder().url(url).header("User-Agent", "Haven TV").build()).execute().use { r ->

@@ -10,6 +10,7 @@ import app.haven.launcher.R
 import app.haven.launcher.art.ArtRepository
 import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
+import app.haven.launcher.data.FollowedShow
 import app.haven.launcher.data.ArtCare
 import app.haven.launcher.data.BriefConfig
 import app.haven.launcher.data.LookConfig
@@ -140,6 +141,35 @@ class SetupServer(private val context: Context) {
                     json(out, 200, JSONObject().put("ok", r.isSuccess).put("message", r.getOrNull() ?: r.exceptionOrNull()?.message))
                 }
                 "POST /api/photos" -> json(out, 200, saveImage(req, Haven.art.photosDir, keepName = true).let { JSONObject().put("ok", true).put("name", it.name) })
+                "GET /api/shows/search" -> {
+                    val found = runBlocking { Haven.media.search(req.query["q"].orEmpty()) }
+                    json(
+                        out, 200,
+                        JSONObject().put(
+                            "shows",
+                            JSONArray(
+                                found.take(12).map {
+                                    JSONObject().put("id", it.id).put("name", it.name).put("network", it.network)
+                                        .put("year", it.premiered.take(4)).put("status", it.status).put("image", it.poster ?: "")
+                                },
+                            ),
+                        ),
+                    )
+                }
+                "POST /api/shows" -> {
+                    val o = JSONObject(readBody(req))
+                    val id = o.optInt("id", 0)
+                    if (o.optString("action") == "unfollow") {
+                        Haven.settings.updateProfile(req.profile) { s -> s.copy(shows = s.shows.filter { it.id != id }) }
+                    } else {
+                        val name = o.optString("name").ifBlank { "Show $id" }
+                        if (id <= 0) error("No such show")
+                        Haven.settings.updateProfile(req.profile) { s ->
+                            if (s.shows.any { it.id == id }) s else s.copy(shows = s.shows + FollowedShow(id, name, o.optString("image")))
+                        }
+                    }
+                    json(out, 200, state(req.profile))
+                }
                 "GET /api/sports/teams" -> {
                     val league = League.byId(req.query["league"].orEmpty()) ?: League.NFL
                     val teams = runBlocking { Haven.sports.provider.teams(league) }
@@ -270,6 +300,7 @@ class SetupServer(private val context: Context) {
             )
             .put("askOnStart", Haven.settings.meta.value.askOnStart)
             .put("options", optionsJson(s))
+            .put("shows", JSONArray(s.shows.map { it.toJson() }))
             .put(
                 "room",
                 JSONObject().put("name", s.roomName).put("area", s.haArea).put("bedroom", s.bedroomExtras).put("profile", s.profileName),
@@ -345,8 +376,12 @@ class SetupServer(private val context: Context) {
                                 .put("help", o.help ?: "")
                                 .put("visible", o.visible(s))
                                 .put("kind", optKind(o))
-                                .put("value", o.value(s))
-                                .put("choices", JSONArray(o.choices(s).map { c -> JSONObject().put("value", c.value).put("label", c.label) }))
+                                // A PIN never leaves the TV; the page only learns whether one is set.
+                                .put("value", if (o.secret) "" else o.value(s))
+                                .put("secret", o.secret)
+                                .put("isSet", o.value(s).isNotBlank())
+                                .put("label", o.label(s))
+                                .put("choices", JSONArray(o.choices(s).map { c -> JSONObject().put("value", c.value).put("label", c.label).put("note", c.note ?: "") }))
                             val order = o.order
                             if (order != null) {
                                 val (keys, shown) = order.get(s)

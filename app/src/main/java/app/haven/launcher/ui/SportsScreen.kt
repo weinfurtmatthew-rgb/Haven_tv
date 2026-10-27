@@ -181,7 +181,7 @@ fun SportsScreen(nav: Nav) {
 
 /** A team's logo, in ESPN's dark-background version when there is one. */
 @Composable
-private fun TeamLogo(team: Team, size: Dp) {
+fun TeamLogo(team: Team, size: Dp) {
     var model by remember(team.logo) { mutableStateOf(if (Look.r.palette.light) team.logo else team.darkLogo) }
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         if (team.logo.isNotBlank()) {
@@ -198,7 +198,7 @@ private fun TeamLogo(team: Team, size: Dp) {
 }
 
 /** The team's own colour from the feed, for the stripe beside its name. */
-private fun teamColor(team: Team): Color? =
+fun teamColor(team: Team): Color? =
     team.color.takeIf { it.length == 6 }?.toLongOrNull(16)?.let { Color(0xFF000000 or it) }
 
 fun gameStatus(g: Game, use24h: Boolean): String = when (g.state) {
@@ -217,7 +217,7 @@ fun gameStatus(g: Game, use24h: Boolean): String = when (g.state) {
 }
 
 /** What the status says without spoilers: whether it's on or over, not how it's going. */
-private fun safeStatus(g: Game, use24h: Boolean, show: Boolean): String = when {
+fun safeStatus(g: Game, use24h: Boolean, show: Boolean): String = when {
     show -> gameStatus(g, use24h)
     g.state == GameState.Live -> "Live"
     g.state == GameState.Final -> "Final"

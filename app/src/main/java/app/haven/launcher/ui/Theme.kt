@@ -33,6 +33,7 @@ import app.haven.launcher.data.FocusLook
 import app.haven.launcher.data.HeadingFont
 import app.haven.launcher.data.LookConfig
 import app.haven.launcher.data.Motion
+import app.haven.launcher.data.Surface
 import app.haven.launcher.data.TextFont
 import app.haven.launcher.data.ThemePreset
 
@@ -327,6 +328,9 @@ object Look {
     val fill: Boolean get() = r.cfg.focus == FocusLook.Fill
 
     val reduced: Boolean get() = r.cfg.motion == Motion.Reduced
+
+    /** Tiles and cards are frosted glass instead of solid. */
+    val glass: Boolean get() = r.cfg.surface == Surface.Glass
 }
 
 /**

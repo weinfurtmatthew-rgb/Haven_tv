@@ -9,6 +9,7 @@ import app.haven.launcher.data.AppsRepository
 import app.haven.launcher.data.OptionSources
 import app.haven.launcher.data.SettingsStore
 import app.haven.launcher.ha.HomeAssistant
+import app.haven.launcher.media.Media
 import app.haven.launcher.sports.ScoreAlerts
 import app.haven.launcher.sports.SportsRepository
 import app.haven.launcher.system.CrashReport
@@ -41,6 +42,8 @@ object Haven {
         private set
     lateinit var backgrounds: Backgrounds
         private set
+    lateinit var media: Media
+        private set
 
     /** Uptime (ms) of the last remote key press anywhere in Haven; drives art mode's idle start. */
     @Volatile
@@ -55,14 +58,16 @@ object Haven {
         updater = Updater(context)
         sports = SportsRepository(settings)
         backgrounds = Backgrounds(context, art)
+        media = Media(settings)
         OptionSources.backgrounds = { backgrounds.files().map { it.name } }
+        OptionSources.apps = { apps.apps.value.map { it.pkg to it.label } }
 
         // The active profile's look, before anything is drawn, then whenever it changes.
         Look.apply(settings.value.look)
         scope.launch { settings.state.collect { Look.apply(it.look) } }
         settings.onChange = { id, old, new ->
             // Any profile's alarm may ring, so a change to any of them reschedules.
-            if (old.alarm != new.alarm) Bedroom.scheduleAlarm(context)
+            if (old.alarm != new.alarm || old.kids.bedtime != new.kids.bedtime) Bedroom.scheduleAlarm(context)
             if (id == settings.activeId) {
                 if (old.sports != new.sports) scope.launch { ScoreAlerts.sync(context, sports.refresh()) }
                 if (old.haUrl != new.haUrl || old.haToken != new.haToken || old.haArea != new.haArea) scope.launch { ha.refresh() }

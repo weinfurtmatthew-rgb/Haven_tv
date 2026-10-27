@@ -85,6 +85,7 @@ fun OptionRow(
 ) {
     val value = when {
         opt.toggle -> opt.help.orEmpty()
+        opt.secret -> opt.label(s)
         opt.text && opt.phoneOnly -> if (opt.value(s).isBlank()) "Not set. Add it on your phone" else "Saved"
         opt.text -> opt.value(s).ifBlank { "Not set" }
         else -> listOfNotNull(opt.label(s), opt.help?.takeIf { opt.order != null }).joinToString(". ")
@@ -133,7 +134,7 @@ fun OptionDialog(opt: Opt, onClose: () -> Unit) {
             val (keys, shown) = order.get(s)
             OrderDialog(
                 opt.title, opt.help,
-                keys.mapNotNull { k -> order.items.firstOrNull { it.value == k } }.map { OrderItem(it.value, it.label) },
+                order.items.associateBy { it.value }.let { byKey -> keys.mapNotNull { byKey[it] } }.map { OrderItem(it.value, it.label, it.note) },
                 shown,
                 onToggle = { k ->
                     Haven.settings.update { cur ->
@@ -152,13 +153,20 @@ fun OptionDialog(opt: Opt, onClose: () -> Unit) {
                 onDismiss = onClose,
             )
         }
-        opt.text -> TextEditDialog(TextEdit(opt.title, opt.value(s), opt.help ?: "") { v -> Haven.settings.update { opt.with(it, v) } }, onClose)
+        opt.text -> TextEditDialog(
+            TextEdit(opt.title, if (opt.secret) "" else opt.value(s), opt.help ?: "") { v -> Haven.settings.update { opt.with(it, v) } },
+            onClose,
+        )
         else -> {
             val saved = remember(opt.id) { Haven.settings.value }
             fun revert() {
                 when (opt.preview) {
                     Preview.Look -> Look.apply(Haven.settings.value.look)
                     Preview.Background -> BgPreview.value = null
+                    Preview.Layout -> {
+                        Look.apply(Haven.settings.value.look)
+                        BgPreview.value = null
+                    }
                     Preview.Sound -> AlarmTone.stopPreview()
                     Preview.None -> Unit
                 }
@@ -173,10 +181,15 @@ fun OptionDialog(opt: Opt, onClose: () -> Unit) {
                 onPreview = when (opt.preview) {
                     Preview.Look -> { v -> Look.apply(opt.with(saved, v).look) }
                     Preview.Background -> { v -> BgPreview.value = opt.with(saved, v).background }
+                    Preview.Layout -> { v ->
+                        val next = opt.with(saved, v)
+                        Look.apply(next.look)
+                        BgPreview.value = next.background
+                    }
                     Preview.Sound -> { v -> AlarmTone.preview(enumOr(v, AlarmSound.Chime)) }
                     Preview.None -> null
                 },
-                sample = opt.preview == Preview.Look,
+                sample = opt.preview == Preview.Look || opt.preview == Preview.Layout,
                 onPick = { v ->
                     Haven.settings.update { opt.with(it, v) }
                     revert()
@@ -199,5 +212,5 @@ fun decorate(opt: Opt, c: OptChoice): Choice = when (opt.id) {
     "look.textFont" -> Choice(c.value, c.label, family = textFamilyOf(enumOr(c.value, TextFont.Atkinson)))
     "bg.color" -> Choice(c.value, c.label, swatch = c.value.toLongOrNull()?.let { Color(it) })
     "bg.gradient" -> Choice(c.value, c.label, swatch = Color(enumOr(c.value, GradientPreset.Dusk).colors[1]))
-    else -> Choice(c.value, c.label)
+    else -> Choice(c.value, c.label, c.note)
 }

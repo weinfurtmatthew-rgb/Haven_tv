@@ -13,6 +13,11 @@ import app.haven.launcher.bedroom.AlarmActivity
 import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.Accent
 import app.haven.launcher.data.AlarmConfig
+import app.haven.launcher.data.FollowedShow
+import app.haven.launcher.data.HomeLayout
+import app.haven.launcher.data.KidsConfig
+import app.haven.launcher.data.Layouts
+import app.haven.launcher.data.Settings
 import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
 import app.haven.launcher.data.BriefConfig
@@ -28,9 +33,13 @@ import app.haven.launcher.ha.CalEvent
 import app.haven.launcher.ha.Forecast
 import app.haven.launcher.ha.HaArea
 import app.haven.launcher.ha.HaEntity
+import app.haven.launcher.media.MediaItem
+import app.haven.launcher.media.MediaKind
+import app.haven.launcher.media.MediaList
 import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.League
+import app.haven.launcher.sports.NewsItem
 import app.haven.launcher.sports.ScorePopup
 import app.haven.launcher.sports.Side
 import app.haven.launcher.sports.Team
@@ -67,6 +76,7 @@ object Demo {
                 brief = BriefConfig(commuteEntity = "sensor.commute_work", commuteLabel = "work"),
                 sports = SportsConfig(teams = games().flatMap { g -> listOf(g.home.team, g.away.team) }.filter { t -> t.abbr in FOLLOWED }.map { t -> t.toFavorite() }),
                 artCare = it.artCare.copy(panel = TvPanel.Oled),
+                shows = SHOWS.take(4).mapIndexed { i, name -> FollowedShow(i + 1, name) },
             )
         }
         // A second person with a different look, for the profile picker and theme screenshots.
@@ -79,11 +89,27 @@ object Demo {
                 )
             }
         }
+        // A child with the Kids layout, a grown-up PIN (1234) and a bedtime, for the kids' screenshots.
+        if (Haven.settings.profiles.value.none { it.name == "Lily" }) {
+            val lily = Haven.settings.addProfile("Lily", copy = false)
+            Haven.settings.updateProfile(lily) {
+                val kid = Layouts.apply(it, HomeLayout.Kids)
+                kid.copy(
+                    profileName = "Lily",
+                    kids = KidsConfig(pin = "1234", apps = kidApps(), bedtime = 19 * 60 + 30),
+                    look = kid.look.copy(avatar = Accent.Coral),
+                )
+            }
+        }
         Haven.scope.launch {
             Haven.ha.refresh()
             Haven.sports.refresh()
         }
     }
+
+    /** A few of the emulator's apps stand in for kids' apps. */
+    private fun kidApps(): List<String> =
+        Haven.apps.apps.value.map { it.pkg }.filter { it.contains("youtube") || it.contains("games") || it.contains("tv") }.take(3)
 
     /** "id=value;id=value" from the registry, applied to the profile on the TV. */
     fun setOptions(spec: String) {
@@ -114,7 +140,7 @@ object Demo {
             c.drawRect(0f, 0f, 1920f, 1080f, p)
             p.shader = null
             p.color = 0xFFF6D28B.toInt()
-            c.drawCircle(1340f, 560f, 120f, p)
+            c.drawCircle(1340f, 430f, 110f, p)
             p.color = 0xFF2E4A3B.toInt()
             c.drawCircle(420f, 1300f, 700f, p)
             p.color = 0xFF1F3329.toInt()
@@ -168,7 +194,12 @@ object Demo {
         HaEntity("switch.string_lights", "off", attrs("friendly_name" to "String lights")),
         HaEntity(
             "media_player.soundbar", "playing",
-            attrs("friendly_name" to "Soundbar", "volume_level" to 0.45, "media_title" to "Harbor Lights", "app_name" to "TV", "supported_features" to 152461),
+            attrs(
+                "friendly_name" to "Soundbar", "volume_level" to 0.45, "media_title" to "Harbor Lights", "media_artist" to "The Night Ferries",
+                "media_album_name" to "Low Tide", "media_duration" to 238, "media_position" to 102,
+                "media_position_updated_at" to java.time.Instant.now().toString(), "entity_picture" to picture("cover", 600, 600, 0xFF9B2C57, 0xFFF4927A),
+                "app_name" to "TV", "supported_features" to 152461,
+            ),
         ),
         HaEntity("media_player.kitchen", "paused", attrs("friendly_name" to "Kitchen speaker", "volume_level" to 0.3, "supported_features" to 152461)),
         HaEntity("media_player.patio", "off", attrs("friendly_name" to "Patio speaker", "supported_features" to 152461)),
@@ -180,7 +211,128 @@ object Demo {
         HaEntity("cover.garage_door", "closed", attrs("friendly_name" to "Garage door", "device_class" to "garage")),
         HaEntity("binary_sensor.living_room_motion", "on", attrs("friendly_name" to "Living room motion", "device_class" to "motion")),
         HaEntity("sensor.commute_work", "18", attrs("friendly_name" to "Commute to work", "unit_of_measurement" to "min", "route" to "Lakeshore Dr")),
+        HaEntity(
+            "climate.living_room", "heat",
+            attrs(
+                "friendly_name" to "Thermostat", "current_temperature" to 68, "temperature" to 70, "hvac_action" to "heating",
+                "hvac_modes" to listOf("off", "heat", "cool", "auto"), "min_temp" to 50, "max_temp" to 90, "target_temp_step" to 1,
+            ),
+        ),
+        HaEntity("camera.front_porch", "idle", attrs("friendly_name" to "Front porch", "entity_picture" to picture("porch", 960, 540, 0xFF55635A, 0xFF1C2420))),
+        HaEntity("camera.driveway", "idle", attrs("friendly_name" to "Driveway", "entity_picture" to picture("driveway", 960, 540, 0xFF5D5A4A, 0xFF1F1D17))),
+        HaEntity("sensor.living_room_temperature", "68.4", attrs("friendly_name" to "Living room", "device_class" to "temperature", "unit_of_measurement" to "°F")),
+        HaEntity("sensor.living_room_humidity", "45", attrs("friendly_name" to "Humidity", "device_class" to "humidity", "unit_of_measurement" to "%")),
+        HaEntity("binary_sensor.back_door", "off", attrs("friendly_name" to "Back door", "device_class" to "door")),
+        HaEntity("automation.porch_lights_at_sunset", "on", attrs("friendly_name" to "Porch lights at sunset")),
+        HaEntity("automation.blinds_in_the_morning", "off", attrs("friendly_name" to "Blinds in the morning")),
+        HaEntity("person.matt", "home", attrs("friendly_name" to "Matt")),
+        HaEntity("person.sam", "not_home", attrs("friendly_name" to "Sam")),
     ).associateBy { it.id }
+
+    /** A painted stand-in picture (album cover, camera view) saved as a file, so the demo needs no network. */
+    private fun picture(name: String, w: Int, h: Int, from: Long, to: Long): String {
+        val f = File(Haven.app.filesDir, "demo/$name.jpg")
+        if (!f.exists()) {
+            f.parentFile?.mkdirs()
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { isDither = true }
+            p.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(from.toInt(), to.toInt()), null, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            p.shader = null
+            p.color = 0x55FFFFFF
+            c.drawCircle(w * 0.7f, h * 0.35f, h * 0.18f, p)
+            p.color = 0x66000000
+            c.drawRect(0f, h * 0.72f, w.toFloat(), h.toFloat(), p)
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 88, it) }
+        }
+        return "file://" + f.absolutePath
+    }
+
+    // ---- movies, shows and sports news (invented titles, painted posters) -----------------------------
+
+    private val MOVIES = listOf("The Long Harbor", "Night Shift", "Paper Moons", "Northern Line", "Glass Garden", "The Last Ferry", "Copper Hills", "Small Hours")
+    private val SHOWS = listOf("Harbor Street", "Back Roads", "Quiet Valley", "The Kitchen Table", "Lantern Bay", "Field Notes", "Two Doors Down", "Tall Grass")
+    private val COLORS = listOf(0xFFC44D34, 0xFF2F6F8F, 0xFFD6B25A, 0xFF6B4FA8, 0xFF3D8C62, 0xFFA33D6D, 0xFF888888, 0xFFC77D2A)
+
+    private fun poster(title: String, i: Int, wide: Boolean): String {
+        val w = if (wide) 1280 else 342
+        val h = if (wide) 720 else 513
+        val f = File(Haven.app.filesDir, "demo/${if (wide) "wide" else "poster"}-$i.jpg")
+        if (!f.exists()) {
+            f.parentFile?.mkdirs()
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { isDither = true }
+            val base = COLORS[i % COLORS.size].toInt()
+            p.shader = LinearGradient(0f, 0f, w * 0.6f, h.toFloat(), intArrayOf(base, 0xFF0B0B10.toInt()), null, Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+            p.shader = null
+            p.color = 0x40FFFFFF
+            c.drawCircle(w * 0.72f, h * 0.3f, h * 0.2f, p)
+            if (!wide) {
+                p.color = 0xFFF2EDE4.toInt()
+                p.textSize = 34f
+                p.isFakeBoldText = true
+                val words = title.split(" ")
+                var y = h - 40f - (words.size - 1) * 40f
+                for (wd in words) {
+                    c.drawText(wd, 24f, y, p)
+                    y += 40f
+                }
+            }
+            f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+        }
+        return "file://" + f.absolutePath
+    }
+
+    fun media(list: MediaList, s: Settings): List<MediaItem> {
+        val zone = ZoneId.systemDefault()
+        val evening = LocalDate.now().atTime(20, 0).atZone(zone).toInstant()
+        return when (list) {
+            MediaList.TrendingMovies, MediaList.InTheaters, MediaList.ComingSoon, MediaList.TopMovies -> MOVIES.mapIndexed { i, t ->
+                val j = (i + list.ordinal * 3) % MOVIES.size
+                MediaItem(
+                    "demo:movie:$j", MediaKind.Movie, MOVIES[j], year = "2026", rating = 6.8 + (j % 5) * 0.4,
+                    overview = "A story about people, places and the hours between them. Invented for Haven's demo.",
+                    poster = poster(MOVIES[j], j, false), backdrop = poster(MOVIES[j], j, true), genres = listOf("Drama", "Mystery").take(1 + j % 2),
+                )
+            }
+            MediaList.TrendingShows -> SHOWS.mapIndexed { i, t ->
+                MediaItem("demo:show:$i", MediaKind.Show, t, year = "2025", rating = 7.0 + (i % 4) * 0.3, poster = poster(t, i + 8, false), genres = listOf("Comedy"))
+            }
+            MediaList.YourShows -> s.shows.mapIndexed { i, f ->
+                val (badge, note) = when (i) {
+                    0 -> "NEW TONIGHT" to "Tonight 9:00 PM on Channel 4"
+                    1 -> "" to "Thursday 8:00 PM on Channel 2"
+                    2 -> "" to "Back March 4"
+                    else -> "" to "Waiting on a new season"
+                }
+                MediaItem(
+                    "maze:${f.id}", MediaKind.Show, f.name, overview = "New neighbours, old secrets. Invented for Haven's demo.",
+                    poster = poster(f.name, i + 8, false), showId = f.id, network = if (i < 2) "Channel ${if (i == 0) 4 else 2}" else "",
+                    at = if (i == 0) evening.plusSeconds(3600) else null, note = note, badge = badge,
+                )
+            }
+            MediaList.Tonight -> SHOWS.mapIndexed { i, t ->
+                val at = evening.plusSeconds(1800L * i)
+                val time = at.atZone(zone).format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+                MediaItem("maze:${100 + i}", MediaKind.Show, t, poster = poster(t, i + 8, false), showId = 100 + i, network = "Channel ${2 + i % 4}", at = at, note = "$time · Channel ${2 + i % 4}")
+            }
+            MediaList.NewStreaming -> SHOWS.reversed().mapIndexed { i, t ->
+                MediaItem("maze:${200 + i}", MediaKind.Show, t, poster = poster(t, 15 - i, false), showId = 200 + i, network = "Streamline", note = "New on Streamline")
+            }
+        }
+    }
+
+    fun news(): List<NewsItem> {
+        val now = java.time.Instant.now()
+        return listOf(
+            NewsItem("Kansas City's late drive seals it", "A fourth-quarter march of 80 yards. Invented for Haven's demo.", null, now.minusSeconds(3600), League.NFL),
+            NewsItem("Yankees set their rotation for the weekend", "Who starts and when. Invented for Haven's demo.", null, now.minusSeconds(7200), League.MLB),
+            NewsItem("Arsenal's midfield, explained", "What changed since the spring. Invented for Haven's demo.", null, now.minusSeconds(14400), League.EPL),
+        )
+    }
 
     fun areas(): List<HaArea> = listOf(
         HaArea(

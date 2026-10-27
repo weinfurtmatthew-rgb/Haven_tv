@@ -69,6 +69,21 @@ shot 24-lights-speaker-toggled
 # Settings: the rail starts at Profiles; Left from a row goes back to its group in the rail.
 screen Settings 30-settings-profiles
 key DPAD_DOWN
+shot 27-settings-layout
+key DPAD_CENTER DPAD_CENTER
+sleep 1
+key DPAD_DOWN DPAD_DOWN
+sleep 2
+shot 28-layout-dialog-preview
+key BACK
+sleep 1
+rep DPAD_DOWN 4
+key DPAD_CENTER
+sleep 1
+shot 37-home-rows-dialog
+key BACK
+sleep 1
+key DPAD_LEFT DPAD_DOWN
 shot 32-settings-look
 key DPAD_CENTER DPAD_CENTER
 sleep 1
@@ -86,9 +101,9 @@ key DPAD_LEFT DPAD_DOWN
 shot 36-settings-home-screen
 key DPAD_CENTER DPAD_CENTER
 sleep 1
-shot 37-home-rows-dialog
+shot 37b-tile-size-dialog
 key BACK
-rep DPAD_DOWN 13
+rep DPAD_DOWN 12
 key DPAD_CENTER
 sleep 1
 shot 38-settings-phone-hint
@@ -100,7 +115,7 @@ key DPAD_DOWN DPAD_DOWN
 shot 41-settings-sports
 key DPAD_DOWN DPAD_DOWN
 shot 42-settings-about
-rep DPAD_UP 11
+rep DPAD_UP 12
 key DPAD_CENTER DPAD_CENTER
 sleep 2
 shot 31-settings-name-dialog
@@ -208,6 +223,72 @@ shot 75-alarm-sum
 key BACK
 demo UNSNOOZE
 opt "alarm.stopWith=Press;alarm.background=Sunrise"
+
+# ---- 4. Layouts --------------------------------------------------------------------------------
+# Every layout, picked the way a person would (its look and background come with it), then a mix of two.
+demo BGPHOTO
+opt "home.layout=Spotlight;spot.source=Photos"
+home 14
+shot 100-layout-spotlight
+key DPAD_RIGHT
+sleep 2
+shot 101-spotlight-focus
+key DPAD_DOWN
+sleep 2
+shot 102-spotlight-apps
+opt "spot.source=Daily"
+home 20
+shot 103-spotlight-photo-of-the-day
+opt "home.layout=BigTiles"
+home 8
+shot 104-layout-big-tiles
+key DPAD_LEFT
+sleep 1
+key DPAD_DOWN DPAD_DOWN
+sleep 3
+shot 105-big-tiles-menu-sports
+opt "home.layout=GameDay"
+home 10
+shot 106-layout-game-day
+opt "home.layout=Cinema"
+home 10
+shot 107-layout-cinema
+key DPAD_CENTER
+sleep 2
+shot 108-movie-details
+key BACK
+opt "home.layout=Shows"
+home 10
+shot 109-layout-shows
+key DPAD_UP DPAD_UP DPAD_RIGHT DPAD_RIGHT
+sleep 3
+shot 110-shows-tab-movies
+opt "home.layout=SmartHome"
+home 10
+shot 111-layout-smart-home
+key DPAD_DOWN DPAD_DOWN
+sleep 1
+shot 112-smart-home-climate
+key DPAD_CENTER
+sleep 2
+shot 113-thermostat-dialog
+key BACK
+opt "home.layout=Music"
+home 10
+shot 114-layout-music
+opt "home.layout=Spotlight;spot.source=Photos;home.rows=YourTeams,Favorites,Apps"
+home 14
+shot 115-mix-spotlight-teams
+demo RESET
+demo SWITCH --es name Lily
+home 10
+shot 116-layout-kids
+screen Settings 117-grown-up-pin 4
+key BACK
+screen Bedtime 118-bedtime 5
+key DPAD_CENTER
+demo SWITCH --es name Matt
+home 6
 
 demo ALARM
 sleep 5

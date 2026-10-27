@@ -6,6 +6,7 @@ package app.haven.launcher.data
  * Adding an option here adds it to both.
  */
 enum class OptSection(val label: String) {
+    Layout("Layout"),
     Look("Look"),
     Home("Home screen"),
     Background("Background"),
@@ -15,19 +16,22 @@ enum class OptSection(val label: String) {
     Briefing("Morning briefing"),
     Sports("Sports"),
     Alerts("Score alerts"),
+    Kids("Grown-up lock"),
 }
 
-/** What changing an option previews before it's saved. */
-enum class Preview { None, Look, Background, Sound }
+/** What changing an option previews before it's saved. Layout previews the look and the background together. */
+enum class Preview { None, Look, Background, Sound, Layout }
 
-class OptChoice(val value: String, val label: String)
+class OptChoice(val value: String, val label: String, val note: String? = null)
 
-/** A list with each item on or off, in an order (home rows, briefing sections). */
+/** A list with each item on or off, in an order (home rows, briefing sections, kids' apps). */
 class OrderSpec(
-    val items: List<OptChoice>,
+    private val itemsOf: () -> List<OptChoice>,
     val get: (Settings) -> Pair<List<String>, Set<String>>,
     val set: (Settings, List<String>, Set<String>) -> Settings,
-)
+) {
+    val items: List<OptChoice> get() = itemsOf()
+}
 
 class Opt(
     val id: String,
@@ -48,11 +52,17 @@ class Opt(
     val visible: (Settings) -> Boolean = { true },
     /** Takes values beyond [choices] (any colour from the phone page's picker). */
     val free: Boolean = false,
+    /** A PIN: never shown, only whether it's set. */
+    val secret: Boolean = false,
+    /** Words for the current value when the choice's own label isn't enough ("Game day, changed"). */
+    val labelOf: ((Settings) -> String)? = null,
 ) {
     fun value(s: Settings): String = get(s)
 
     /** The current choice in words, for the row under the title. */
     fun label(s: Settings): String {
+        labelOf?.let { return it(s) }
+        if (secret) return if (get(s).isBlank()) "Off" else "On"
         if (order != null) {
             val (o, shown) = order.get(s)
             val names = o.filter { it in shown }.mapNotNull { k -> order.items.firstOrNull { it.value == k }?.label }
@@ -75,10 +85,30 @@ class Opt(
     }
 }
 
-/** Things outside the settings that some options list (uploaded backgrounds). Filled in by Haven at start. */
+/** Things outside the settings that some options list (uploaded backgrounds, apps). Filled in by Haven at start. */
 object OptionSources {
     @Volatile
     var backgrounds: () -> List<String> = { emptyList() }
+
+    /** Installed apps as package to name. */
+    @Volatile
+    var apps: () -> List<Pair<String, String>> = { emptyList() }
+}
+
+/** Countries for TV schedules and where to watch: TVmaze and TMDB both use these two-letter codes. */
+val REGIONS: List<Pair<String, String>> = listOf(
+    "US" to "United States", "CA" to "Canada", "GB" to "United Kingdom", "IE" to "Ireland", "AU" to "Australia",
+    "NZ" to "New Zealand", "DE" to "Germany", "AT" to "Austria", "CH" to "Switzerland", "FR" to "France", "BE" to "Belgium",
+    "NL" to "Netherlands", "ES" to "Spain", "IT" to "Italy", "PT" to "Portugal", "SE" to "Sweden", "NO" to "Norway",
+    "DK" to "Denmark", "FI" to "Finland", "PL" to "Poland", "BR" to "Brazil", "MX" to "Mexico", "AR" to "Argentina",
+    "IN" to "India", "JP" to "Japan", "KR" to "South Korea", "ZA" to "South Africa",
+)
+
+/** The bedtimes the TV offers: evenings in half hours (the phone page can set any time). */
+private val BEDTIMES: List<Int> = listOf(-1) + (17 * 60..22 * 60 step 30).toList()
+
+fun bedtimeLabel(m: Int): String = if (m < 0) "Off" else hourName(m / 60).let { h ->
+    if (m % 60 == 0) h else h.replace(" ", ":%02d ".format(m % 60))
 }
 
 private fun <E : Enum<E>> enumOpt(
@@ -92,12 +122,14 @@ private fun <E : Enum<E>> enumOpt(
     help: String? = null,
     preview: Preview = Preview.None,
     visible: (Settings) -> Boolean = { true },
+    note: ((E) -> String?)? = null,
+    labelOf: ((Settings) -> String)? = null,
 ) = Opt(
     id, section, title,
-    choices = { values.map { OptChoice(it.name, label(it)) } },
+    choices = { values.map { OptChoice(it.name, label(it), note?.invoke(it)) } },
     get = { get(it).name },
     set = { s, v -> values.firstOrNull { it.name == v }?.let { set(s, it) } ?: s },
-    help = help, preview = preview, visible = visible,
+    help = help, preview = preview, visible = visible, labelOf = labelOf,
 )
 
 private fun boolOpt(
@@ -146,7 +178,29 @@ private fun textOpt(
     help: String? = null,
     phoneOnly: Boolean = false,
     visible: (Settings) -> Boolean = { true },
-) = Opt(id, section, title, get = get, set = { s, v -> set(s, v.trim()) }, help = help, text = true, phoneOnly = phoneOnly, visible = visible)
+    secret: Boolean = false,
+) = Opt(
+    id, section, title, get = get, set = { s, v -> set(s, v.trim()) }, help = help, text = true, phoneOnly = phoneOnly,
+    visible = visible, secret = secret,
+)
+
+/** An order list over an enum: [all] in the saved order, [shown] of them on. */
+private inline fun <reified E : Enum<E>> enumOrder(
+    noinline label: (E) -> String,
+    noinline note: (E) -> String?,
+    noinline get: (Settings) -> Pair<List<E>, Set<E>>,
+    noinline set: (Settings, List<E>, Set<E>) -> Settings,
+) = OrderSpec(
+    { enumValues<E>().map { OptChoice(it.name, label(it), note(it)) } },
+    get = { s -> get(s).let { (o, sh) -> o.map { it.name } to sh.map { it.name }.toSet() } },
+    set = { s, order, shown ->
+        set(
+            s,
+            completeOrder(order.mapNotNull { n -> enumValues<E>().firstOrNull { it.name == n } }),
+            shown.mapNotNull { n -> enumValues<E>().firstOrNull { it.name == n } }.toSet(),
+        )
+    },
+)
 
 private fun minutes(m: Int): String = when {
     m == 0 -> "Never"
@@ -171,6 +225,7 @@ private inline fun Settings.sportsCfg(f: (SportsConfig) -> SportsConfig) = copy(
 private inline fun Settings.care(f: (ArtCare) -> ArtCare) = copy(artCare = f(artCare))
 
 object Options {
+    private val LO = OptSection.Layout
     private val L = OptSection.Look
     private val H = OptSection.Home
     private val B = OptSection.Background
@@ -180,11 +235,112 @@ object Options {
     private val BR = OptSection.Briefing
     private val SP = OptSection.Sports
     private val SA = OptSection.Alerts
+    private val K = OptSection.Kids
+    private val haRows = setOf(
+        HomeRow.Scenes, HomeRow.Lights, HomeRow.Climate, HomeRow.Cameras, HomeRow.Locks, HomeRow.Speakers, HomeRow.Sensors,
+        HomeRow.Automations, HomeRow.NowPlaying,
+    )
+    private val regionRows = setOf(
+        HomeRow.Tonight, HomeRow.NewStreaming, HomeRow.YourShows, HomeRow.TrendingMovies, HomeRow.InTheaters, HomeRow.ComingSoon,
+    )
 
     private val pictureKinds = setOf(BgKind.Photo, BgKind.Daily, BgKind.Art, BgKind.Posters, BgKind.NowPlaying)
     private val rotatingKinds = setOf(BgKind.Photo, BgKind.Art, BgKind.Posters)
 
     val all: List<Opt> = listOf(
+        // ---- layout
+        enumOpt(
+            "home.layout", LO, "Layout", HomeLayout.values(), { it.label }, { it.look.layout }, { s, v -> Layouts.apply(s, v) },
+            help = "A whole home screen to start from. Every part of it can be changed below",
+            preview = Preview.Layout, note = { it.note }, labelOf = { Layouts.label(it.look) },
+        ),
+        boolOpt(
+            "home.layoutLook", LO, "Layouts bring their colours and fonts", { it.look.layoutLook },
+            { s, v -> s.withLook { l -> l.copy(layoutLook = v) } },
+            help = "Off keeps your own look, sizes and background when you pick a layout",
+        ),
+        enumOpt(
+            "home.nav", LO, "Getting around", NavStyle.values(), { it.label }, { it.look.nav }, { s, v -> s.withLook { l -> l.copy(nav = v) } },
+            preview = Preview.Look,
+        ),
+        enumOpt(
+            "home.hero", LO, "Top of the screen", HeroKind.values(), { it.label }, { it.look.hero }, { s, v -> s.withLook { l -> l.copy(hero = v) } },
+            note = { it.note },
+        ),
+        Opt(
+            "home.rows", LO, "Rows",
+            get = { "" }, set = { s, _ -> s },
+            help = "Which rows show, in which order",
+            order = enumOrder<HomeRow>(
+                { it.label }, { it.note.ifBlank { null } },
+                get = { s -> s.look.rowOrder to s.look.rowsShown },
+                set = { s, o, sh -> s.withLook { l -> l.copy(rowOrder = o, rowsShown = sh) } },
+            ),
+        ),
+        Opt(
+            "home.sections", LO, "Menu", get = { "" }, set = { s, _ -> s },
+            help = "What the side menu or the tabs offer, in order",
+            order = enumOrder<HomeSection>(
+                { it.label }, { null },
+                get = { s -> s.look.sectionOrder to s.look.sectionsShown },
+                set = { s, o, sh -> s.withLook { l -> l.copy(sectionOrder = o, sectionsShown = sh + HomeSection.Home) } },
+            ),
+            visible = { it.look.nav != NavStyle.Rows },
+        ),
+        enumOpt("home.grid", LO, "Favorites and apps", AppGrid.values(), { it.label }, { it.look.appGrid }, { s, v -> s.withLook { l -> l.copy(appGrid = v) } }),
+        enumOpt(
+            "look.surface", LO, "Tiles and cards", Surface.values(), { it.label }, { it.look.surface }, { s, v -> s.withLook { l -> l.copy(surface = v) } },
+            help = "Glass looks best over a photo background", preview = Preview.Look,
+        ),
+        enumOpt(
+            "spot.source", LO, "Spotlight photo", SpotSource.values(), { it.label }, { it.look.spotSource },
+            { s, v -> s.withLook { l -> l.copy(spotSource = v) } }, visible = { it.look.hero == HeroKind.Spotlight },
+        ),
+        enumOpt(
+            "spot.clock", LO, "Clock on the photo", SpotClock.values(), { it.label }, { it.look.spotClock },
+            { s, v -> s.withLook { l -> l.copy(spotClock = v) } }, visible = { it.look.hero == HeroKind.Spotlight },
+            help = "Behind puts mountains, buildings and trees in front of the clock when the photo has them",
+        ),
+        boolOpt(
+            "spot.follow", LO, "Photo follows the app you're on", { it.look.spotFollow }, { s, v -> s.withLook { l -> l.copy(spotFollow = v) } },
+            help = "On a streaming app, shows what's trending there. Needs your TMDB key",
+            visible = { it.look.hero == HeroKind.Spotlight },
+        ),
+        enumOpt(
+            "home.scope", LO, "Smart home rows show", HomeScope.values(), { it.label }, { it.homeScope }, { s, v -> s.copy(homeScope = v) },
+            visible = { s -> s.look.hero == HeroKind.HomeStatus || s.look.rows.any { it in haRows } },
+        ),
+        Opt(
+            "region", LO, "Country for TV schedules",
+            choices = { listOf(OptChoice("", "This TV's country")) + REGIONS.map { (code, name) -> OptChoice(code, name) } },
+            get = { it.region }, set = { s, v -> s.copy(region = v) },
+            help = "Tonight on TV, new on streaming, and where to watch movies",
+            visible = { s -> s.look.hero == HeroKind.Show || s.look.hero == HeroKind.Movie || s.look.rows.any { it in regionRows } },
+        ),
+
+        // ---- grown-up lock
+        textOpt(
+            "kids.pin", K, "Grown-up PIN", { it.kids.pin }, { s, v -> s.copy(kids = s.kids.copy(pin = v.filter { c -> c.isDigit() }.take(8))) },
+            help = "Numbers only. Asked before Settings, switching profiles, app menus and the layout. Empty turns it off",
+            secret = true,
+        ),
+        Opt(
+            "kids.apps", K, "Kids' apps", get = { "" }, set = { s, _ -> s },
+            help = "The apps the Kids' apps row shows. None picked shows the kids' apps Haven knows",
+            order = OrderSpec(
+                { OptionSources.apps().map { (pkg, name) -> OptChoice(pkg, name) } },
+                get = { s ->
+                    val all = OptionSources.apps().map { it.first }
+                    (s.kids.apps + all.filter { it !in s.kids.apps }) to s.kids.apps.toSet()
+                },
+                set = { s, order, shown -> s.copy(kids = s.kids.copy(apps = order.filter { it in shown })) },
+            ),
+        ),
+        intOpt(
+            "kids.bedtime", K, "Bedtime", BEDTIMES, ::bedtimeLabel, { it.kids.bedtime }, { s, v -> s.copy(kids = s.kids.copy(bedtime = v)) },
+            help = "Haven says goodnight and starts the sleep timer",
+        ),
+
         // ---- look
         enumOpt("look.theme", L, "Colour scheme", ThemePreset.values(), { it.label }, { it.look.theme }, { s, v -> s.withLook { l -> l.copy(theme = v) } }, preview = Preview.Look),
         enumOpt(
@@ -212,23 +368,6 @@ object Options {
         ),
 
         // ---- home screen
-        Opt(
-            "home.rows", H, "Rows",
-            get = { "" }, set = { s, _ -> s },
-            help = "Which rows show, in which order",
-            order = OrderSpec(
-                HomeRow.values().map { OptChoice(it.name, it.label) },
-                get = { s -> s.look.rowOrder.map { it.name } to s.look.rowsShown.map { it.name }.toSet() },
-                set = { s, order, shown ->
-                    s.withLook { l ->
-                        l.copy(
-                            rowOrder = completeOrder(order.mapNotNull { n -> HomeRow.values().firstOrNull { it.name == n } }),
-                            rowsShown = shown.mapNotNull { n -> HomeRow.values().firstOrNull { it.name == n } }.toSet(),
-                        )
-                    }
-                },
-            ),
-        ),
         enumOpt("look.favSize", H, "Favorite tiles", TileSize.values(), { it.label }, { it.look.favSize }, { s, v -> s.withLook { l -> l.copy(favSize = v) } }, preview = Preview.Look),
         enumOpt("look.appSize", H, "App tiles", TileSize.values(), { it.label }, { it.look.appSize }, { s, v -> s.withLook { l -> l.copy(appSize = v) } }, preview = Preview.Look),
         enumOpt("look.spacing", H, "Space between things", Spacing.values(), { it.label }, { it.look.spacing }, { s, v -> s.withLook { l -> l.copy(spacing = v) } }, preview = Preview.Look),
@@ -374,17 +513,10 @@ object Options {
             "brief.sections", BR, "What it shows",
             get = { "" }, set = { s, _ -> s },
             help = "Turn parts on or off and put them in order",
-            order = OrderSpec(
-                BriefSection.values().map { OptChoice(it.name, it.label) },
-                get = { s -> s.brief.order.map { it.name } to s.brief.shown.map { it.name }.toSet() },
-                set = { s, order, shown ->
-                    s.briefCfg { b ->
-                        b.copy(
-                            order = completeOrder(order.mapNotNull { n -> BriefSection.values().firstOrNull { it.name == n } }),
-                            shown = shown.mapNotNull { n -> BriefSection.values().firstOrNull { it.name == n } }.toSet(),
-                        )
-                    }
-                },
+            order = enumOrder<BriefSection>(
+                { it.label }, { null },
+                get = { s -> s.brief.order to s.brief.shown },
+                set = { s, o, sh -> s.briefCfg { b -> b.copy(order = o, shown = sh) } },
             ),
         ),
         enumOpt("brief.layout", BR, "Layout", BriefLayout.values(), { it.label }, { it.brief.layout }, { s, v -> s.briefCfg { b -> b.copy(layout = v) } }),

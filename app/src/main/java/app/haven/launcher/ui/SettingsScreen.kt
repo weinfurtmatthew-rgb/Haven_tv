@@ -69,6 +69,7 @@ import kotlinx.coroutines.launch
 /** Settings are grouped like Android TV's own: pick a group on the left, its settings appear next to it. */
 private enum class Group(val label: String) {
     Profiles("Profiles"),
+    Layout("Layout"),
     Look("Look"),
     Home("Home screen"),
     Background("Background"),
@@ -177,6 +178,7 @@ fun SettingsScreen(nav: Nav) {
                         with(ui) {
                             when (group) {
                                 Group.Profiles -> profileRows()
+                                Group.Layout -> layoutRows()
                                 Group.Look -> lookRows()
                                 Group.Home -> homeRows()
                                 Group.Background -> backgroundRows()
@@ -218,7 +220,7 @@ fun SettingsScreen(nav: Nav) {
         )
         "resetLook" -> ConfirmDialog(
             "Back to Haven's own look?",
-            "Colours, fonts, sizes, focus and the home screen's rows go back to how Haven came. Apps, background, alarm and everything else stay as they are.",
+            "The layout, colours, fonts, sizes, focus and the home screen's rows go back to how Haven came. Apps, background, alarm and everything else stay as they are.",
             "Reset the look",
             onYes = { Haven.settings.update { it.copy(look = LookConfig(avatar = it.look.avatar)) } },
             onDismiss = { dialog = null },
@@ -303,6 +305,15 @@ private class SettingsUi(
                 }
             }
             row("Remove ${me.name}", "Removes this profile from the TV") { openDialog("remove") }
+        }
+        heading(OptSection.Kids.label)
+        options(OptSection.Kids)
+    }
+
+    fun LazyListScope.layoutRows() {
+        options(OptSection.Layout, first = true)
+        if (s.shows.isNotEmpty()) {
+            row("Shows you follow", s.shows.joinToString(", ") { it.name } + ". Follow more from a show's details or your phone", phoneOnly = true)
         }
     }
 
