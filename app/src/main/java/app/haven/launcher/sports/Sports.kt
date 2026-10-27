@@ -180,6 +180,10 @@ class SportsRepository(private val store: SettingsStore) {
     val followed: Set<String> get() = store.value.sports.teams.map { it.key }.toSet()
 
     suspend fun refresh(maxAgeMs: Long = 0): List<Game> {
+        if (app.haven.launcher.demo.Demo.active) {
+            _games.value = app.haven.launcher.demo.Demo.games()
+            return _games.value
+        }
         if (System.currentTimeMillis() - lastRefresh < maxAgeMs) return _games.value
         val favs = store.value.sports.teams
         if (favs.isEmpty()) {

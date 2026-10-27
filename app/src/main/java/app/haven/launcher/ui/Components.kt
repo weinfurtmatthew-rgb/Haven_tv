@@ -109,7 +109,7 @@ fun Focusable(
                                 press.down = true
                                 press.longFired = false
                             } else if (press.down && onLongClick != null && !press.longFired &&
-                                native.eventTime - native.downTime >= LONG_PRESS_MS
+                                (native.isLongPress || native.eventTime - native.downTime >= LONG_PRESS_MS)
                             ) {
                                 press.longFired = true
                                 onLongClick()

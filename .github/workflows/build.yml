@@ -41,7 +41,7 @@ jobs:
   smoke:
     needs: apk
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -76,20 +76,19 @@ jobs:
           name: smoke-results-api${{ matrix.api }}
           path: smoke/
 
-      - name: Publish smoke results
-        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      # Screenshots go to a branch per API level (git fetch origin screens-api34) for UI review.
+      - name: Push screenshots
+        if: always() && github.event_name != 'pull_request'
         continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          tag="ci-smoke-api${{ matrix.api }}"
-          gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag || true
-          gh release create "$tag" smoke/* \
-            --repo "${{ github.repository }}" \
-            --target "${{ github.sha }}" \
-            --prerelease --latest=false \
-            --title "CI smoke test, Android TV API ${{ matrix.api }} (latest build)" \
-            --notes "Screenshots and logs from build ${{ github.run_number }} on an Android TV emulator (API ${{ matrix.api }}). Not an app release."
+          cd smoke
+          rm -f logcat.txt crash.txt
+          git init -q -b "screens-api${{ matrix.api }}"
+          git config user.name "Haven CI"
+          git config user.email "ci@haven.invalid"
+          git add -A
+          git commit -qm "Build ${{ github.run_number }} (${{ github.sha }}) on Android TV API ${{ matrix.api }}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "HEAD:screens-api${{ matrix.api }}"
 
   # Every build of main that passes the emulator test becomes the "latest" release, so this link always points
   # at the newest APK: https://github.com/<owner>/haven_tv/releases/latest/download/haven.apk

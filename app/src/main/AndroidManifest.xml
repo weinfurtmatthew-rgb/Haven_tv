@@ -127,6 +127,12 @@
             android:name=".update.InstallResultReceiver"
             android:exported="false" />
 
+        <!-- UI review only: android.permission.DUMP is held by adb shell, never by ordinary apps. -->
+        <receiver
+            android:name=".demo.DemoReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+
         <receiver
             android:name=".system.BootReceiver"
             android:exported="true">

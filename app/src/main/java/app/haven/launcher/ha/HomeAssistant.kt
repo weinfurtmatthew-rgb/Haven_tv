@@ -1,6 +1,7 @@
 package app.haven.launcher.ha
 
 import app.haven.launcher.data.Settings
+import app.haven.launcher.demo.Demo
 import app.haven.launcher.data.SettingsStore
 import app.haven.launcher.data.strings
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,13 @@ class HomeAssistant(private val store: SettingsStore) {
     /** Fetches every entity state. Also loads the area list the first time and every 10 minutes. */
     suspend fun refresh(): Boolean = withContext(Dispatchers.IO) {
         val s = store.value
+        if (Demo.active) {
+            // Keep local changes (toggles, levels) between polls; only seed once.
+            if (_entities.value["light.floor_lamp"] == null) _entities.value = Demo.entities()
+            _areas.value = Demo.areas()
+            _status.value = HaStatus.Connected(_entities.value.size)
+            return@withContext true
+        }
         if (!s.haConfigured) {
             _status.value = HaStatus.NotConfigured
             _entities.value = emptyMap()
@@ -133,6 +141,7 @@ class HomeAssistant(private val store: SettingsStore) {
 
     suspend fun call(domain: String, service: String, data: JSONObject): Boolean = withContext(Dispatchers.IO) {
         val s = store.value
+        if (Demo.active) return@withContext true
         if (!s.haConfigured) return@withContext false
         runCatching {
             http.newCall(request(s, "/api/services/$domain/$service").post(data.toString().toRequestBody(json)).build())
@@ -144,6 +153,7 @@ class HomeAssistant(private val store: SettingsStore) {
 
     /** Hourly or daily forecast through `weather.get_forecasts` (HA 2023.9+), falling back to the old attribute. */
     suspend fun forecast(entityId: String, type: String): List<Forecast> = withContext(Dispatchers.IO) {
+        if (Demo.active) return@withContext Demo.forecast(type)
         val s = store.value
         if (!s.haConfigured || entityId.isBlank()) return@withContext emptyList()
         val fromService = runCatching {
@@ -160,6 +170,7 @@ class HomeAssistant(private val store: SettingsStore) {
 
     /** Calendar entities: id to name. */
     suspend fun calendars(): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        if (Demo.active) return@withContext Demo.calendars()
         val s = store.value
         if (!s.haConfigured) return@withContext emptyList()
         runCatching {
@@ -176,6 +187,7 @@ class HomeAssistant(private val store: SettingsStore) {
 
     /** Events between [startIso] and [endIso] (ISO-8601 with offset) for one calendar. */
     suspend fun events(calendarId: String, startIso: String, endIso: String): List<CalEvent> = withContext(Dispatchers.IO) {
+        if (Demo.active) return@withContext Demo.events(calendarId)
         val s = store.value
         if (!s.haConfigured) return@withContext emptyList()
         runCatching {
