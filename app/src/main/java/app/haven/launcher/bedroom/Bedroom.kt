@@ -267,9 +267,9 @@ object Bedroom {
 class BedroomReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
-            Bedroom.ACTION_ALARM -> Bedroom.onAlarmFired(ctx, profileOf(intent))
+            Bedroom.ACTION_ALARM -> profileOf(intent)?.let { Bedroom.onAlarmFired(ctx, it) }
             Bedroom.ACTION_SUNRISE -> {
-                val id = profileOf(intent)
+                val id = profileOf(intent) ?: return
                 async { Bedroom.sunrise(id) }
             }
             Bedroom.ACTION_SLEEP_WARN -> Toast.makeText(ctx, "Sleep timer: 1 minute left", Toast.LENGTH_LONG).show()
@@ -277,9 +277,14 @@ class BedroomReceiver : BroadcastReceiver() {
         }
     }
 
-    /** The profile an alarm belongs to; one set before profiles existed belongs to whoever is active. */
-    private fun profileOf(intent: Intent): String =
-        intent.getStringExtra(Bedroom.EXTRA_PROFILE)?.takeIf { Haven.settings.exists(it) } ?: Haven.settings.activeId
+    /**
+     * The profile an alarm belongs to, or null when that profile has been removed since. One set before profiles
+     * existed belongs to whoever is active.
+     */
+    private fun profileOf(intent: Intent): String? {
+        val id = intent.getStringExtra(Bedroom.EXTRA_PROFILE) ?: return Haven.settings.activeId
+        return id.takeIf { Haven.settings.exists(it) }
+    }
 
     private fun async(block: suspend () -> Unit) {
         val pending = goAsync()

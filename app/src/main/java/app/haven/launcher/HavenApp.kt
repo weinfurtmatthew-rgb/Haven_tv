@@ -75,6 +75,10 @@ object Haven {
                 ScoreAlerts.sync(context, sports.refresh())
             }
         }
+        // A profile came or went: its alarm with it.
+        scope.launch {
+            settings.meta.map { it.order }.distinctUntilChanged().drop(1).collect { Bedroom.scheduleAlarm(context) }
+        }
     }
 
     /** Wall-clock time of the last crash, so the Home-button service stops redirecting to a broken app. */
