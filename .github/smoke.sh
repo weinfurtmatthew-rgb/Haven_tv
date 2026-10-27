@@ -28,6 +28,21 @@ key DPAD_CENTER
 sleep 3
 shot 8-back-home
 
+# Turn on the Home button service the way the Settings switch does, then press Home from another app.
+echo "----- Home button service -----"
+adb shell settings put secure enabled_accessibility_services "$PKG/$PKG.system.HomeButtonService"
+adb shell settings put secure accessibility_enabled 1
+sleep 6
+echo "enabled_accessibility_services = $(adb shell settings get secure enabled_accessibility_services)"
+adb shell dumpsys accessibility | grep -iE "haven|bound services|enabled services|crashed" | head -20
+adb shell am start -W -a android.settings.SETTINGS > /dev/null
+sleep 4
+key HOME
+sleep 4
+shot 9-after-home-key
+echo "Top activity after Home: $(adb shell dumpsys activity activities | grep -m1 -E 'topResumedActivity|mResumedActivity')"
+echo "enabled_accessibility_services after Home = $(adb shell settings get secure enabled_accessibility_services)"
+
 if adb shell pidof "$PKG" > /dev/null; then echo "Haven is running"; else echo "Haven is NOT running"; fi
 adb logcat -d -b crash > "$OUT/crash.txt"
 adb logcat -d > "$OUT/logcat.txt"
