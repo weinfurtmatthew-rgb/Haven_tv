@@ -176,7 +176,8 @@ private fun bigRow(row: HomeRow) = row == HomeRow.Favorites || row == HomeRow.Ki
 fun AppsRow(h: HomeCtx, row: HomeRow, apps: List<TvApp>, onPhoto: Boolean = false) {
     val big = bigRow(row)
     val columns = h.s.look.appGrid.columns
-    if (columns > 0 && row != HomeRow.Recent) {
+    // The row on Spotlight's photo is a dock: always one row, whatever the grid below it.
+    if (columns > 0 && row != HomeRow.Recent && !onPhoto) {
         AppGrid(h, row, apps, columns)
         return
     }

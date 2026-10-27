@@ -550,10 +550,11 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
     val behind = look.spotClock == SpotClock.Behind
     val turn = remember { (0..999).random() }
 
-    val spot by produceState<SpotPhoto?>(null, look.spotSource, behind, time.length, capH, h.s.background) {
+    var spotW by remember { mutableIntStateOf(SPOT_W) }
+    val spot by produceState<SpotPhoto?>(null, look.spotSource, behind, time.length, capH, h.s.background, spotW) {
         while (true) {
             val src = runCatching { Haven.backgrounds.spotlight(look.spotSource, h.s, turn) }.getOrNull()
-            val bmp = src?.let { runCatching { Haven.backgrounds.loadCrop(it, SPOT_W, SPOT_H) }.getOrNull() }
+            val bmp = src?.let { runCatching { Haven.backgrounds.loadCrop(it, spotW, SPOT_H) }.getOrNull() }
             if (bmp != null) value = withContext(Dispatchers.Default) { analyse(bmp, clockW, capH, behind) }
             delay(if (bmp == null) 60_000L else 3 * 3600_000L)
         }
@@ -569,7 +570,13 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
 
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val backdrop = spot?.let { GlassBackdrop(it.frost, bounds, 0.3f) }
-    Box(Modifier.fillMaxWidth().height(SPOT_H.dp).onGloballyPositioned { bounds = it.boundsInRoot() }) {
+    // Beside the side menu the page is narrower than the screen: the photo is cut to the page's own width.
+    Box(
+        Modifier.fillMaxWidth().height(SPOT_H.dp).onGloballyPositioned {
+            bounds = it.boundsInRoot()
+            spotW = (it.size.width / density.density).roundToInt().coerceAtLeast(800)
+        },
+    ) {
         val shown = spot
         Crossfade(targetState = service, animationSpec = motion(700), label = "spot") { svc ->
             Box(Modifier.fillMaxSize()) {
@@ -619,6 +626,7 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
 
 /** Finds the photo's scenery and places the clock; a no-depth placement when the photo has no sky to use. */
 private fun analyse(bmp: Bitmap, clockW: Int, capH: Int, behind: Boolean): SpotPhoto {
+    // The small copy keeps the photo's shape: 480 across.
     val fw = bmp.width
     val fh = bmp.height
     val minBase = 190 + capH
@@ -631,7 +639,7 @@ private fun analyse(bmp: Bitmap, clockW: Int, capH: Int, behind: Boolean): SpotP
         val full = IntArray(fw * fh)
         bmp.getPixels(full, 0, fw, 0, 0, fw, fh)
         val sw = 480
-        val sh = 215
+        val sh = maxOf(16, sw * fh / fw)
         val small = Bitmap.createScaledBitmap(bmp, sw, sh, true)
         val spx = IntArray(sw * sh)
         small.getPixels(spx, 0, sw, 0, 0, sw, sh)

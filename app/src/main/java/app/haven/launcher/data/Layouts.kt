@@ -112,6 +112,7 @@ object Layouts {
         )
         HomeLayout.Spotlight -> Recipe(
             NavStyle.Rows, HeroKind.Spotlight, listOf(HomeRow.Favorites, HomeRow.Apps, HomeRow.Room),
+            grid = AppGrid.Five,
             surface = Surface.Glass,
             look = {
                 LookConfig().copy(
