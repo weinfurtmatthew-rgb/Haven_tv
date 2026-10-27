@@ -143,7 +143,10 @@ fun SettingsScreen(nav: Nav) {
                         g.label,
                         selected = g == group,
                         focusRequester = rail.getValue(g),
-                        onFocus = { group = g },
+                        onFocus = {
+                            if (group != g) phoneHint = null
+                            group = g
+                        },
                         onClick = { runCatching { firstRow.requestFocus() } },
                     )
                 }
@@ -152,7 +155,7 @@ fun SettingsScreen(nav: Nav) {
             Box(Modifier.width(840.dp).fillMaxHeight()) {
                 key(group) {
                     LazyColumn(
-                        Modifier.offset(x = (-16).dp).width(872.dp).fillMaxHeight(),
+                        Modifier.fillMaxSize().bleed(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                     ) {
@@ -464,13 +467,10 @@ private fun RecentScreensDialog(onClose: () -> Unit) {
 private fun PhoneSetupPanel(server: SetupServer, hint: String?, modifier: Modifier) {
     val url by server.url.collectAsState()
     Panel(modifier, padding = 36.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Icon(Icons.Smartphone, 36.dp, C.Stone)
-            Txt("Set up from your phone", T.Title, size = 32, maxLines = 2)
-        }
+        Txt("Set up on your phone", T.Title, size = 32, maxLines = 2)
         Txt(
-            "Connect Home Assistant, choose lights, teams and photos, and set the alarm. Your phone must be on the same Wi-Fi as the TV.",
-            T.Body, color = C.Stone, maxLines = 5,
+            "Home Assistant, lights, teams, photos and the alarm. Use the same Wi-Fi as the TV.",
+            T.Body, color = C.Stone, maxLines = 4,
         )
         val u = url
         if (u == null) {
@@ -517,8 +517,9 @@ fun QrCode(text: String, modifier: Modifier = Modifier) {
 private fun TextEditDialog(e: TextEdit, onClose: () -> Unit) {
     var value by remember { mutableStateOf(e.initial) }
     val field = remember { FocusRequester() }
-    HavenDialog(onClose) {
-        Panel(Modifier.width(1100.dp)) {
+    // At the top of the screen, so the on-screen keyboard doesn't cover the buttons.
+    HavenDialog(onClose, alignment = Alignment.TopCenter) {
+        Panel(Modifier.padding(top = 96.dp).width(1100.dp)) {
             Txt(e.title, T.Title)
             Box(
                 Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(12.dp)).background(C.Raised).padding(horizontal = 28.dp),

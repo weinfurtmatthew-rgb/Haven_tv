@@ -68,7 +68,11 @@ class CrashActivity : Activity() {
             setBackgroundColor(HEARTH)
             setPadding(dp(58), dp(40), dp(58), dp(32))
         }
-        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val left = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            clipChildren = false
+            clipToPadding = false
+        }
         left.addView(text("Haven stopped unexpectedly", 30f, R.font.fraunces_title, LINEN))
         left.addView(
             text(
@@ -77,7 +81,12 @@ class CrashActivity : Activity() {
                 17f, R.font.atkinson_medium, STONE,
             ).apply { setPadding(0, dp(10), dp(24), dp(20)) },
         )
-        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        // The focused button grows a little; don't clip it at the row's edge.
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
+        }
         val retry = button("Try again", dp) {
             CrashReport.clear(this@CrashActivity)
             startActivity(Intent(this@CrashActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

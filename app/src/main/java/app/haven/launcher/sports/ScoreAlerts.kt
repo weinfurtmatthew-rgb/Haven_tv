@@ -129,7 +129,10 @@ object ScorePopup {
             val lp = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                // Not focusable, so the remote keeps working in the app underneath. Deliberately not
+                // FLAG_NOT_TOUCHABLE: Android caps untouchable overlays at 80% opacity, which let the picture
+                // show through the score. Nothing touches a TV, so being touchable costs nothing.
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.END

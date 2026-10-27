@@ -75,7 +75,7 @@ fun LightsScreen(nav: Nav) {
         runCatching { firstFocus.requestFocus() }.recoverCatching { backFocus.requestFocus() }
     }
 
-    Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
+    Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp, bottom = 56.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
         ScreenHeader("Lights and speakers", settings.roomName, onBack = { nav.go(Screen.Home) }, backFocus = backFocus)
         when (val st = status) {
             HaStatus.NotConfigured -> EmptyState(
@@ -115,7 +115,7 @@ private fun LightsColumn(modifier: Modifier, scope: CoroutineScope, firstFocus: 
         )
         // Negative offset + padding: the row scrolls edge to edge, so a focused chip's lift is never clipped.
         LazyRow(
-            Modifier.offset(x = (-16).dp).fillMaxWidth(),
+            Modifier.fillMaxWidth().bleed(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
@@ -143,7 +143,7 @@ private fun LightsColumn(modifier: Modifier, scope: CoroutineScope, firstFocus: 
         } else {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(
-                    Modifier.offset(x = (-16).dp).fillMaxSize(),
+                    Modifier.fillMaxSize().bleed(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                 ) {
@@ -244,7 +244,7 @@ private fun SpeakersColumn(modifier: Modifier, scope: CoroutineScope) {
         } else {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(
-                    Modifier.offset(x = (-16).dp).fillMaxSize(),
+                    Modifier.fillMaxSize().bleed(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
                 ) {

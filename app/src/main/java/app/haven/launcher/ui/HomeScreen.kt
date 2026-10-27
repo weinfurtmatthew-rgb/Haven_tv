@@ -439,6 +439,12 @@ private fun RoomRow(
             )
         }
     }
+    // A list keeps its place by key, so tiles added in front (bedroom features turned on) would start
+    // scrolled out of view. Start from the left again unless the row has focus.
+    val tileKeys = tiles.joinToString(",") { it.key }
+    LaunchedEffect(tileKeys) {
+        if (HomeFocus.current?.startsWith("room:") != true) state.scrollToItem(0)
+    }
     LazyRow(
         state = state,
         contentPadding = PaddingValues(start = SIDE.dp, end = SIDE.dp, top = 24.dp, bottom = 24.dp),
@@ -539,10 +545,10 @@ fun MenuItem(label: String, icon: ImageVector, focusRequester: FocusRequester? =
 
 /** A dialog window (so D-pad focus stays inside it) drawn on the 1920x1080 canvas over a dimmed screen. */
 @Composable
-fun HavenDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+fun HavenDialog(onDismiss: () -> Unit, alignment: Alignment = Alignment.Center, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         DesignCanvas {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { content() }
+            Box(Modifier.fillMaxSize(), contentAlignment = alignment) { content() }
         }
     }
 }

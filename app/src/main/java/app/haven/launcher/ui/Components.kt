@@ -55,6 +55,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -397,6 +398,20 @@ fun rememberKeepVisible(margin: Dp): BringIntoViewSpec {
             }
         }
     }
+}
+
+/**
+ * Lets a list draw [x] past both side edges, so a focused item's lift isn't clipped by the list, while its
+ * content still lines up with everything else. Pair it with `contentPadding` of the same [x].
+ */
+fun Modifier.bleed(x: Dp): Modifier = layout { measurable, constraints ->
+    val px = x.roundToPx()
+    if (!constraints.hasBoundedWidth) {
+        val p = measurable.measure(constraints)
+        return@layout layout(p.width, p.height) { p.place(0, 0) }
+    }
+    val p = measurable.measure(constraints.copy(minWidth = constraints.minWidth + 2 * px, maxWidth = constraints.maxWidth + 2 * px))
+    layout(p.width - 2 * px, p.height) { p.place(-px, 0) }
 }
 
 /** Current local time, ticking on the second. */

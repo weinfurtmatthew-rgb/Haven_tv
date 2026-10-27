@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -54,6 +56,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Followed teams' games on the left (OK opens the game), and any league's games today on the right. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SportsScreen(nav: Nav) {
     val ctx = LocalContext.current
@@ -103,7 +106,7 @@ fun SportsScreen(nav: Nav) {
                 if (games.isEmpty()) Txt("Looking for games…", T.Body, color = C.Stone)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(
-                        Modifier.offset(x = (-16).dp).fillMaxSize(),
+                        Modifier.fillMaxSize().bleed(16.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 64.dp),
                     ) {
@@ -116,19 +119,16 @@ fun SportsScreen(nav: Nav) {
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 SectionTitle("Today")
-                LazyRow(
-                    Modifier.offset(x = (-16).dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    items(League.values().toList(), key = { it.id }) { l ->
+                // Wrapped, not scrolled: every league is visible and none is cut mid-word.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    for (l in League.values()) {
                         Chip(l.label, { league = l }, selected = l == league, height = 56.dp)
                     }
                 }
                 if (board.isEmpty()) Txt("No ${league.label} games today", T.Body, color = C.Stone)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(
-                        Modifier.offset(x = (-16).dp).fillMaxSize(),
+                        Modifier.fillMaxSize().bleed(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 64.dp),
                     ) {
@@ -176,7 +176,7 @@ fun gameStatus(g: Game, use24h: Boolean): String = when (g.state) {
 
 @Composable
 private fun TeamScore(side: Side, showScore: Boolean, focused: Boolean) {
-    Row(Modifier.width(300.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+    Row(Modifier.width(272.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         TeamLogo(side.team, 64.dp)
         Txt(side.team.abbr, T.CardTitle, Modifier.weight(1f), ink(focused), size = 32)
         if (showScore) Txt(side.score ?: "", T.Numeric, color = ink(focused), size = 48)
@@ -197,7 +197,7 @@ private fun GameCard(g: Game, focus: FocusRequester?, onClick: () -> Unit) {
         Row(
             Modifier.fillMaxSize().padding(horizontal = 32.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(40.dp),
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
         ) {
             TeamScore(g.first, scored, focused)
             TeamScore(g.second, scored, focused)
@@ -206,7 +206,10 @@ private fun GameCard(g: Game, focus: FocusRequester?, onClick: () -> Unit) {
                     if (g.state == GameState.Live) Box(Modifier.size(12.dp).clip(CircleShape).background(if (focused) C.Ink else C.Clay))
                     Txt(gameStatus(g, use24), T.Label, color = if (g.state == GameState.Live && !focused) C.Clay else ink(focused))
                 }
-                Txt(listOfNotNull(g.league.label, g.broadcasts.firstOrNull()).joinToString(" · "), T.Label, color = inkMuted(focused))
+                Txt(
+                    listOfNotNull(g.league.label, g.broadcasts.firstOrNull()).joinToString(" · "), T.Label,
+                    color = inkMuted(focused), maxLines = 2, align = androidx.compose.ui.text.style.TextAlign.End,
+                )
             }
         }
     }
