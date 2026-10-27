@@ -78,6 +78,7 @@ jobs:
 
       - name: Publish smoke results
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

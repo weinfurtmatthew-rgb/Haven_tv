@@ -14,8 +14,10 @@ object Icons {
         ImageVector.Builder(defaultWidth = 24.dp, defaultHeight = 24.dp, viewportWidth = 24f, viewportHeight = 24f)
             .apply {
                 for (d in paths) {
+                    // A path that can't be parsed only blanks that icon; it must never take the app down.
+                    val nodes = runCatching { addPathNodes(d) }.getOrNull() ?: continue
                     addPath(
-                        pathData = addPathNodes(d),
+                        pathData = nodes,
                         stroke = SolidColor(Color.White),
                         strokeLineWidth = 1.7f,
                         strokeLineCap = StrokeCap.Round,
@@ -103,15 +105,15 @@ object Icons {
         "M8.5 16.429a5 5 0 0 1 7 0",
     )
     val SlidersHorizontal = icon(
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
+        "M21 4L14 4",
+        "M10 4L3 4",
+        "M21 12L12 12",
+        "M8 12L3 12",
+        "M21 20L16 20",
+        "M12 20L3 20",
+        "M14 2L14 6",
+        "M8 10L8 14",
+        "M16 18L16 22",
     )
     val Image = icon(
         "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
@@ -188,8 +190,8 @@ object Icons {
         "M22 5h-4",
     )
     val Timer = icon(
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
+        "M10 2L14 2",
+        "M12 14L15 11",
         "M4 14a8 8 0 1 0 16 0a8 8 0 1 0 -16 0Z",
     )
     val Star = icon(
@@ -204,7 +206,7 @@ object Icons {
     val Download = icon(
         "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
         "M7 10L12 15L17 10",
-        "Mundefined undefinedLundefined undefined",
+        "M12 15L12 3",
     )
     val EyeOff = icon(
         "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
@@ -226,10 +228,10 @@ object Icons {
         "M15 16a3 3 0 1 0 6 0a3 3 0 1 0 -6 0Z",
     )
     val Gamepad2 = icon(
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
+        "M6 11L10 11",
+        "M8 9L8 13",
+        "M15 12L15.01 12",
+        "M18 10L18.01 10",
         "M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z",
     )
     val Folder = icon(
@@ -244,7 +246,7 @@ object Icons {
         "M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6",
         "M2 12a9 9 0 0 1 8 8",
         "M2 16a5 5 0 0 1 4 4",
-        "Mundefined undefinedLundefined undefined",
+        "M2 20L2.01 20",
     )
     val Film = icon(
         "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
@@ -287,7 +289,7 @@ object Icons {
     )
     val CircleAlert = icon(
         "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0Z",
-        "Mundefined undefinedLundefined undefined",
-        "Mundefined undefinedLundefined undefined",
+        "M12 8L12 12",
+        "M12 16L12.01 16",
     )
 }
