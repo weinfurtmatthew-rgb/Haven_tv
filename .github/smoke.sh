@@ -3,9 +3,10 @@
 set -u
 PKG=app.haven.launcher
 OUT=smoke
+TAG="${1:-}"
 mkdir -p "$OUT"
 
-shot() { adb exec-out screencap -p > "$OUT/$1.png"; }
+shot() { adb exec-out screencap -p > "$OUT/$TAG-$1.png"; }
 key() { for k in "$@"; do adb shell input keyevent "KEYCODE_$k"; sleep 1; done; }
 screen() { adb shell am start -W -n "$PKG/.MainActivity" --es "$PKG.SCREEN" "$1" > /dev/null; sleep "${3:-6}"; shot "$2"; }
 
@@ -30,6 +31,7 @@ shot 8-back-home
 if adb shell pidof "$PKG" > /dev/null; then echo "Haven is running"; else echo "Haven is NOT running"; fi
 adb logcat -d -b crash > "$OUT/crash.txt"
 adb logcat -d > "$OUT/logcat.txt"
+cp "$OUT/crash.txt" "$OUT/$TAG-crash.txt"; cp "$OUT/logcat.txt" "$OUT/$TAG-logcat.txt"
 echo "----- crash buffer -----"
 cat "$OUT/crash.txt"
 echo "----- Haven log lines -----"
