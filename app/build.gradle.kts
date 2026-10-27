@@ -9,7 +9,7 @@ plugins {
 // CI passes -PversionCode=<run number> so every build installs over the previous one.
 val buildNumber = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
 // GitHub repo the in-app updater checks for new releases.
-val updateRepo = (findProperty("updateRepo") as String?) ?: "weinfurtmatthew-rgb/haven-tv"
+val updateRepo = (findProperty("updateRepo") as String?) ?: "weinfurtmatthew-rgb/haven_tv"
 
 android {
     namespace = "app.haven.launcher"

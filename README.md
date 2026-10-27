@@ -33,7 +33,7 @@ them slightly differently.
 3. **Download Haven.** Open Downloader and type this address into the URL box:
 
    ```
-   https://github.com/weinfurtmatthew-rgb/haven-tv/releases/latest/download/haven.apk
+   https://github.com/weinfurtmatthew-rgb/haven_tv/releases/latest/download/haven.apk
    ```
 
    When it finishes, choose **Install**. You can delete the APK afterwards when Downloader asks.

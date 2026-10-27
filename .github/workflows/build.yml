@@ -37,7 +37,7 @@ jobs:
           path: haven.apk
 
       # Every build of main becomes the "latest" release, so this link always points at the newest APK:
-      # https://github.com/<owner>/haven-tv/releases/latest/download/haven.apk
+      # https://github.com/<owner>/haven_tv/releases/latest/download/haven.apk
       - name: Publish release
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
