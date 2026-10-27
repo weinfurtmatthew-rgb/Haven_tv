@@ -207,6 +207,15 @@ fun SettingsScreen(nav: Nav) {
                         Haven.settings.update { it.copy(homeOverride = !it.homeOverride) }
                     }
                 }
+                if (!serviceOn) {
+                    item {
+                        SettingRow(
+                            "Switch keeps turning itself off?",
+                            "Select to reinstall Haven through Android's installer, then try the switch again",
+                            icon = Icons.RefreshCw,
+                        ) { scope.launch { Haven.updater.checkAndInstall(reinstall = true) } }
+                    }
+                }
                 item {
                     SettingRow("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") {
                         HomeButtonService.openStockHome(ctx)

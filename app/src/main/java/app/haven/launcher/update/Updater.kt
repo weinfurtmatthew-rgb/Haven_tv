@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings as AndroidSettings
-import androidx.core.content.FileProvider
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.pm.PackageInstaller
+import android.os.Build
 import app.haven.launcher.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,7 +43,14 @@ class Updater(private val context: Context) {
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state
 
-    suspend fun check(): Release? = withContext(Dispatchers.IO) {
+    suspend fun check(): Release? {
+        val release = latest()
+        val newer = release.takeIf { it.versionCode > BuildConfig.VERSION_CODE }
+        _available.value = newer
+        return newer
+    }
+
+    private suspend fun latest(): Release = withContext(Dispatchers.IO) {
         val req = Request.Builder()
             .url("https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases/latest")
             .header("Accept", "application/vnd.github+json")
@@ -57,9 +67,7 @@ class Updater(private val context: Context) {
             Release(code, tag.removePrefix("v"), apk)
         }
         prefs.edit().putLong("checkedAt", System.currentTimeMillis()).apply()
-        val newer = release.takeIf { it.versionCode > BuildConfig.VERSION_CODE }
-        _available.value = newer
-        newer
+        release
     }
 
     /** Quietly looks for an update at most once a day; the home screen shows a chip when one exists. */
@@ -68,11 +76,16 @@ class Updater(private val context: Context) {
         runCatching { check() }
     }
 
-    suspend fun checkAndInstall() {
+    /**
+     * Installs the newest release. With [reinstall], installs it even when it's the version already running:
+     * that swaps a Downloader install for a PackageInstaller-session install, which Android 13+ doesn't put
+     * under "restricted settings", so the Home button accessibility switch can stay on.
+     */
+    suspend fun checkAndInstall(reinstall: Boolean = false) {
         if (_state.value is State.Checking || _state.value is State.Downloading) return
         _state.value = State.Checking
         val release = try {
-            check()
+            if (reinstall) latest().also { _available.value = it.takeIf { r -> r.versionCode > BuildConfig.VERSION_CODE } } else check()
         } catch (e: Exception) {
             _state.value = State.Failed("Couldn't check for updates: ${e.message}")
             return
@@ -98,14 +111,38 @@ class Updater(private val context: Context) {
             return
         }
         _state.value = State.Installing(release.name)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-        runCatching {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+        try {
+            withContext(Dispatchers.IO) { installWithSession(file) }
+        } catch (e: Exception) {
+            _state.value = State.Failed("Couldn't start the installer: ${e.message}")
+        }
+    }
+
+    /** Writes the APK into a PackageInstaller session; Android shows its confirmation screen (see [InstallResultReceiver]). */
+    private fun installWithSession(file: File) {
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            setSize(file.length())
+            if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val id = installer.createSession(params)
+        installer.openSession(id).use { session ->
+            session.openWrite("haven.apk", 0, file.length()).use { out ->
+                file.inputStream().use { it.copyTo(out) }
+                session.fsync(out)
+            }
+            val result = PendingIntent.getBroadcast(
+                context, id,
+                Intent(context, InstallResultReceiver::class.java).setAction(InstallResultReceiver.ACTION),
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-        }.onFailure { _state.value = State.Failed("Couldn't open the installer: ${it.message}") }
+            session.commit(result.intentSender)
+        }
+    }
+
+    internal fun onInstallFailed(message: String) {
+        _state.value = State.Failed("Install failed: $message")
     }
 
     private suspend fun download(r: Release): File = withContext(Dispatchers.IO) {
@@ -130,5 +167,26 @@ class Updater(private val context: Context) {
             }
         }
         out
+    }
+}
+
+/** Gets PackageInstaller's answer: shows Android's confirm screen when asked, reports failures to Settings. */
+class InstallResultReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, intent: Intent) {
+        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                @Suppress("DEPRECATION")
+                val confirm = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+                runCatching { ctx.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            PackageInstaller.STATUS_SUCCESS -> Unit // Haven is replaced and restarted by Android.
+            else -> app.haven.launcher.Haven.updater.onInstallFailed(
+                intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "unknown error",
+            )
+        }
+    }
+
+    companion object {
+        const val ACTION = "app.haven.launcher.action.INSTALL_RESULT"
     }
 }

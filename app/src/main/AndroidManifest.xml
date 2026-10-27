@@ -108,6 +108,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".system.BootReceiver"
             android:exported="true">
             <intent-filter>
