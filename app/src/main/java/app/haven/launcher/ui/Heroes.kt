@@ -654,20 +654,16 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun spotlightScroll(scroll: ScrollState): BringIntoViewSpec {
-    val photo = with(LocalDensity.current) { SPOT_H.dp.toPx() }
-    return remember(scroll, photo) { PastThePhoto(scroll, photo) }
+    val density = LocalDensity.current
+    val photo = with(density) { SPOT_H.dp.toPx() }
+    val title = with(density) { 100.dp.toPx() }
+    return remember(scroll, photo, title) { PastThePhoto(scroll, photo, title) }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-private class PastThePhoto(private val scroll: ScrollState, private val photo: Float) : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val now = scroll.value.toFloat()
-        val top = offset + now // where the focused thing sits on the page
-        if (top < photo) return -now
-        val least = top + size - containerSize // the least scroll that shows all of it
-        val target = if (least > top) top else now.coerceIn(least, top)
-        return maxOf(target, photo) - now
-    }
+private class PastThePhoto(private val scroll: ScrollState, private val photo: Float, private val title: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
+        spotlightScrollBy(scroll.value.toFloat(), offset, size, containerSize, photo, title)
 }
 
 /** Finds the photo's scenery and places the clock; a no-depth placement when the photo has no sky to use. */

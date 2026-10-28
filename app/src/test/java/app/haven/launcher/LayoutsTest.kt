@@ -20,6 +20,7 @@ import app.haven.launcher.data.Surface
 import app.haven.launcher.data.ThemePreset
 import app.haven.launcher.media.MediaKind
 import app.haven.launcher.media.MediaParse
+import app.haven.launcher.ui.spotlightScrollBy
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -265,5 +266,21 @@ class LayoutsTest {
         val scene = DepthMask.scene(px, w, h)!!
         assertFalse(scene.fg[50 * w + 320])
         assertTrue(scene.fg[(h - 1) * w + 320])
+    }
+
+    @Test
+    fun spotlightKeepsThePhotoWholeOrGone() {
+        // 1080 tall, the photo 860, row names 100; things are 160 tall at a place on the page.
+        fun by(now: Float, top: Float) = spotlightScrollBy(now, top - now, 160f, 1080f, 860f, 100f)
+        // On the photo (the dock, the top bar): back to the top.
+        assertEquals(0f, by(0f, 620f), 0.01f)
+        assertEquals(-860f, by(860f, 620f), 0.01f)
+        // The first row below it: the photo slides all the way away.
+        assertEquals(860f, by(0f, 940f), 0.01f)
+        // Further down: as little as it can.
+        assertEquals(320f, by(860f, 2100f), 0.01f)
+        // Back up, on screen with its row's name: no move. The first row again: the first screen below the photo.
+        assertEquals(0f, by(1180f, 1500f), 0.01f)
+        assertEquals(-320f, by(1180f, 940f), 0.01f)
     }
 }
