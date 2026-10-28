@@ -120,7 +120,7 @@ key DPAD_DOWN
 shot 40-settings-art-bedroom
 key DPAD_DOWN
 shot 42-settings-this-tv
-rep DPAD_UP 6
+rep DPAD_UP 5
 key DPAD_CENTER DPAD_CENTER
 sleep 2
 shot 31-settings-name-dialog

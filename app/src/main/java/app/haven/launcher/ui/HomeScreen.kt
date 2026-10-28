@@ -20,11 +20,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +43,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -347,7 +351,9 @@ enum class PageChrome { TopBar, Clock, None }
 @Composable
 fun HomePage(h: HomeCtx, hero: HeroKind, rows: List<HomeRow>, scroll: ScrollState, chrome: PageChrome) {
     val rowScroll = LocalBringIntoViewSpec.current
-    val pageScroll = if (hero == HeroKind.Spotlight) spotlightScroll(scroll) else homeScroll(scroll)
+    // How tall the page's head (the top bar or the clock) is: whole or gone when the page scrolls.
+    val head = remember { mutableFloatStateOf(0f) }
+    val pageScroll = if (hero == HeroKind.Spotlight) spotlightScroll(scroll) else homeScroll(scroll, head)
     // Spotlight's photo, blurred and carried down the page, stays behind everything on it (glass included), so
     // the photo and the rows under it are one piece.
     val stage = remember { mutableStateOf<ImageBitmap?>(null) }
@@ -356,7 +362,7 @@ fun HomePage(h: HomeCtx, hero: HeroKind, rows: List<HomeRow>, scroll: ScrollStat
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageBounds = it.boundsInRoot() }) {
         if (glass != null) Image(glass.image, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         CompositionLocalProvider(LocalBringIntoViewSpec provides pageScroll, LocalGlass provides (glass ?: LocalGlass.current)) {
-            PageContent(h, hero, rows, scroll, chrome, rowScroll, stage)
+            PageContent(h, hero, rows, scroll, chrome, rowScroll, stage, head)
         }
     }
 }
@@ -372,6 +378,7 @@ private fun PageContent(
     chrome: PageChrome,
     rowScroll: BringIntoViewSpec,
     stage: MutableState<ImageBitmap?>,
+    head: MutableFloatState,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = 64.dp)) {
         CompositionLocalProvider(LocalBringIntoViewSpec provides rowScroll) {
@@ -386,10 +393,12 @@ private fun PageContent(
                     }
                 }
             } else {
-                when (chrome) {
-                    PageChrome.TopBar -> Box(Modifier.padding(top = 48.dp)) { TopBar(h) }
-                    PageChrome.Clock -> ClockLine(h)
-                    PageChrome.None -> Spacer(height = 16.dp)
+                Box(Modifier.onSizeChanged { head.floatValue = it.height.toFloat() }) {
+                    when (chrome) {
+                        PageChrome.TopBar -> Box(Modifier.padding(top = 48.dp)) { TopBar(h) }
+                        PageChrome.Clock -> ClockLine(h)
+                        PageChrome.None -> Spacer(height = 16.dp)
+                    }
                 }
                 Hero(h, hero)
                 for (row in rows) HomeRowView(h, row, page = rows)
@@ -401,15 +410,23 @@ private fun PageContent(
 /** How a home page scrolls ([pageScrollBy]): neither its top nor its bottom is ever left half cut off. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun homeScroll(scroll: ScrollState): BringIntoViewSpec {
-    val margin = with(LocalDensity.current) { 120.dp.toPx() }
-    return remember(scroll, margin) { HomeScroll(scroll, margin) }
+private fun homeScroll(scroll: ScrollState, head: FloatState): BringIntoViewSpec {
+    val density = LocalDensity.current
+    // 120 keeps a row's name in view; 64 is the bottom of the safe area, room for a focused card's name.
+    val margin = with(density) { 120.dp.toPx() }
+    val edge = with(density) { 64.dp.toPx() }
+    return remember(scroll, head, margin, edge) { HomeScroll(scroll, head, margin, edge) }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-private class HomeScroll(private val scroll: ScrollState, private val margin: Float) : BringIntoViewSpec {
+private class HomeScroll(
+    private val scroll: ScrollState,
+    private val head: FloatState,
+    private val margin: Float,
+    private val edge: Float,
+) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
-        pageScrollBy(scroll.value.toFloat(), offset, size, containerSize, scroll.maxValue.toFloat(), margin)
+        pageScrollBy(scroll.value.toFloat(), offset, size, containerSize, scroll.maxValue.toFloat(), margin, edge, head.floatValue)
 }
 
 /** Opens a page's section: some sections are pages, some do something. */

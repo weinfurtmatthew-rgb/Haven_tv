@@ -2,21 +2,23 @@ package app.haven.launcher.ui
 
 /**
  * How far a home page scrolls to show something [size] tall whose top is [offset] below the top of the screen
- * ([screen] tall), with the page scrolled [now] out of at most [max]. Anything in the page's first screenful shows
- * the page's very top, and anything in its last screenful its very bottom, so neither end is left half cut off. In
- * between, the page moves as little as it can while keeping [margin] clear above (the row's name) and below. Pure,
- * so it's tested.
+ * ([screen] tall), with the page scrolled [now] out of at most [max]. Anything that fits on the page's first screen
+ * ([edge] clear of the screen's bottom) shows the page's very top, and anything on its last screen (its row's name
+ * too) the very bottom, so neither end is left half cut off. In between, the page moves as little as it can while
+ * keeping [margin] clear above (the row's name) and below, and the page's [head] (the top bar) is whole or gone.
+ * Pure, so it's tested.
  */
-fun pageScrollBy(now: Float, offset: Float, size: Float, screen: Float, max: Float, margin: Float): Float {
+fun pageScrollBy(now: Float, offset: Float, size: Float, screen: Float, max: Float, margin: Float, edge: Float, head: Float): Float {
     val top = offset + now
     val bottom = top + size
     val target = when {
-        bottom + margin <= screen -> 0f
+        bottom + edge <= screen -> 0f
         top - margin >= max -> max
         else -> {
             val least = bottom + margin - screen // the least scroll that shows all of it, with room below
             val most = top - margin // the most that still shows its row's name
-            if (least > most) most else now.coerceIn(least, most)
+            val t = if (least > most) most else now.coerceIn(least, most)
+            if (t < head) minOf(head, most) else t
         }
     }
     return target.coerceIn(0f, max) - now

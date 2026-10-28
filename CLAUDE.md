@@ -56,7 +56,7 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   `HomeScreen.kt` (pages, focus, data loads) with `HomeRows.kt` (one composable per `HomeRow`; focus keys are
   "Row:index"), `Heroes.kt`, `HomeFrames.kt` (side menu, tabs) and `HomeDialogs.kt`. Rows that need the internet
   declare it in `needsOf` so the page loads and refreshes it. A page starts on its hero's main button (`heroStart`)
-  or its first row; Spotlight pages scroll by their own rule (`spotlightScroll`, the pure `ui/PageScroll.kt`).
+  or its first row; pages scroll by the pure rules in `ui/PageScroll.kt` (`homeScroll`, Spotlight's `spotlightScroll`).
 - Glass is `Focusable(glass = Look.glass)`: it draws the blurred backdrop at its own place (`ui/Glass.kt`); the
   background layer and Spotlight publish backdrops. The grown-up PIN is checked at the screen level in
   `HavenRoot` (Settings, Profiles) and with `HomeCtx.guard` for app menus.
