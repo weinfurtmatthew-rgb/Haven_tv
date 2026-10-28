@@ -128,10 +128,13 @@ fun rowCount(h: HomeCtx, row: HomeRow, d: RowData): Int {
     }
 }
 
-/** One row of the home screen. [onPhoto] is the first row sitting on Spotlight's photo: no title, light names. */
+/**
+ * One row of the home screen. [onPhoto] is the first row sitting on Spotlight's photo: no title, light names.
+ * [page] is every row on the page, for rows that leave out what another row already shows.
+ */
 @Composable
-fun HomeRowView(h: HomeCtx, row: HomeRow, onPhoto: Boolean = false) {
-    if (!onPhoto && row != HomeRow.Room) RowTitle(h, row.label)
+fun HomeRowView(h: HomeCtx, row: HomeRow, onPhoto: Boolean = false, page: List<HomeRow> = emptyList()) {
+    if (!onPhoto && row != HomeRow.Room) RowTitle(h, if (row == HomeRow.LiveScores && HomeRow.YourTeams in page) "More games today" else row.label)
     when (row) {
         HomeRow.Favorites -> if (h.favorites.isEmpty()) {
             Panel(Modifier.padding(start = h.start, top = 24.dp, bottom = 32.dp).size(L.fav(400), L.fav(225)), padding = 32.dp) {
@@ -162,7 +165,7 @@ fun HomeRowView(h: HomeCtx, row: HomeRow, onPhoto: Boolean = false) {
             }
         }
         HomeRow.YourTeams -> TeamsRow(h, row)
-        HomeRow.LiveScores -> BoardsRow(h, row)
+        HomeRow.LiveScores -> BoardsRow(h, row, others = HomeRow.YourTeams in page)
         HomeRow.SportsNews -> NewsRow(h, row)
         HomeRow.Scenes -> ScenesRow(h, row)
         HomeRow.Lights -> LightsRow(h, row)
@@ -279,14 +282,18 @@ private fun TeamsRow(h: HomeCtx, row: HomeRow) {
     CardRow(h, row, games, { it.id }) { g, k -> GameTile(h, g, k) }
 }
 
+/** Today's games in the followed teams' leagues; beside a "Your teams" row, the others (theirs are already there). */
 @Composable
-private fun BoardsRow(h: HomeCtx, row: HomeRow) {
+private fun BoardsRow(h: HomeCtx, row: HomeRow, others: Boolean) {
     val boards by Haven.sports.boards.collectAsState()
-    if (boards.isEmpty()) {
-        Txt("No games today in your leagues.", T.Body, Modifier.padding(start = h.start, top = 16.dp, bottom = 24.dp), C.Stone)
+    val games by Haven.sports.games.collectAsState()
+    val mine = if (others) games.map { it.id }.toSet() else emptySet()
+    val shown = boards.filter { it.id !in mine }
+    if (shown.isEmpty()) {
+        Txt(if (others) "No other games today in your leagues." else "No games today in your leagues.", T.Body, Modifier.padding(start = h.start, top = 16.dp, bottom = 24.dp), C.Stone)
         return
     }
-    CardRow(h, row, boards, { it.id }) { g, k -> GameTile(h, g, k) }
+    CardRow(h, row, shown, { it.id }) { g, k -> GameTile(h, g, k) }
 }
 
 /** One game: the score (or the matchup, without spoilers), its state and where it's on. Hold OK shows a hidden score. */

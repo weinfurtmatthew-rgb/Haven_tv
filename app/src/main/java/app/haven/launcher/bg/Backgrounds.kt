@@ -14,7 +14,6 @@ import app.haven.launcher.data.BgBlur
 import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.Settings
 import app.haven.launcher.data.SpotSource
-import app.haven.launcher.ha.HomeAssistant
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
@@ -176,12 +175,8 @@ class Backgrounds(private val context: Context, private val art: ArtRepository) 
     // ---- Home Assistant ---------------------------------------------------------------------------
 
     /** Cover art of what's playing in the room, if Home Assistant has it. */
-    fun nowPlaying(s: Settings): String? {
-        val playing = Haven.ha.roomSpeakers(s).filter { it.state == "playing" }
-        val pic = playing.firstNotNullOfOrNull { e -> e.attrs.optString("entity_picture").takeIf { it.isNotBlank() && it != "null" } }
-            ?: return null
-        return if (pic.startsWith("http")) pic else HomeAssistant.normalizeUrl(s.haUrl) + pic
-    }
+    fun nowPlaying(s: Settings): String? =
+        Haven.ha.roomSpeakers(s).filter { it.state == "playing" }.firstNotNullOfOrNull { Haven.ha.picture(it, s) }
 
     private fun get(url: String): JSONObject? =
         http.newCall(Request.Builder().url(url).header("User-Agent", "Haven TV").build()).execute().use { r ->

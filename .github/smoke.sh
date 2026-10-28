@@ -236,6 +236,8 @@ shot 101-spotlight-focus
 key DPAD_DOWN
 sleep 2
 shot 102-spotlight-apps
+key DPAD_UP
+sleep 2
 opt "spot.source=Daily"
 home 20
 shot 103-spotlight-photo-of-the-day

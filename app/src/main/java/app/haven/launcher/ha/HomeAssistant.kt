@@ -85,6 +85,7 @@ class HomeAssistant(private val store: SettingsStore) {
         if (Demo.active) {
             // Keep local changes (toggles, levels) between polls; only seed once.
             if (_entities.value["light.floor_lamp"] == null) _entities.value = Demo.entities()
+            _entities.value = Demo.playing(_entities.value)
             _areas.value = Demo.areas()
             _status.value = HaStatus.Connected(_entities.value.size)
             return@withContext true

@@ -53,7 +53,12 @@ its own setting, so layouts mix. The tokens, type scale and focus rules above ho
 - **Spotlight's clock** sits in the photo's sky. When scenery rises into it (mountains, buildings, trees), the
   clock goes a little behind: the scenery covers about a fifth of the digits and never more than about three
   fifths of any one, so it always reads as a time. Flat horizons, photos without a sky and things floating in
-  the sky (the sun, clouds) leave the clock in front.
+  the sky (the sun, clouds) leave the clock in front. The photo is whole or gone: while focus is on it (the top
+  bar, the dock of apps along its bottom) the page sits at the top; moving below it slides it away and the rows
+  take the screen, as on Apple TV.
+- **Where focus starts**: on the hero's main button when the hero is the point of the page (the game on now, the
+  song playing), else on the first thing in the first row. Featured movies and shows keep changing, so focus
+  starts below them. A new layout always starts there; coming back to the same one returns to where you were.
 - **Glass** is a surface that lets the background through: a blurred copy of the picture behind it, darkened as
   the background is, under a light tint (11% white on dark schemes, 55% on the light one) and a hairline edge.
   It's for tiles, cards, chips and the side menu, over pictures; dialogs stay solid.

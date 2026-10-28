@@ -7,8 +7,12 @@ import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +25,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -96,6 +101,15 @@ fun heroKey(hero: HeroKind): String? = when (hero) {
     HeroKind.Scoreboard, HeroKind.Movie, HeroKind.Show -> "hero:main"
     HeroKind.NowPlaying -> "hero:play"
     HeroKind.HomeStatus -> "hero:status:0"
+    else -> null
+}
+
+/**
+ * Where a page starts when its hero is the point of it: the game on now, the song playing. Featured movies and shows
+ * change every few seconds, so their pages start on the row below and leave them free to change.
+ */
+fun heroStart(hero: HeroKind): String? = when (hero) {
+    HeroKind.Scoreboard, HeroKind.NowPlaying -> heroKey(hero)
     else -> null
 }
 
@@ -435,8 +449,16 @@ private fun HomeStatusHero(h: HomeCtx) {
         ha.devices(s, "climate").firstOrNull()?.let { c ->
             add(Status(c.id, Icons.Thermometer, "Inside ${degrees(c.attrs.optDouble("current_temperature"))}", false) { h.show(HomeDialog.Device(c.id)) })
         }
-        for (p in ha.people().take(4)) {
-            add(Status(p.id, Icons.UserRound, "${p.name} ${if (p.state == "home") "home" else "away"}", p.state == "home") {})
+        val people = ha.people()
+        if (people.isNotEmpty()) {
+            val home = people.filter { it.state == "home" }.map { it.name }
+            val who = when {
+                home.isEmpty() -> "Nobody home"
+                home.size == people.size && people.size > 2 -> "Everyone home"
+                home.size <= 2 -> home.joinToString(" and ") + " home"
+                else -> home.dropLast(1).joinToString(", ") + " and " + home.last() + " home"
+            }
+            add(Status("people", Icons.UserRound, who, home.isNotEmpty()) {})
         }
     }
     Column(Modifier.fillMaxWidth().padding(start = h.start, end = h.end, top = 24.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -444,8 +466,8 @@ private fun HomeStatusHero(h: HomeCtx) {
         if (items.isEmpty()) {
             Txt("Connect Home Assistant to see how the house is.", T.Body, color = C.Stone)
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                for ((i, st) in items.take(7).withIndex()) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                for ((i, st) in items.withIndex()) {
                     Chip(st.label, st.onClick, selected = st.selected, icon = st.icon, focusRequester = h.req("hero:status:$i"), onFocus = h.track("hero:status:$i"), glass = Look.glass)
                 }
             }
@@ -621,6 +643,30 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) { firstRow() }
             }
         }
+    }
+}
+
+/**
+ * How a Spotlight page scrolls, like Apple TV's: the photo stays whole while focus is on it (its top bar and the dock
+ * along its bottom), and moving below it slides it away, so the rows under it have the screen. Further down, rows
+ * scroll just enough to show the focused one.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun spotlightScroll(scroll: ScrollState): BringIntoViewSpec {
+    val photo = with(LocalDensity.current) { SPOT_H.dp.toPx() }
+    return remember(scroll, photo) { PastThePhoto(scroll, photo) }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private class PastThePhoto(private val scroll: ScrollState, private val photo: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val now = scroll.value.toFloat()
+        val top = offset + now // where the focused thing sits on the page
+        if (top < photo) return -now
+        val least = top + size - containerSize // the least scroll that shows all of it
+        val target = if (least > top) top else now.coerceIn(least, top)
+        return maxOf(target, photo) - now
     }
 }
 

@@ -4,15 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings as AndroidSettings
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,6 +66,9 @@ internal object HomeFocus {
     var lastKey: String? = null
     var current: String? = null
     var userMoved = false
+
+    /** The layout [lastKey] belongs to: another layout starts from its own first focus. */
+    var layout: String? = null
 }
 
 /** The home screen's side margin (DESIGN.md, "Layout"). */
@@ -189,7 +196,9 @@ fun HomeScreen(nav: Nav) {
     var section by remember(Haven.settings.activeId) { mutableStateOf(HomeSection.Home) }
     if (look.nav == NavStyle.Rows || section !in look.sections) section = HomeSection.Home
     val (hero, rows) = if (look.nav == NavStyle.Rows) look.hero to look.rows else Layouts.page(section, look)
-    val scroll = rememberScrollState()
+    // The parts the home page is made of: another layout, or a change to this one, starts at the top.
+    val layoutKey = "${look.nav} ${look.hero} ${look.rows.joinToString(",")}"
+    val scroll = remember(layoutKey) { ScrollState(0) }
 
     val h = HomeCtx(nav, settings, visible, favorites, recent, ::req, ::track, { dialog = it }, SIDE.dp, SIDE.dp, (1920 - 2 * SIDE).dp, listStates)
 
@@ -249,17 +258,21 @@ fun HomeScreen(nav: Nav) {
         }
     }
 
-    // Focus the first thing in the first row with something in it, or whatever the user had focused before
-    // leaving. "Home pressed while already home" starts over from the top.
+    // Where focus starts: the hero's main button when the hero is the point of the page, else the first thing in
+    // the first row with something in it, else the top of the page. Whatever the user had focused before leaving
+    // comes first, on the same layout. "Home pressed while already home" starts over from the top.
     val data = RowData(games, boards, news, media)
-    val fallback = rows.firstNotNullOfOrNull { r -> "${r.name}:0".takeIf { rowCount(h, r, data) > 0 } }
-        ?: heroKey(hero)
-        ?: when (look.nav) {
+    val firstFocus = listOfNotNull(
+        heroStart(hero),
+        rows.firstNotNullOfOrNull { r -> "${r.name}:0".takeIf { rowCount(h, r, data) > 0 } },
+        heroKey(hero),
+        when (look.nav) {
             NavStyle.Rows -> "top:settings"
             NavStyle.Menu -> "menu:${section.name}"
             NavStyle.Tabs -> "tab:${section.name}"
-        }
-    LaunchedEffect(nav.homeResets, apps.isNotEmpty(), fallback, Haven.settings.activeId) {
+        },
+    ).distinct()
+    LaunchedEffect(nav.homeResets, apps.isNotEmpty(), firstFocus, Haven.settings.activeId, layoutKey) {
         if (nav.homeResets != lastResetSeen) {
             lastResetSeen = nav.homeResets
             HomeFocus.lastKey = null
@@ -267,12 +280,20 @@ fun HomeScreen(nav: Nav) {
             for (state in listStates.values) runCatching { state.scrollToItem(0) }
             scroll.scrollTo(0)
         }
-        var target = HomeFocus.lastKey ?: fallback
-        // Ask until it sticks: the window may give its first focus to the top bar after this runs.
+        if (HomeFocus.layout != layoutKey) {
+            HomeFocus.layout = layoutKey
+            HomeFocus.lastKey = null
+        }
+        keyPressed[0] = false
+        val wanted = listOfNotNull(HomeFocus.lastKey) + firstFocus
+        var i = 0
+        // Ask until it sticks: the window may give its first focus to the top bar after this runs. A key that isn't
+        // on the page gets a few tries (its row may still be loading), then the next one does.
         for (attempt in 0 until 30) {
+            val target = wanted[i]
             if (HomeFocus.current == target || (attempt > 0 && keyPressed[0])) break
             val ok = runCatching { req(target).requestFocus() }.isSuccess
-            if (!ok && attempt >= 4) target = fallback
+            if (!ok && attempt >= 4 && i < wanted.lastIndex) i++
             delay(if (attempt == 0) 30L else 100L)
         }
     }
@@ -288,11 +309,11 @@ fun HomeScreen(nav: Nav) {
     ) {
         when (look.nav) {
             NavStyle.Rows -> HomePage(h, hero, rows, scroll, PageChrome.TopBar)
-            NavStyle.Menu -> MenuFrame(h, section, { section = it }, { runCatching { req(fallback).requestFocus() } }) { inner ->
-                key(section) { HomePage(inner, hero, rows, rememberScrollState(), PageChrome.Clock) }
+            NavStyle.Menu -> MenuFrame(h, section, { section = it }, { focusFirst(firstFocus.dropLast(1), ::req) }) { inner ->
+                key(section, layoutKey) { HomePage(inner, hero, rows, rememberScrollState(), PageChrome.Clock) }
             }
             NavStyle.Tabs -> TabsFrame(h, section, { section = it }) {
-                key(section) { HomePage(h, hero, rows, rememberScrollState(), PageChrome.None) }
+                key(section, layoutKey) { HomePage(h, hero, rows, rememberScrollState(), PageChrome.None) }
             }
         }
     }
@@ -302,26 +323,46 @@ fun HomeScreen(nav: Nav) {
 
 private var lastResetSeen = 0
 
+/** Focuses the first of [keys] that's on the page. */
+private fun focusFirst(keys: List<String>, req: (String) -> FocusRequester) {
+    for (k in keys) if (runCatching { req(k).requestFocus() }.isSuccess) return
+}
+
 /** What sits above the top of a page: the full top bar, just the clock (beside the side menu), or nothing (under tabs). */
 enum class PageChrome { TopBar, Clock, None }
 
-/** One page of the home screen: its top and its rows, scrolling as one. */
+/**
+ * One page of the home screen: its top and its rows, scrolling as one. A Spotlight page scrolls its own way (the
+ * photo whole or gone, [spotlightScroll]); the rows inside keep the usual scrolling.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomePage(h: HomeCtx, hero: HeroKind, rows: List<HomeRow>, scroll: ScrollState, chrome: PageChrome) {
-    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = 64.dp)) {
-        if (hero == HeroKind.Spotlight) {
-            val first = rows.firstOrNull()
-            val firstRow: (@Composable () -> Unit)? = first?.let { r -> @Composable { HomeRowView(h, r, onPhoto = true) } }
-            SpotlightHero(h, chrome, firstRow)
-            for (row in rows.drop(1)) HomeRowView(h, row)
-        } else {
-            when (chrome) {
-                PageChrome.TopBar -> Box(Modifier.padding(top = 48.dp)) { TopBar(h) }
-                PageChrome.Clock -> ClockLine(h)
-                PageChrome.None -> Spacer(height = 16.dp)
+    val rowScroll = LocalBringIntoViewSpec.current
+    val pageScroll = if (hero == HeroKind.Spotlight) spotlightScroll(scroll) else rowScroll
+    CompositionLocalProvider(LocalBringIntoViewSpec provides pageScroll) {
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = 64.dp)) {
+            CompositionLocalProvider(LocalBringIntoViewSpec provides rowScroll) {
+                if (hero == HeroKind.Spotlight) {
+                    val first = rows.firstOrNull()
+                    val firstRow: (@Composable () -> Unit)? = first?.let { r -> @Composable { HomeRowView(h, r, onPhoto = true, page = rows) } }
+                    SpotlightHero(h, chrome, firstRow)
+                    // The rows below the photo get a whole screen, so moving down to them can slide the photo away.
+                    if (rows.size > 1) {
+                        Column(Modifier.heightIn(min = 1080.dp)) {
+                            for (row in rows.drop(1)) HomeRowView(h, row, page = rows)
+                        }
+                    }
+                } else {
+                    when (chrome) {
+                        PageChrome.TopBar -> Box(Modifier.padding(top = 48.dp)) { TopBar(h) }
+                        PageChrome.Clock -> ClockLine(h)
+                        PageChrome.None -> Spacer(height = 16.dp)
+                    }
+                    Hero(h, hero)
+                    for (row in rows) HomeRowView(h, row, page = rows)
+                }
             }
-            Hero(h, hero)
-            for (row in rows) HomeRowView(h, row)
         }
     }
 }

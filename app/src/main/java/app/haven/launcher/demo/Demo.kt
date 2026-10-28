@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Shader
 import app.haven.launcher.Haven
 import app.haven.launcher.bedroom.AlarmActivity
@@ -107,9 +108,11 @@ object Demo {
         }
     }
 
-    /** A few of the emulator's apps stand in for kids' apps. */
-    private fun kidApps(): List<String> =
-        Haven.apps.apps.value.map { it.pkg }.filter { it.contains("youtube") || it.contains("games") || it.contains("tv") }.take(3)
+    /** A few of the emulator's apps stand in for kids' apps (never its Settings). */
+    private fun kidApps(): List<String> {
+        val pkgs = Haven.apps.apps.value.map { it.pkg }.filterNot { "settings" in it }
+        return listOf("youtube", "games", "tv").flatMap { w -> pkgs.filter { w in it } }.distinct().take(3)
+    }
 
     /** "id=value;id=value" from the registry, applied to the profile on the TV. */
     fun setOptions(spec: String) {
@@ -129,9 +132,12 @@ object Demo {
         }
     }
 
-    /** A painted landscape saved as an uploaded background photo, so the emulator has one to show. */
+    /**
+     * A painted landscape saved as an uploaded background photo, so the emulator has one to show: a dusk sky, the sun
+     * off to one side and a mountain peak right where Spotlight puts its clock, so the clock can tuck behind it.
+     */
     fun backgroundPhoto(): String {
-        val f = File(Haven.backgrounds.dir, "Demo hills.jpg")
+        val f = File(Haven.backgrounds.dir, "Demo mountains.jpg")
         if (!f.exists()) {
             val bmp = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
             val c = Canvas(bmp)
@@ -140,11 +146,24 @@ object Demo {
             c.drawRect(0f, 0f, 1920f, 1080f, p)
             p.shader = null
             p.color = 0xFFF6D28B.toInt()
-            c.drawCircle(1340f, 430f, 110f, p)
+            c.drawCircle(1620f, 330f, 70f, p)
+            val ridge = floatArrayOf(
+                0f, 610f, 130f, 575f, 230f, 548f, 330f, 580f, 430f, 596f, 560f, 548f, 660f, 520f, 760f, 552f, 850f, 520f, 905f, 488f,
+                960f, 446f, 1010f, 478f, 1060f, 470f, 1120f, 520f, 1230f, 506f, 1330f, 528f, 1460f, 584f, 1580f, 556f, 1700f, 532f,
+                1810f, 566f, 1920f, 588f,
+            )
+            val range = Path().apply {
+                moveTo(0f, 1080f)
+                for (i in ridge.indices step 2) lineTo(ridge[i], ridge[i + 1])
+                lineTo(1920f, 1080f)
+                close()
+            }
+            p.color = 0xFF4A3F5C.toInt()
+            c.drawPath(range, p)
             p.color = 0xFF2E4A3B.toInt()
-            c.drawCircle(420f, 1300f, 700f, p)
+            c.drawCircle(420f, 1360f, 720f, p)
             p.color = 0xFF1F3329.toInt()
-            c.drawCircle(1500f, 1420f, 820f, p)
+            c.drawCircle(1500f, 1480f, 840f, p)
             f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 90, it) }
         }
         return f.name
@@ -228,6 +247,15 @@ object Demo {
         HaEntity("person.matt", "home", attrs("friendly_name" to "Matt")),
         HaEntity("person.sam", "not_home", attrs("friendly_name" to "Sam")),
     ).associateBy { it.id }
+
+    private val seeded = System.currentTimeMillis()
+
+    /** The demo song plays on a loop, so the progress bar is partway through whenever a screenshot is taken. */
+    fun playing(all: Map<String, HaEntity>): Map<String, HaEntity> {
+        val e = all["media_player.soundbar"]?.takeIf { it.state == "playing" } ?: return all
+        val pos = (102 + (System.currentTimeMillis() - seeded) / 1000) % 238
+        return all + (e.id to e.copyWith(attrs = mapOf("media_position" to pos, "media_position_updated_at" to java.time.Instant.now().toString())))
+    }
 
     /** A painted stand-in picture (album cover, camera view) saved as a file, so the demo needs no network. */
     private fun picture(name: String, w: Int, h: Int, from: Long, to: Long): String {
@@ -370,6 +398,30 @@ object Demo {
 
     private fun team(league: League, id: String, name: String, abbr: String, logo: String) =
         Team(league, id, name, abbr, "", logo)
+
+    /** Every game in [league] today for the scoreboards: the followed teams' games and a few others. */
+    fun board(league: League): List<Game> {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+        fun at(h: Int, m: Int) = today.atTime(h, m).atZone(zone).toInstant()
+        fun nfl(id: String, name: String, abbr: String) = team(league, id, name, abbr, "https://a.espncdn.com/i/teamlogos/nfl/500/${abbr.lowercase()}.png")
+        fun mlb(id: String, name: String, abbr: String) = team(league, id, name, abbr, "https://a.espncdn.com/i/teamlogos/mlb/500/${abbr.lowercase()}.png")
+        fun epl(id: String, name: String, abbr: String) = team(league, id, name, abbr, "https://a.espncdn.com/i/teamlogos/soccer/500/$id.png")
+        val more = when (league) {
+            League.NFL -> listOf(
+                Game("demo-nfl-2", league, at(16, 25), GameState.Final, "Final", Side(nfl("25", "San Francisco 49ers", "SF"), "24"), Side(nfl("26", "Seattle Seahawks", "SEA"), "20"), listOf("FOX")),
+                Game("demo-nfl-3", league, at(20, 20), GameState.Scheduled, "", Side(nfl("6", "Dallas Cowboys", "DAL"), null), Side(nfl("21", "Philadelphia Eagles", "PHI"), null), listOf("NBC")),
+            )
+            League.MLB -> listOf(
+                Game("demo-mlb-2", league, at(19, 10), GameState.Live, "Top 7th", Side(mlb("16", "Chicago Cubs", "CHC"), "3"), Side(mlb("24", "St. Louis Cardinals", "STL"), "2"), listOf("Marquee")),
+            )
+            League.EPL -> listOf(
+                Game("demo-epl-2", league, at(10, 0), GameState.Final, "FT", Side(epl("382", "Manchester City", "MCI"), "3"), Side(epl("363", "Chelsea", "CHE"), "1"), listOf("USA")),
+            )
+            else -> emptyList()
+        }
+        return games().filter { it.league == league } + more
+    }
 
     fun games(): List<Game> {
         val zone = ZoneId.systemDefault()

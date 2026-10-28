@@ -261,7 +261,7 @@ class SportsRepository(private val store: SettingsStore) {
 
     /** Every game in [league] today, for the scoreboard on the sports screen. */
     suspend fun board(league: League): List<Game> =
-        if (app.haven.launcher.demo.Demo.active) app.haven.launcher.demo.Demo.games().filter { it.league == league }
+        if (app.haven.launcher.demo.Demo.active) app.haven.launcher.demo.Demo.board(league)
         else provider.scoreboard(league, LocalDate.now())
 
     /** The leagues of the followed teams, or the NFL when nobody is followed yet. */
