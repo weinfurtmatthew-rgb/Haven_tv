@@ -60,12 +60,11 @@ import kotlinx.coroutines.launch
 /**
  * Where focus is on the home screen. [lastKey] is restored when you come back from another screen; it only
  * records focus that followed a key press, because Android hands the window's first focus to whatever control
- * comes first (the room chip), and that must not be remembered as the user's choice.
+ * comes first (the room chip), and Haven's own placing of focus isn't the user's choice either.
  */
 internal object HomeFocus {
     var lastKey: String? = null
     var current: String? = null
-    var userMoved = false
 
     /** The layout [lastKey] belongs to: another layout starts from its own first focus. */
     var layout: String? = null
@@ -176,13 +175,16 @@ fun HomeScreen(nav: Nav) {
 
     val requesters = remember { HashMap<String, FocusRequester>() }
     fun req(key: String) = requesters.getOrPut(key) { FocusRequester() }
+    // A key pressed since Haven last placed focus: from then on, where focus goes is the user's doing.
+    val keyPressed = remember { BooleanArray(1) }
     fun track(key: String): (Boolean) -> Unit = { f ->
         if (f) {
             HomeFocus.current = key
-            if (HomeFocus.userMoved) HomeFocus.lastKey = key
+            if (keyPressed[0]) HomeFocus.lastKey = key
+        } else if (HomeFocus.current == key) {
+            HomeFocus.current = null
         }
     }
-    val keyPressed = remember { BooleanArray(1) }
     DisposableEffect(Unit) { onDispose { HomeFocus.current = null } }
 
     val visible = apps.filter { it.pkg !in settings.hiddenApps }
@@ -286,24 +288,20 @@ fun HomeScreen(nav: Nav) {
         }
         keyPressed[0] = false
         val wanted = listOfNotNull(HomeFocus.lastKey) + firstFocus
-        var i = 0
-        // Ask until it sticks: the window may give its first focus to the top bar after this runs. A key that isn't
-        // on the page gets a few tries (its row may still be loading), then the next one does.
-        for (attempt in 0 until 30) {
-            val target = wanted[i]
-            if (HomeFocus.current == target || (attempt > 0 && keyPressed[0])) break
-            val ok = runCatching { req(target).requestFocus() }.isSuccess
-            if (!ok && attempt >= 4 && i < wanted.lastIndex) i++
+        // Ask until the most wanted one has focus: the window may hand its first focus to the top bar after this
+        // runs, and a row that's still loading takes focus once it arrives (the next one on the page has it till
+        // then). A key press ends it.
+        for (attempt in 0 until 100) {
+            if (attempt > 0 && keyPressed[0]) break
+            val target = wanted.firstOrNull { k -> HomeFocus.current == k || runCatching { req(k).requestFocus() }.isSuccess }
+            if (target == wanted.first() && HomeFocus.current == target) break
             delay(if (attempt == 0) 30L else 100L)
         }
     }
 
     Box(
         Modifier.fillMaxSize().onPreviewKeyEvent {
-            if (it.type == KeyEventType.KeyDown) {
-                HomeFocus.userMoved = true
-                keyPressed[0] = true
-            }
+            if (it.type == KeyEventType.KeyDown) keyPressed[0] = true
             false
         },
     ) {
