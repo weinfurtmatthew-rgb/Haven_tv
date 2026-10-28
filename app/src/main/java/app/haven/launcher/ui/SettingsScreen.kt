@@ -1,6 +1,7 @@
 package app.haven.launcher.ui
 
 import android.provider.Settings as AndroidSettings
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -49,7 +51,9 @@ import app.haven.launcher.data.Accent
 import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.LookConfig
 import app.haven.launcher.data.Opt
+import app.haven.launcher.data.OptGroup
 import app.haven.launcher.data.OptSection
+import app.haven.launcher.data.Options
 import app.haven.launcher.data.ProfileInfo
 import app.haven.launcher.data.ProfilesMeta
 import app.haven.launcher.data.Settings
@@ -66,23 +70,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Settings are grouped like Android TV's own: pick a group on the left, its settings appear next to it. */
-private enum class Group(val label: String) {
-    Profiles("Profiles"),
-    Layout("Layout"),
-    Look("Look"),
-    Home("Home screen"),
-    Background("Background"),
-    Room("This room"),
-    HomeAssistant("Home Assistant"),
-    Art("Art mode"),
-    Alarm("Alarm"),
-    Briefing("Morning briefing"),
-    Sports("Sports"),
-    HomeButton("Home button"),
-    About("About"),
-}
-
+/**
+ * Settings in six groups, like Android TV's own: pick a group on the left, its settings appear next to it. Each group
+ * starts with what most people change; "More options" opens the rest in the same list. Values change in place with
+ * left and right, and save at once. Back goes from the list to the groups, then out.
+ */
 @Composable
 fun SettingsScreen(nav: Nav) {
     val ctx = LocalContext.current
@@ -99,12 +91,13 @@ fun SettingsScreen(nav: Nav) {
     var showScreens by remember { mutableStateOf(false) }
     var openOption by remember { mutableStateOf<Opt?>(null) }
     var dialog by remember { mutableStateOf<String?>(null) }
-    val start = remember { Group.values().firstOrNull { it.name == nav.settingsStart } ?: Group.Profiles }
+    val start = remember { groupNamed(nav.settingsStart) }
     var group by remember { mutableStateOf(start) }
     var phoneHint by remember { mutableStateOf<String?>(null) }
-    val rail = remember { Group.values().associateWith { FocusRequester() } }
+    var expanded by remember { mutableStateOf(emptySet<OptGroup>()) }
+    var inList by remember { mutableStateOf(false) }
+    val rail = remember { OptGroup.values().associateWith { FocusRequester() } }
     val firstRow = remember { FocusRequester() }
-    val groups = Group.values().filter { it != Group.Alarm || s.bedroomExtras }
 
     // The phone setup page is served only while this screen is open, and only with the code shown here.
     val server = remember { SetupServer(ctx.applicationContext) }
@@ -126,6 +119,8 @@ fun SettingsScreen(nav: Nav) {
             phoneHint = null
         }
     }
+    // Back from the list goes to its group; from the groups, out of Settings.
+    BackHandler(enabled = inList) { runCatching { rail.getValue(group).requestFocus() } }
 
     val ui = SettingsUi(
         s = s,
@@ -145,6 +140,8 @@ fun SettingsScreen(nav: Nav) {
         showScreens = { showScreens = true },
         backToRail = rail.getValue(group),
         firstRow = firstRow,
+        expanded = group in expanded,
+        toggleMore = { expanded = if (group in expanded) expanded - group else expanded + group },
     )
 
     Column(Modifier.fillMaxSize().padding(start = 116.dp, end = 116.dp, top = 48.dp), verticalArrangement = Arrangement.spacedBy(40.dp)) {
@@ -154,7 +151,7 @@ fun SettingsScreen(nav: Nav) {
                 Modifier.width(320.dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                for (g in groups) {
+                for (g in OptGroup.values()) {
                     RailItem(
                         g.label,
                         selected = g == group,
@@ -168,31 +165,31 @@ fun SettingsScreen(nav: Nav) {
                 }
             }
             Spacer(width = 48.dp)
-            Box(Modifier.width(840.dp).fillMaxHeight()) {
-                key(group) {
-                    LazyColumn(
-                        Modifier.fillMaxSize().bleed(16.dp).fadeBottom(64.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-                    ) {
-                        with(ui) {
-                            when (group) {
-                                Group.Profiles -> profileRows()
-                                Group.Layout -> layoutRows()
-                                Group.Look -> lookRows()
-                                Group.Home -> homeRows()
-                                Group.Background -> backgroundRows()
-                                Group.Room -> roomRows()
-                                Group.HomeAssistant -> homeAssistantRows()
-                                Group.Art -> artRows()
-                                Group.Alarm -> alarmRows()
-                                Group.Briefing -> briefingRows()
-                                Group.Sports -> sportsRows()
-                                Group.HomeButton -> homeButtonRows()
-                                Group.About -> aboutRows()
+            Column(Modifier.width(840.dp).fillMaxHeight().padding(bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(Modifier.weight(1f).onFocusChanged { inList = it.hasFocus }) {
+                    key(group) {
+                        LazyColumn(
+                            Modifier.fillMaxSize().bleed(16.dp).fadeBottom(64.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                        ) {
+                            with(ui) {
+                                when (group) {
+                                    OptGroup.Profiles -> profileRows()
+                                    OptGroup.HomeScreen -> homeScreenRows()
+                                    OptGroup.SmartHome -> smartHomeRows()
+                                    OptGroup.Sports -> sportsRows()
+                                    OptGroup.ArtBedroom -> artBedroomRows()
+                                    OptGroup.ThisTv -> thisTvRows()
+                                }
                             }
                         }
                     }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(40.dp)) {
+                    KeyHint("change", icon = Icons.ChevronsLeftRight)
+                    KeyHint("next, or the whole list", key = "OK")
+                    KeyHint("back to the groups", icon = Icons.ArrowLeft)
                 }
             }
             Spacer(width = 48.dp)
@@ -235,6 +232,15 @@ fun SettingsScreen(nav: Nav) {
     }
 }
 
+/** The group a link into Settings asks for, by its name or the name of a group from before the six. */
+private fun groupNamed(name: String?): OptGroup = when (name) {
+    "Layout", "Look", "Home", "Background" -> OptGroup.HomeScreen
+    "Room", "HomeAssistant" -> OptGroup.SmartHome
+    "Art", "Alarm", "Briefing" -> OptGroup.ArtBedroom
+    "HomeButton", "About" -> OptGroup.ThisTv
+    else -> OptGroup.values().firstOrNull { it.name == name } ?: OptGroup.Profiles
+}
+
 /** What every group's rows need. Rows that can only be changed on the phone point at the QR code instead. */
 private class SettingsUi(
     val s: Settings,
@@ -254,8 +260,11 @@ private class SettingsUi(
     val showScreens: () -> Unit,
     val backToRail: FocusRequester,
     val firstRow: FocusRequester,
+    /** Whether this group's "More options" are open. */
+    val expanded: Boolean,
+    val toggleMore: () -> Unit,
 ) {
-    /** Left from any row goes back to this group in the rail, not to whichever group happens to be level with it. */
+    /** Left from a row without a value goes back to this group in the rail, not to whichever group is level with it. */
     val rowModifier: Modifier get() = Modifier.focusProperties { left = backToRail }
 
     fun LazyListScope.row(
@@ -275,11 +284,43 @@ private class SettingsUi(
         }
     }
 
-    fun LazyListScope.options(section: OptSection, first: Boolean = false) =
-        optionRows(section, s, rowModifier, if (first) firstRow else null, onPhone, openOpt)
+    /** A switch that also answers left (off) and right (on), like the option rows around it. */
+    fun LazyListScope.switch(title: String, help: String, on: Boolean, first: Boolean = false, set: (Boolean) -> Unit) {
+        item(key = title) {
+            ValueRow(
+                title, help, null, toggle = on, canLess = on, canMore = !on,
+                focusRequester = if (first) firstRow else null,
+                onStep = { dir -> set(dir > 0) },
+                onClick = { set(!on) },
+            )
+        }
+    }
 
-    fun LazyListScope.heading(text: String) {
-        item(key = "h:$text") { SectionTitle(text, Modifier.padding(top = 24.dp, bottom = 4.dp)) }
+    fun LazyListScope.opts(list: List<Opt>, first: Boolean = false) =
+        optionList(list, s, rowModifier, if (first) firstRow else null, onPhone, openOpt)
+
+    /** This group's first options that belong to [section]. */
+    fun basics(group: OptGroup, section: OptSection? = null): List<Opt> =
+        Options.basicsOf(group, s).filter { section == null || it.section == section }
+
+    fun LazyListScope.more(section: OptSection) = opts(Options.moreOf(section, s))
+
+    /** A heading in the list; [key] tells apart a heading that shows twice (above the basics and in More). */
+    fun LazyListScope.heading(text: String, key: String = text) {
+        item(key = "h:$key") { SectionTitle(text, Modifier.padding(top = 24.dp, bottom = 4.dp)) }
+    }
+
+    /** The row that opens (and closes) the rest of the group, saying what's in there. */
+    fun LazyListScope.moreRow(what: String) {
+        item(key = "more") {
+            SettingRow(
+                if (expanded) "Fewer options" else "More options",
+                if (expanded) "Back to the usual few" else what,
+                rowModifier,
+                icon = if (expanded) Icons.ChevronUp else Icons.ChevronDown,
+                onClick = toggleMore,
+            )
+        }
     }
 
     fun LazyListScope.profileRows() {
@@ -290,11 +331,13 @@ private class SettingsUi(
         row("Colour", s.look.avatar.label) { openDialog("avatar") }
         row("Switch profile", "Opens “Who's watching?”") { nav.go(Screen.Profiles) }
         if (profiles.size < MAX_PROFILES) row("Add a profile", "Everyone can have their own look, apps, alarm and teams") { openDialog("add") }
-        row(
+        switch(
             "Ask who's watching",
             if (profiles.size < 2) "Once there's more than one profile, ask each time the TV turns on" else "Each time the TV turns on",
-            toggle = meta.askOnStart,
-        ) { Haven.settings.setAskOnStart(!meta.askOnStart) }
+            meta.askOnStart,
+        ) { Haven.settings.setAskOnStart(it) }
+        heading(OptSection.Kids.label)
+        opts(basics(OptGroup.Profiles))
         if (profiles.size > 1 && me != null) {
             heading("Everyone")
             for (p in profiles) {
@@ -306,35 +349,30 @@ private class SettingsUi(
             }
             row("Remove ${me.name}", "Removes this profile from the TV") { openDialog("remove") }
         }
-        heading(OptSection.Kids.label)
-        options(OptSection.Kids)
     }
 
-    fun LazyListScope.layoutRows() {
-        options(OptSection.Layout, first = true)
+    fun LazyListScope.homeScreenRows() {
+        opts(basics(OptGroup.HomeScreen), first = true)
+        moreRow("How you get around, fonts, corners, focus, tile sizes, the clock and the background's details")
+        if (!expanded) return
+        heading(OptSection.Layout.label)
+        more(OptSection.Layout)
         if (s.shows.isNotEmpty()) {
             row("Shows you follow", s.shows.joinToString(", ") { it.name } + ". Follow more from a show's details or your phone", phoneOnly = true)
         }
-    }
-
-    fun LazyListScope.lookRows() {
-        options(OptSection.Look, first = true)
-        if (s.look != LookConfig(avatar = s.look.avatar)) {
-            row("Back to Haven's own look", "Colours, fonts, sizes, focus and home rows as they came") { openDialog("resetLook") }
-        }
-    }
-
-    fun LazyListScope.homeRows() {
-        options(OptSection.Home, first = true)
+        heading(OptSection.Look.label)
+        more(OptSection.Look)
+        heading(OptSection.Home.label)
+        more(OptSection.Home)
         row("Hidden apps", if (s.hiddenApps.isEmpty()) "None" else "${s.hiddenApps.size} hidden. Select to show them again") {
             Haven.settings.update { it.copy(hiddenApps = emptySet()) }
         }
         row("App names and pictures", "Hold OK on an app on the home screen. Upload pictures for apps from your phone", phoneOnly = true)
-    }
-
-    fun LazyListScope.backgroundRows() {
-        options(OptSection.Background, first = true)
+        // The background's details, when it has any (a plain colour has none).
         val kind = s.background.kind
+        val bgMore = Options.moreOf(OptSection.Background, s)
+        if (bgMore.isNotEmpty() || kind == BgKind.Photo || kind == BgKind.Daily || kind == BgKind.Posters) heading(OptSection.Background.label)
+        opts(bgMore)
         if (kind == BgKind.Photo) {
             row("Your background photos", "${Haven.backgrounds.files().size} on this TV. Add more from your phone", phoneOnly = true)
         }
@@ -345,10 +383,23 @@ private class SettingsUi(
         if (kind == BgKind.Posters) {
             row("About posters", "This product uses the TMDB API but is not endorsed or certified by TMDB.") { }
         }
+        if (s.look != LookConfig(avatar = s.look.avatar)) {
+            row("Back to Haven's own look", "Layout, colours, fonts, sizes, focus and home rows as they came") { openDialog("resetLook") }
+        }
     }
 
-    fun LazyListScope.roomRows() {
-        row("Room name", s.roomName, first = true) {
+    fun LazyListScope.smartHomeRows() {
+        row(
+            "Home Assistant",
+            when (val st = status) {
+                HaStatus.NotConfigured -> "Not set up. Scan the code with your phone"
+                HaStatus.Connecting -> "Connecting…"
+                is HaStatus.Connected -> "Connected · ${st.entityCount} entities"
+                is HaStatus.Failed -> st.message
+            },
+            first = true,
+        ) { scope.launch { Haven.ha.refresh() } }
+        row("Room name", s.roomName) {
             edit(TextEdit("Room name", s.roomName, "Living Room") { v -> Haven.settings.update { it.copy(roomName = v.ifBlank { "Living Room" }) } })
         }
         val current = areas.firstOrNull { it.id == s.haArea }
@@ -371,22 +422,7 @@ private class SettingsUi(
                 }
             }
         }
-        row("Bedroom features", "Alarm clock and sleep timer on the home screen", toggle = s.bedroomExtras) {
-            Haven.settings.update { it.copy(bedroomExtras = !it.bedroomExtras) }
-        }
-    }
-
-    fun LazyListScope.homeAssistantRows() {
-        row(
-            "Connection",
-            when (val st = status) {
-                HaStatus.NotConfigured -> "Not set up. Scan the code with your phone"
-                HaStatus.Connecting -> "Connecting…"
-                is HaStatus.Connected -> "Connected · ${st.entityCount} entities"
-                is HaStatus.Failed -> st.message
-            },
-            first = true,
-        ) { scope.launch { Haven.ha.refresh() } }
+        opts(basics(OptGroup.SmartHome))
         row("Server address", s.haUrl.ifBlank { "Not set" }) {
             edit(TextEdit("Home Assistant address", s.haUrl, "http://192.168.1.10:8123") { v -> Haven.settings.update { it.copy(haUrl = v.trim()) } })
         }
@@ -399,8 +435,56 @@ private class SettingsUi(
         }
     }
 
-    fun LazyListScope.artRows() {
-        options(OptSection.Art, first = true)
+    fun LazyListScope.sportsRows() {
+        row(
+            "Your teams",
+            if (s.sports.teams.isEmpty()) "None yet. Choose them on your phone" else s.sports.teams.joinToString(", ") { it.name },
+            first = true,
+            phoneOnly = s.sports.teams.isEmpty(),
+        ) { if (s.sports.teams.isEmpty()) onPhone("Your teams") else nav.go(Screen.Sports) }
+        opts(basics(OptGroup.Sports))
+        // Alerts on but not allowed over other apps: that's worth seeing without opening More.
+        val ok = ScorePopup.canOverlay(Haven.app)
+        val overlay: LazyListScope.() -> Unit = {
+            row(
+                "Show alerts on top of other apps",
+                if (ok) "Allowed" else "Not allowed, so alerts show as small messages. Select to allow",
+                toggle = ok,
+            ) { ScorePopup.requestPermission(Haven.app) }
+        }
+        if (s.sports.alerts && !ok) overlay()
+        moreRow("Logos, team colours, every league's games, what selecting a game does, and how alerts look")
+        if (!expanded) return
+        heading(OptSection.Sports.label)
+        more(OptSection.Sports)
+        heading(OptSection.Alerts.label)
+        more(OptSection.Alerts)
+        if (!(s.sports.alerts && !ok)) overlay()
+        row("Test an alert", "Shows a sample score alert the way you set it up") {
+            ScorePopup.show(Haven.app, "AWY 17 – 21 HOM", "Q3 4:12 · Sample alert from Haven")
+        }
+    }
+
+    fun LazyListScope.artBedroomRows() {
+        heading(OptSection.Art.label)
+        opts(basics(OptGroup.ArtBedroom, OptSection.Art), first = true)
+        heading("Bedroom")
+        switch("Bedroom features", "Alarm clock and sleep timer on the home screen", s.bedroomExtras) { on ->
+            Haven.settings.update { it.copy(bedroomExtras = on) }
+        }
+        if (s.bedroomExtras) {
+            val a = s.alarm
+            row("Alarm time", if (a.enabled) "${Bedroom.timeLabel(a.hour, a.minute, s.use24h)} · ${Bedroom.daysLabel(a.days)}" else "Off. Select to set it") {
+                nav.go(Screen.Alarm)
+            }
+            opts(basics(OptGroup.ArtBedroom, OptSection.Alarm))
+        }
+        heading(OptSection.Briefing.label)
+        opts(basics(OptGroup.ArtBedroom, OptSection.Briefing))
+        moreRow("Art timing, burn-in care and quiet hours; the alarm's snooze and screen; what the briefing shows and how")
+        if (!expanded) return
+        heading(OptSection.Art.label, "more:art")
+        more(OptSection.Art)
         row("Your photos", "${Haven.art.photos().size} on this TV. Add more from your phone", phoneOnly = true)
         val c = s.artCare
         row(
@@ -412,24 +496,16 @@ private class SettingsUi(
         row("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
             openSystem(Haven.app, AndroidSettings.ACTION_DREAM_SETTINGS)
         }
-    }
-
-    fun LazyListScope.alarmRows() {
-        val a = s.alarm
-        row(
-            "Alarm time",
-            if (a.enabled) "${Bedroom.timeLabel(a.hour, a.minute, s.use24h)} · ${Bedroom.daysLabel(a.days)}" else "Off. Select to set it",
-            first = true,
-        ) { nav.go(Screen.Alarm) }
-        options(OptSection.Alarm)
-        heading(OptSection.AlarmScreen.label)
-        options(OptSection.AlarmScreen)
-    }
-
-    fun LazyListScope.briefingRows() {
+        if (s.bedroomExtras) {
+            heading(OptSection.Alarm.label)
+            more(OptSection.Alarm)
+            heading(OptSection.AlarmScreen.label)
+            more(OptSection.AlarmScreen)
+        }
+        heading(OptSection.Briefing.label, "more:briefing")
+        row("Show the briefing now", "Weather, your day and the news, the way you set it up") { nav.go(Screen.Briefing) }
+        more(OptSection.Briefing)
         val b = s.brief
-        row("Show the briefing now", "Weather, your day and the news, the way you set it up below", first = true) { nav.go(Screen.Briefing) }
-        options(OptSection.Briefing)
         row(
             "Calendars, commute and home status",
             listOf(
@@ -442,47 +518,21 @@ private class SettingsUi(
         )
     }
 
-    fun LazyListScope.sportsRows() {
-        row(
-            "Your teams",
-            if (s.sports.teams.isEmpty()) "None yet. Choose them on your phone" else s.sports.teams.joinToString(", ") { it.name },
-            first = true,
-            phoneOnly = s.sports.teams.isEmpty(),
-        ) { if (s.sports.teams.isEmpty()) onPhone("Your teams") else nav.go(Screen.Sports) }
-        options(OptSection.Sports)
-        heading(OptSection.Alerts.label)
-        options(OptSection.Alerts)
-        val ok = ScorePopup.canOverlay(Haven.app)
-        row(
-            "Show alerts on top of other apps",
-            if (ok) "Allowed" else "Not allowed, so alerts show as small messages. Select to allow",
-            toggle = ok,
-        ) { ScorePopup.requestPermission(Haven.app) }
-        row("Test an alert", "Shows a sample score alert the way you set it up") {
-            ScorePopup.show(Haven.app, "AWY 17 – 21 HOM", "Q3 4:12 · Sample alert from Haven")
-        }
-    }
-
-    fun LazyListScope.homeButtonRows() {
+    fun LazyListScope.thisTvRows() {
         row(
             "Haven Home button service",
             if (serviceOn) "On. Home opens Haven" else "Off. Select, then turn on \"Haven Home button\"",
             first = true,
             toggle = serviceOn,
         ) { openSystem(Haven.app, AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS) }
-        row("Open Haven when Home is pressed", "Press Home twice quickly for the original home screen", toggle = s.homeOverride) {
-            Haven.settings.update { it.copy(homeOverride = !it.homeOverride) }
+        switch("Open Haven when Home is pressed", "Press Home twice quickly for the original home screen", s.homeOverride) { on ->
+            Haven.settings.update { it.copy(homeOverride = on) }
         }
         if (!serviceOn) {
             row("Switch keeps turning itself off?", "Select to reinstall Haven through Android's installer, then try the switch again") {
                 scope.launch { Haven.updater.checkAndInstall(reinstall = true) }
             }
         }
-        row("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") { HomeButtonService.openStockHome(Haven.app) }
-        row("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens() }
-    }
-
-    fun LazyListScope.aboutRows() {
         row(
             "Updates",
             when (val u = updateState) {
@@ -493,9 +543,12 @@ private class SettingsUi(
                 is Updater.State.Installing -> "Opening the installer for ${u.version}"
                 is Updater.State.Failed -> u.message
             },
-            first = true,
         ) { scope.launch { Haven.updater.checkAndInstall() } }
         row("Android settings", "Network, display, sound and accessibility") { openSystem(Haven.app, AndroidSettings.ACTION_SETTINGS) }
+        moreRow("The original home screen, recent screens for troubleshooting, and credits")
+        if (!expanded) return
+        row("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") { HomeButtonService.openStockHome(Haven.app) }
+        row("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens() }
         row(
             "Credits",
             "Paintings: Art Institute of Chicago, public domain. Photo of the day: Bing. Posters: TMDB, which doesn't " +

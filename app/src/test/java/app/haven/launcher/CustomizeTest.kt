@@ -12,6 +12,8 @@ import app.haven.launcher.data.BgKind
 import app.haven.launcher.data.BriefSection
 import app.haven.launcher.data.HomeRow
 import app.haven.launcher.data.LookConfig
+import app.haven.launcher.data.OptGroup
+import app.haven.launcher.data.OptSection
 import app.haven.launcher.data.Options
 import app.haven.launcher.data.ProfilesMeta
 import app.haven.launcher.data.Settings
@@ -44,6 +46,40 @@ class CustomizeTest {
                 assertEquals("${opt.id} = ${c.value} after saving", c.value, opt.value(back))
             }
         }
+    }
+
+    /** The six groups: every first option is a real one in its own group, and More is everything else. */
+    @Test
+    fun groupsAndBasics() {
+        for ((group, ids) in Options.basics) {
+            for (id in ids) {
+                val opt = Options[id]
+                assertTrue("$id is an option", opt != null)
+                assertEquals("$id is in ${group.name}", group, opt!!.section.group)
+            }
+            assertEquals("${group.name} lists each option once", ids.size, ids.toSet().size)
+        }
+        for (group in OptGroup.values().filter { it != OptGroup.ThisTv }) {
+            assertTrue("${group.name} starts with something", Options.basics.getValue(group).isNotEmpty())
+        }
+        val s = Settings()
+        for (section in OptSection.values()) {
+            val more = Options.moreOf(section, s)
+            assertTrue(more.none { Options.isBasic(it) })
+            assertEquals(Options.of(section).filter { !Options.isBasic(it) && Options.shown(it, s) }, more)
+        }
+        // The background's own choice (colour, gradient, photo) shows first only for the background it belongs to.
+        val colour = Options["bg.kind"]!!.with(s, BgKind.Color.name)
+        assertTrue(Options.basicsOf(OptGroup.HomeScreen, colour).any { it.id == "bg.color" })
+        assertTrue(Options.basicsOf(OptGroup.HomeScreen, colour).none { it.id == "bg.gradient" })
+    }
+
+    @Test
+    fun alarmOptionsNeedBedroomFeatures() {
+        val sound = Options["alarm.sound"]!!
+        assertTrue(Options.shown(sound, Settings(bedroomExtras = true)))
+        assertTrue(!Options.shown(sound, Settings(bedroomExtras = false)))
+        assertTrue(Options.shown(Options["artSource"]!!, Settings(bedroomExtras = false)))
     }
 
     @Test

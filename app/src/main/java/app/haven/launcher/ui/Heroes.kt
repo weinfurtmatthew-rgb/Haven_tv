@@ -260,7 +260,7 @@ private fun FeatureHero(h: HomeCtx, kind: MediaKind) {
                     Txt("Movies, as they come out", T.Headline, size = 72)
                     Txt("Add your free TMDB key on the phone page to see what's trending, in theaters and coming soon.", T.Body, color = C.Stone, maxLines = 2)
                     Box(Modifier.padding(top = 24.dp)) {
-                        Chip("How to add it", { openSettings(h, "Background") }, icon = Icons.Smartphone, focusRequester = h.req("hero:main"), onFocus = h.track("hero:main"))
+                        Chip("How to add it", { openSettings(h, "HomeScreen") }, icon = Icons.Smartphone, focusRequester = h.req("hero:main"), onFocus = h.track("hero:main"))
                     }
                 } else {
                     Txt(if (kind == MediaKind.Movie) "Movies" else "Tonight", T.Headline, size = 72)

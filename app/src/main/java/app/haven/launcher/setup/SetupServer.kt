@@ -300,6 +300,7 @@ class SetupServer(private val context: Context) {
             )
             .put("askOnStart", Haven.settings.meta.value.askOnStart)
             .put("options", optionsJson(s))
+            .put("basics", basicsJson())
             .put("shows", JSONArray(s.shows.map { it.toJson() }))
             .put(
                 "room",
@@ -360,21 +361,29 @@ class SetupServer(private val context: Context) {
             )
     }
 
-    /** Every registry option for the page, grouped like the TV's Settings, with what's chosen now. */
+    /** Each group's first options in order, the same as the TV's Settings. */
+    private fun basicsJson(): JSONObject = JSONObject().also { j ->
+        for ((g, ids) in Options.basics) j.put(g.name, JSONArray(ids))
+    }
+
+    /** Every registry option for the page, by section (each in a group, like the TV's Settings), with what's chosen now. */
     private fun optionsJson(s: Settings): JSONArray = JSONArray(
         OptSection.values().map { sec ->
             JSONObject()
                 .put("id", sec.name)
                 .put("label", sec.label)
+                .put("group", sec.group.name)
                 .put(
                     "options",
                     JSONArray(
                         Options.of(sec).map { o ->
                             val j = JSONObject()
                                 .put("id", o.id)
+                                .put("section", sec.name)
+                                .put("basic", Options.isBasic(o))
                                 .put("title", o.title)
                                 .put("help", o.help ?: "")
-                                .put("visible", o.visible(s))
+                                .put("visible", Options.shown(o, s))
                                 .put("kind", optKind(o))
                                 // A PIN never leaves the TV; the page only learns whether one is set.
                                 .put("value", if (o.secret) "" else o.value(s))

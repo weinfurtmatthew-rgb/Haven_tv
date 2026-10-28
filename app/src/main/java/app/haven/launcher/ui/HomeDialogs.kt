@@ -3,6 +3,7 @@ package app.haven.launcher.ui
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,6 +44,11 @@ import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
 import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
+import app.haven.launcher.data.BackgroundConfig
+import app.haven.launcher.data.BgColor
+import app.haven.launcher.data.BgKind
+import app.haven.launcher.data.GradientPreset
+import app.haven.launcher.data.Settings
 import app.haven.launcher.data.TileColor
 import app.haven.launcher.data.TvApp
 import app.haven.launcher.data.moved
@@ -132,6 +140,7 @@ fun HomeDialogs(h: HomeCtx, d: HomeDialog, replace: (HomeDialog) -> Unit, close:
         )
         is HomeDialog.Note -> NoteDialog(d.title, d.body, close)
         is HomeDialog.Confirm -> ConfirmDialog(d.title, d.body, d.yes, d.onYes, close)
+        HomeDialog.Background -> BackgroundStrip(s, close)
         is HomeDialog.Pin -> PinDialog(
             s.kids.pin,
             onOk = {
@@ -553,3 +562,85 @@ fun PinDialog(pin: String, onOk: () -> Unit, onDismiss: () -> Unit) {
 
 /** An uploaded app picture's file, for the phone page's previews. */
 fun appImageFile(name: String): File = File(Haven.apps.imagesDir, name)
+
+/** Backgrounds that take turns, so "Next picture" has somewhere to go. */
+private val TURNS = setOf(BgKind.Photo, BgKind.Art, BgKind.Posters)
+
+/**
+ * The background, changed from the home screen: a strip along the bottom, with the background showing behind it.
+ * Moving along the strip tries each choice; OK keeps it. Back closes, keeping what was kept.
+ */
+@Composable
+fun BackgroundStrip(s: Settings, onClose: () -> Unit) {
+    val bg = s.background
+    val first = remember { FocusRequester() }
+    val photos = remember { Haven.backgrounds.files().map { it.name } }
+    val kinds = buildList {
+        add(BgKind.Daily)
+        if (photos.isNotEmpty()) add(BgKind.Photo)
+        add(BgKind.Art)
+        if (bg.tmdbKey.isNotBlank()) add(BgKind.Posters)
+        if (s.haConfigured) add(BgKind.NowPlaying)
+        add(BgKind.Color)
+        add(BgKind.Gradient)
+        add(BgKind.Theme)
+    }
+    fun keep(b: BackgroundConfig) {
+        Haven.settings.update { it.copy(background = b) }
+        BgPreview.value = null
+    }
+    fun tryOn(b: BackgroundConfig) {
+        BgPreview.value = if (b == Haven.settings.value.background) null else b
+    }
+    // Closing any way at all never leaves a background on trial.
+    DisposableEffect(Unit) { onDispose { BgPreview.value = null } }
+    val shown = BgPreview.value ?: bg
+    HavenDialog(onClose, alignment = Alignment.BottomCenter, dim = false) {
+        Panel(Modifier.fillMaxWidth().padding(start = 116.dp, end = 116.dp, bottom = 56.dp), padding = 36.dp) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Txt("Background", T.Title)
+                Txt(shown.kind.label, T.Body, color = C.Stone)
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (bg.kind in TURNS) {
+                    Chip("Next picture", { BgPreview.next++ }, icon = Icons.RefreshCw, focusRequester = first, glass = Look.glass)
+                }
+                for (k in kinds) {
+                    Chip(
+                        k.label, { keep(bg.copy(kind = k)) },
+                        selected = bg.kind == k,
+                        focusRequester = if (bg.kind !in TURNS && k == bg.kind) first else null,
+                        onFocus = { if (it) tryOn(bg.copy(kind = k)) },
+                        glass = Look.glass,
+                    )
+                }
+            }
+            // The choices inside the background being tried or kept: which colour, gradient or photo.
+            when (shown.kind) {
+                BgKind.Color -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    for (c in BgColor.values()) {
+                        val b = bg.copy(kind = BgKind.Color, color = c.argb)
+                        Chip(c.label, { keep(b) }, selected = bg.kind == BgKind.Color && bg.color == c.argb, onFocus = { if (it) tryOn(b) }, glass = Look.glass)
+                    }
+                }
+                BgKind.Gradient -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    for (g in GradientPreset.values()) {
+                        val b = bg.copy(kind = BgKind.Gradient, gradient = g)
+                        Chip(g.label, { keep(b) }, selected = bg.kind == BgKind.Gradient && bg.gradient == g, onFocus = { if (it) tryOn(b) }, glass = Look.glass)
+                    }
+                }
+                BgKind.Photo -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    for (name in listOf("") + photos.take(12)) {
+                        val b = bg.copy(kind = BgKind.Photo, photo = name)
+                        Chip(
+                            if (name.isBlank()) "Take turns" else name.substringBeforeLast('.'), { keep(b) },
+                            selected = bg.kind == BgKind.Photo && bg.photo == name, onFocus = { if (it) tryOn(b) }, glass = Look.glass,
+                        )
+                    }
+                }
+                else -> Unit
+            }
+        }
+    }
+    FocusOnOpen(first)
+}

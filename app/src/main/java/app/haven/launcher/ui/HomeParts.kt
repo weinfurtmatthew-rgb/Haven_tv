@@ -113,10 +113,17 @@ fun TopBar(h: HomeCtx, overPhoto: Boolean = false) {
                     glass = Look.glass,
                 )
             }
+            BackgroundButton(h)
             if (me != null) ProfileButton(me, h.req("top:profile"), h.track("top:profile")) { h.guard { h.nav.go(Screen.Profiles) } }
             IconButton(Icons.Settings, { h.guard { h.nav.go(Screen.Settings) } }, focusRequester = h.req("top:settings"), onFocus = h.track("top:settings"), glass = Look.glass)
         }
     }
+}
+
+/** Changes the background without opening Settings: a strip of choices along the bottom (`BackgroundStrip`). */
+@Composable
+fun BackgroundButton(h: HomeCtx, key: String = "top:background") {
+    IconButton(Icons.Wallpaper, { h.guard { h.show(HomeDialog.Background) } }, focusRequester = h.req(key), onFocus = h.track(key), glass = Look.glass)
 }
 
 /** Beside the side menu: just the time and date, on the right. */

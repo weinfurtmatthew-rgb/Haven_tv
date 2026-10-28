@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -40,8 +41,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import app.haven.launcher.data.FocusLook
 import app.haven.launcher.data.HeroKind
 import app.haven.launcher.data.NavStyle
@@ -49,8 +52,13 @@ import kotlinx.coroutines.delay
 
 /** A dialog window (so D-pad focus stays inside it) drawn on the 1920x1080 canvas over a dimmed screen. */
 @Composable
-fun HavenDialog(onDismiss: () -> Unit, alignment: Alignment = Alignment.Center, content: @Composable () -> Unit) {
+fun HavenDialog(onDismiss: () -> Unit, alignment: Alignment = Alignment.Center, dim: Boolean = true, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // Without the dim, what's behind stays bright: the background strip shows the background it's changing.
+        if (!dim) {
+            val view = LocalView.current
+            SideEffect { (view.parent as? DialogWindowProvider)?.window?.setDimAmount(0f) }
+        }
         DesignCanvas {
             Box(Modifier.fillMaxSize(), contentAlignment = alignment) { content() }
         }

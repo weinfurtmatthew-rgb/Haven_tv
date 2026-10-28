@@ -66,26 +66,21 @@ key DPAD_DOWN DPAD_CENTER
 sleep 1
 shot 24-lights-speaker-toggled
 
-# Settings: the rail starts at Profiles; Left from a row goes back to its group in the rail.
+# Settings: six groups. Each starts with what most people change; More options opens the rest. Left and right
+# change a value in place (saved at once); OK steps on, or opens the whole list when it's long. Back: to the groups.
 screen Settings 30-settings-profiles
 key DPAD_DOWN
-shot 27-settings-layout
-key DPAD_CENTER DPAD_CENTER
+shot 27-settings-home-screen
+key DPAD_CENTER
+sleep 1
+key DPAD_CENTER
 sleep 1
 key DPAD_DOWN DPAD_DOWN
 sleep 2
 shot 28-layout-dialog-preview
 key BACK
 sleep 1
-rep DPAD_DOWN 4
-key DPAD_CENTER
-sleep 1
-shot 37-home-rows-dialog
-key BACK
-sleep 1
-key DPAD_LEFT DPAD_DOWN
-shot 32-settings-look
-key DPAD_CENTER DPAD_CENTER
+key DPAD_DOWN DPAD_CENTER
 sleep 1
 shot 33-look-scheme-dialog
 key DPAD_DOWN DPAD_DOWN
@@ -93,33 +88,43 @@ sleep 1
 shot 34-look-scheme-preview
 key BACK
 sleep 1
-key DPAD_DOWN DPAD_DOWN DPAD_CENTER
+key DPAD_RIGHT
+sleep 2
+shot 32-settings-scheme-right
+key DPAD_LEFT
 sleep 1
-shot 35-look-heading-font
-key BACK
-key DPAD_LEFT DPAD_DOWN
-shot 36-settings-home-screen
-key DPAD_CENTER DPAD_CENTER
+key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_RIGHT
 sleep 1
-shot 37b-tile-size-dialog
+shot 37b-tile-size-right
+key DPAD_LEFT DPAD_DOWN DPAD_CENTER
+sleep 1
+shot 37-home-rows-dialog
 key BACK
-rep DPAD_DOWN 12
+sleep 1
+key DPAD_DOWN DPAD_CENTER
+sleep 1
+key DPAD_DOWN DPAD_DOWN
+sleep 1
+shot 36-settings-more-options
+rep DPAD_DOWN 4
 key DPAD_CENTER
 sleep 1
 shot 38-settings-phone-hint
-key DPAD_LEFT DPAD_DOWN
-shot 39-settings-background
-key DPAD_DOWN DPAD_DOWN DPAD_DOWN DPAD_DOWN
-shot 40-settings-alarm
-key DPAD_DOWN DPAD_DOWN
+key BACK
+sleep 1
+key DPAD_DOWN
+shot 39-settings-smart-home
+key DPAD_DOWN
 shot 41-settings-sports
-key DPAD_DOWN DPAD_DOWN
-shot 42-settings-about
-rep DPAD_UP 12
+key DPAD_DOWN
+shot 40-settings-art-bedroom
+key DPAD_DOWN
+shot 42-settings-this-tv
+rep DPAD_UP 6
 key DPAD_CENTER DPAD_CENTER
 sleep 2
 shot 31-settings-name-dialog
-key BACK BACK
+key BACK BACK BACK
 
 screen Alarm 43-alarm-editor
 key DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT DPAD_DOWN DPAD_CENTER
@@ -180,6 +185,16 @@ shot 63-bg-painting
 opt "bg.kind=Color;bg.color=4279179818"
 home 5
 shot 64-bg-colour
+# The background from the home screen: the picture button in the top bar opens a strip along the bottom. Moving
+# along it tries each background behind it; OK keeps one, Back closes.
+key DPAD_UP DPAD_UP DPAD_UP DPAD_UP DPAD_RIGHT DPAD_CENTER
+sleep 2
+shot 64b-background-strip
+key DPAD_LEFT DPAD_LEFT DPAD_LEFT
+sleep 4
+shot 64c-background-strip-trying
+key BACK
+sleep 1
 screen Settings 65-settings-over-colour
 demo BGPHOTO
 opt "bg.kind=Photo;bg.blur=Strong;bg.dim=45"

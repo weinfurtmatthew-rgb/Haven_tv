@@ -25,7 +25,7 @@ Code: tokens and type in `app/src/main/java/app/haven/launcher/ui/Theme.kt` (`C`
 ## Yours to change
 
 Haven is someone's own home screen, so nearly everything below is a choice each profile can make (Settings ›
-Look, Home screen and Background, or the phone page). This document describes the defaults; the choices are
+Home screen, or the phone page). This document describes the defaults; the choices are
 listed with each part. What never changes, whatever is chosen:
 
 - **Focus is always unmistakable.** A light fill, a light frame or a frame in the accent colour, plus a lift
@@ -39,8 +39,13 @@ listed with each part. What never changes, whatever is chosen:
   layout keeps its proportions.
 - **The words stay calm.** Fonts, colours and greetings change; the voice doesn't.
 
-The choices live in one registry (`data/Options.kt`) that drives both the TV's Settings and the phone page. Look
-options preview live while the list is open: Back puts back what was there, OK keeps it.
+The choices live in one registry (`data/Options.kt`) that drives both the TV's Settings and the phone page, in six
+groups (Profiles, Home screen, Smart home, Sports, Art & bedroom, This TV). Each group starts with the few choices
+most people change; More options opens the rest in the same list, under their headings. On the TV, left and right
+change a choice right on its row: the value sits on the right with arrows while the row has focus, and every step
+shows and saves at once, the way a TV's picture settings do. OK steps on to the next value, or opens the whole list
+when it's long (more than six choices, or choices that need a line each): there, looks preview while the list is
+open, Back puts back what was there and OK keeps it. Back from the rows goes to the groups.
 
 ## Layouts
 

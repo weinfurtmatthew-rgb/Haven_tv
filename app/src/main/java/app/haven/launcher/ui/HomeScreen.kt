@@ -86,6 +86,7 @@ sealed interface HomeDialog {
     class Note(val title: String, val body: String) : HomeDialog
     class Confirm(val title: String, val body: String, val yes: String, val onYes: () -> Unit) : HomeDialog
     class Pin(val then: () -> Unit) : HomeDialog
+    data object Background : HomeDialog
 }
 
 /** After the grown-up PIN, the lock stays open for a few minutes, so one visit to Settings asks once. */

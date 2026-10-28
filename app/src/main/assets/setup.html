@@ -23,7 +23,7 @@ h3{font-size:15px;margin:10px 0 0;color:var(--muted);font-weight:700}
 .sub{color:var(--muted);font-size:14px}
 section{background:var(--card);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px}
 label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)}
-input[type=text],input[type=url],input[type=time],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-weight:500}
+input[type=text],input[type=url],input[type=time],input[type=password],input[type=search],textarea,select{width:100%;background:var(--hi);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-weight:500}
 input[type=color]{width:56px;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--hi);padding:4px}
 textarea{min-height:84px;resize:vertical;font-family:ui-monospace,monospace;font-size:13px}
 input:focus,textarea:focus,select:focus{outline:2px solid var(--text);outline-offset:1px}
@@ -61,6 +61,17 @@ button:disabled{opacity:.5}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--hi);border:1px solid var(--line);padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw}
 #toast.show{opacity:1}
 .hidden{display:none!important}
+nav.groups{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 0;margin:0 -16px;padding-left:16px;padding-right:16px;background:var(--bg)}
+nav.groups a{flex:none;background:var(--hi);color:var(--text);text-decoration:none;border-radius:999px;padding:8px 14px;font-weight:700;font-size:14px}
+h2.group{font-size:28px;margin:22px 0 0;scroll-margin-top:72px}
+h3.card{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:21px;margin:0 0 2px;color:var(--text)}
+details.more>summary{cursor:pointer;list-style:none;background:var(--card);border-radius:20px;padding:16px 20px;font-weight:700;display:flex;flex-direction:column;gap:2px}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"+ ";color:var(--lamp)}
+details.more[open]>summary::before{content:"− "}
+details.more>section{margin-top:16px}
+details.notshown>summary{cursor:pointer;color:var(--muted);font-weight:700;font-size:14px;padding:6px 0}
+details.notshown .order{margin-top:6px}
 a{color:var(--lamp)}
 </style>
 </head>
@@ -73,8 +84,18 @@ a{color:var(--lamp)}
 
   <div id="error" class="status bad hidden"></div>
 
+  <nav class="groups" aria-label="Settings groups">
+    <a href="#g-Profiles">Profiles</a>
+    <a href="#g-HomeScreen">Home screen</a>
+    <a href="#g-SmartHome">Smart home</a>
+    <a href="#g-Sports">Sports</a>
+    <a href="#g-ArtBedroom">Art &amp; bedroom</a>
+  </nav>
+
+  <!-- The same groups as the TV's Settings, each with what most people change first and the rest under More options. -->
+  <h2 class="group" id="g-Profiles">Profiles</h2>
   <section>
-    <h2>Profile</h2>
+    <h3 class="card">Profile</h3>
     <div class="sub">Everyone has their own look, apps, alarm, briefing and teams. Pick whose settings to change.</div>
     <div class="profiles" id="profiles"></div>
     <div class="sub" id="profileNote"></div>
@@ -97,9 +118,68 @@ a{color:var(--lamp)}
       <button id="pAdd">Add</button>
     </div>
   </section>
-
   <section>
-    <h2>Home Assistant</h2>
+    <h3 class="card">Grown-up lock</h3>
+    <div class="sub">With a PIN, this profile asks for it before Settings, switching profiles, app menus and changing the layout. Kids' apps are what the Kids layout shows.</div>
+    <div class="opts" data-basics="Profiles"></div>
+  </section>
+
+  <h2 class="group" id="g-HomeScreen">Home screen</h2>
+  <section>
+    <h3 class="card">Layout, look and background</h3>
+    <div class="sub">The TV changes as soon as you pick.</div>
+    <div class="opts" data-basics="HomeScreen"></div>
+    <div id="bgPhotos" class="hidden">
+      <h3>Background photos</h3>
+      <div class="sub">Shared by every profile on this TV. Each profile picks one, or takes turns through them all.</div>
+      <div class="row" style="margin-top:8px">
+        <input type="file" id="bgFiles" accept="image/*" multiple class="hidden">
+        <button class="primary" id="bgPick">Upload photos</button>
+        <span class="status" id="bgStatus"></span>
+      </div>
+      <div class="photos" id="bgList" style="margin-top:8px"></div>
+    </div>
+  </section>
+  <section>
+    <h3 class="card">Apps</h3>
+    <div class="sub">Rename apps and give them your own pictures on this profile's home screen. A wide picture (16:9) fits best.</div>
+    <input type="file" id="appFile" accept="image/*" class="hidden">
+    <div id="apps"></div>
+  </section>
+  <section id="showsCard">
+    <h3 class="card">TV shows you follow</h3>
+    <div class="sub">Shows you follow appear in the Your shows row with their next episode, and the Shows layout features tonight's new ones. Schedules come from TVmaze.</div>
+    <div id="showList" class="list"></div>
+    <form class="row" id="showSearch" style="margin-top:8px">
+      <input type="search" id="showQuery" class="grow" placeholder="Search for a show" autocapitalize="off" aria-label="Search for a show">
+      <button class="primary" type="submit">Search</button>
+    </form>
+    <div id="showResults" class="list"></div>
+  </section>
+  <details class="more">
+    <summary>More options<span class="sub">How you get around, fonts, corners, focus, tile sizes, the clock and the background's details</span></summary>
+    <section>
+      <h3 class="card">Layout</h3>
+      <div class="opts" data-more="Layout"></div>
+    </section>
+    <section>
+      <h3 class="card">Look</h3>
+      <div class="opts" data-more="Look"></div>
+      <div class="row"><button id="resetLook">Back to Haven's own look</button></div>
+    </section>
+    <section>
+      <h3 class="card">Tiles and top bar</h3>
+      <div class="opts" data-more="Home"></div>
+    </section>
+    <section data-hide-empty>
+      <h3 class="card">Background</h3>
+      <div class="opts" data-more="Background"></div>
+    </section>
+  </details>
+
+  <h2 class="group" id="g-SmartHome">Smart home</h2>
+  <section>
+    <h3 class="card">Home Assistant</h3>
     <div class="status" id="haStatus"></div>
     <label>Address
       <input type="url" id="haUrl" placeholder="http://192.168.1.10:8123" autocapitalize="off" autocomplete="off">
@@ -113,9 +193,8 @@ a{color:var(--lamp)}
       <button class="primary" id="haSave">Save</button>
     </div>
   </section>
-
   <section>
-    <h2>This room</h2>
+    <h3 class="card">This room</h3>
     <label>Room name <input type="text" id="roomName"></label>
     <label>Home Assistant area
       <select id="area"></select>
@@ -123,73 +202,42 @@ a{color:var(--lamp)}
     <label>Weather from
       <select id="weather"></select>
     </label>
-    <label class="check"><input type="checkbox" id="bedroom"> Bedroom features: alarm clock and sleep timer</label>
     <div class="row"><button class="primary" id="roomSave">Save</button></div>
+    <div class="opts" data-basics="SmartHome"></div>
   </section>
-
   <section id="entitiesCard">
-    <h2>Shown on the TV</h2>
+    <h3 class="card">Shown on the TV</h3>
     <div class="sub">Untick anything this room's TV shouldn't control. Changes save right away.</div>
     <div id="entities" class="list"></div>
   </section>
 
-  <section data-opts="Layout">
-    <h2>Layout</h2>
-    <div class="sub">A whole home screen to start from: Standard, Spotlight, Big tiles, Game day, Cinema, Shows, Smart home, Music or Kids. Every part of it can then be changed on its own, and the TV changes as soon as you pick.</div>
-    <div class="opts"></div>
-  </section>
-
-  <section id="showsCard">
-    <h2>TV shows you follow</h2>
-    <div class="sub">Shows you follow appear in the Your shows row with their next episode, and the Shows layout features tonight's new ones. Schedules come from TVmaze.</div>
-    <div id="showList" class="list"></div>
-    <form class="row" id="showSearch" style="margin-top:8px">
-      <input type="search" id="showQuery" class="grow" placeholder="Search for a show" autocapitalize="off" aria-label="Search for a show">
-      <button class="primary" type="submit">Search</button>
-    </form>
-    <div id="showResults" class="list"></div>
-  </section>
-
-  <section data-opts="Look">
-    <h2>Look</h2>
-    <div class="sub">Colours, fonts and shapes. The TV changes as soon as you pick.</div>
-    <div class="opts"></div>
-    <div class="row"><button id="resetLook">Back to Haven's own look</button></div>
-  </section>
-
-  <section data-opts="Home">
-    <h2>Home screen</h2>
-    <div class="opts"></div>
-  </section>
-
-  <section data-opts="Background">
-    <h2>Background</h2>
-    <div class="opts"></div>
-    <div id="bgPhotos" class="hidden">
-      <h3>Background photos</h3>
-      <div class="sub">Shared by every profile on this TV. Each profile picks one, or takes turns through them all.</div>
-      <div class="row" style="margin-top:8px">
-        <input type="file" id="bgFiles" accept="image/*" multiple class="hidden">
-        <button class="primary" id="bgPick">Upload photos</button>
-        <span class="status" id="bgStatus"></span>
-      </div>
-      <div class="photos" id="bgList" style="margin-top:8px"></div>
-    </div>
-  </section>
-
+  <h2 class="group" id="g-Sports">Sports</h2>
   <section>
-    <h2>Apps</h2>
-    <div class="sub">Rename apps and give them your own pictures on this profile's home screen. A wide picture (16:9) fits best.</div>
-    <input type="file" id="appFile" accept="image/*" class="hidden">
-    <div id="apps"></div>
+    <h3 class="card">Your teams</h3>
+    <div class="sub">Your teams show on the home screen, in the briefing, and as score alerts.</div>
+    <div id="favTeams" class="list"></div>
+    <div class="row">
+      <label style="flex:1">League <select id="league"></select></label>
+    </div>
+    <div id="teamList" class="list"></div>
+    <div class="opts" data-basics="Sports"></div>
   </section>
+  <details class="more">
+    <summary>More options<span class="sub">Logos, team colours, every league's games, what selecting a game does, and how alerts look</span></summary>
+    <section>
+      <h3 class="card">Sports</h3>
+      <div class="opts" data-more="Sports"></div>
+    </section>
+    <section>
+      <h3 class="card">Score alerts</h3>
+      <div class="opts" data-more="Alerts"></div>
+    </section>
+  </details>
 
-  <section data-opts="Art">
-    <h2>Art mode</h2>
-    <div class="opts"></div>
-    <label>Only show art when someone is in the room
-      <select id="carePresence"></select>
-    </label>
+  <h2 class="group" id="g-ArtBedroom">Art &amp; bedroom</h2>
+  <section>
+    <h3 class="card">Art mode</h3>
+    <div class="opts" data-basics="ArtBedroom" data-section="Art"></div>
     <h3>Your photos</h3>
     <div class="sub">Name a photo before uploading ("Lake day.jpg") and the name shows under it on the TV.</div>
     <div class="row">
@@ -199,55 +247,55 @@ a{color:var(--lamp)}
     </div>
     <div class="photos" id="photos"></div>
   </section>
-
-  <section id="alarmCard">
-    <h2>Alarm</h2>
-    <label class="check"><input type="checkbox" id="alarmOn"> Alarm on</label>
-    <label>Time <input type="time" id="alarmTime"></label>
-    <div class="days" id="days"></div>
-    <div class="row"><button class="primary" id="alarmSave">Save alarm time</button></div>
-    <div class="opts" data-opts-inner="Alarm"></div>
-    <h3>Alarm screen</h3>
-    <div class="opts" data-opts-inner="AlarmScreen"></div>
-  </section>
-
-  <section data-opts="Briefing" id="briefCard">
-    <h2>Morning briefing</h2>
-    <div class="opts"></div>
-    <h3>Where it gets things</h3>
-    <div class="sub">Leave lists unticked to use the defaults (all calendars; locks and garage doors).</div>
-    <div class="sub" style="margin-top:4px">Calendars</div>
-    <div id="briefCals" class="list"></div>
-    <label>Commute time sensor (for example Waze travel time)
-      <select id="briefCommute"></select>
-    </label>
-    <label>Commute destination name <input type="text" id="briefLabel" placeholder="work"></label>
-    <div class="sub" style="margin-top:4px">Home status</div>
-    <div id="briefStatus" class="list"></div>
-    <label>Headlines feed (any RSS link; empty hides headlines)
-      <input type="url" id="briefFeed" autocapitalize="off">
-    </label>
-    <div class="row"><button class="primary" id="briefSave">Save sources</button></div>
-  </section>
-
-  <section data-opts="Kids">
-    <h2>Grown-up lock</h2>
-    <div class="sub">With a PIN, this profile asks for it before Settings, switching profiles, app menus and changing the layout. Kids' apps are what the Kids layout shows.</div>
-    <div class="opts"></div>
-  </section>
-
   <section>
-    <h2>Sports</h2>
-    <div class="sub">Your teams show on the home screen, in the briefing, and as score alerts.</div>
-    <div id="favTeams" class="list"></div>
-    <div class="row">
-      <label style="flex:1">League <select id="league"></select></label>
+    <h3 class="card">Bedroom</h3>
+    <label class="check"><input type="checkbox" id="bedroom"> Bedroom features: alarm clock and sleep timer</label>
+    <div id="alarmCard">
+      <label class="check"><input type="checkbox" id="alarmOn"> Alarm on</label>
+      <label>Time <input type="time" id="alarmTime"></label>
+      <div class="days" id="days"></div>
+      <div class="row" style="margin-top:8px"><button class="primary" id="alarmSave">Save alarm time</button></div>
+      <div class="opts" data-basics="ArtBedroom" data-section="Alarm" style="margin-top:12px"></div>
     </div>
-    <div id="teamList" class="list"></div>
-    <div class="opts" data-opts-inner="Sports"></div>
-    <h3>Score alerts</h3>
-    <div class="opts" data-opts-inner="Alerts"></div>
   </section>
+  <section id="briefCard">
+    <h3 class="card">Morning briefing</h3>
+    <div class="opts" data-basics="ArtBedroom" data-section="Briefing"></div>
+  </section>
+  <details class="more">
+    <summary>More options<span class="sub">Art timing, burn-in care and quiet hours; the alarm's snooze and screen; what the briefing shows and where it gets things</span></summary>
+    <section>
+      <h3 class="card">Art mode</h3>
+      <div class="opts" data-more="Art"></div>
+      <label>Only show art when someone is in the room
+        <select id="carePresence"></select>
+      </label>
+    </section>
+    <section id="alarmMore">
+      <h3 class="card">Alarm</h3>
+      <div class="opts" data-more="Alarm"></div>
+      <h3>Alarm screen</h3>
+      <div class="opts" data-more="AlarmScreen"></div>
+    </section>
+    <section>
+      <h3 class="card">Morning briefing</h3>
+      <div class="opts" data-more="Briefing"></div>
+      <h3>Where it gets things</h3>
+      <div class="sub">Leave lists unticked to use the defaults (all calendars; locks and garage doors).</div>
+      <div class="sub" style="margin-top:4px">Calendars</div>
+      <div id="briefCals" class="list"></div>
+      <label>Commute time sensor (for example Waze travel time)
+        <select id="briefCommute"></select>
+      </label>
+      <label>Commute destination name <input type="text" id="briefLabel" placeholder="work"></label>
+      <div class="sub" style="margin-top:4px">Home status</div>
+      <div id="briefStatus" class="list"></div>
+      <label>Headlines feed (any RSS link; empty hides headlines)
+        <input type="url" id="briefFeed" autocapitalize="off">
+      </label>
+      <div class="row"><button class="primary" id="briefSave">Save sources</button></div>
+    </section>
+  </details>
 </main>
 <div id="toast"></div>
 
@@ -336,25 +384,42 @@ function renderOption(o) {
     b.addEventListener('click', () => setOpt({ id: o.id, value: i.value }));
     row.append(i, b); l.append(row); box.append(l);
   } else if (o.kind === 'order') {
+    // What shows, in order, with arrows; everything else waits under "Not showing", like the TV's list.
     box.append(el('label', null, o.title));
-    const list = el('div', 'order');
     const shown = new Set(o.shown);
-    const order = [...o.order];
-    const send = () => setOpt({ id: o.id, order, shown: [...shown] });
-    order.forEach((k, i) => {
-      const item = o.items.find(x => x.value === k); if (!item) return;
-      const row = el('div', 'item');
+    const on = o.order.filter(k => shown.has(k));
+    const off = o.order.filter(k => !shown.has(k));
+    const send = () => setOpt({ id: o.id, order: [...on, ...off], shown: [...shown] });
+    const item = (k) => o.items.find(x => x.value === k);
+    const check = (k, label) => {
       const l = el('label', 'check');
       const c = document.createElement('input'); c.type = 'checkbox'; c.checked = shown.has(k);
-      c.addEventListener('change', () => { c.checked ? shown.add(k) : shown.delete(k); send(); });
-      l.append(c, document.createTextNode(' ' + item.label));
+      c.addEventListener('change', () => {
+        if (c.checked) { shown.add(k); off.splice(off.indexOf(k), 1); on.push(k); } else { shown.delete(k); on.splice(on.indexOf(k), 1); off.unshift(k); }
+        send();
+      });
+      l.append(c, document.createTextNode(' ' + label));
+      return l;
+    };
+    const list = el('div', 'order');
+    on.forEach((k, i) => {
+      const it = item(k); if (!it) return;
+      const row = el('div', 'item');
       const up = el('button', 'small', '↑'); up.disabled = i === 0; up.setAttribute('aria-label', 'Move up');
-      up.addEventListener('click', () => { order.splice(i - 1, 0, order.splice(i, 1)[0]); send(); });
-      const down = el('button', 'small', '↓'); down.disabled = i === order.length - 1; down.setAttribute('aria-label', 'Move down');
-      down.addEventListener('click', () => { order.splice(i + 1, 0, order.splice(i, 1)[0]); send(); });
-      row.append(l, up, down); list.append(row);
+      up.addEventListener('click', () => { on.splice(i - 1, 0, on.splice(i, 1)[0]); send(); });
+      const down = el('button', 'small', '↓'); down.disabled = i === on.length - 1; down.setAttribute('aria-label', 'Move down');
+      down.addEventListener('click', () => { on.splice(i + 1, 0, on.splice(i, 1)[0]); send(); });
+      row.append(check(k, it.label), up, down); list.append(row);
     });
+    if (!on.length) list.append(el('div', 'sub', 'Nothing yet. Tick some below.'));
     box.append(list);
+    if (off.length) {
+      const more = document.createElement('details'); more.className = 'notshown';
+      more.append(el('summary', null, `Not showing (${off.length})`));
+      const rest = el('div', 'order');
+      off.forEach(k => { const it = item(k); if (!it) return; const row = el('div', 'item'); row.append(check(k, it.label)); rest.append(row); });
+      more.append(rest); box.append(more);
+    }
   } else {
     const l = el('label', null, o.title);
     const row = el('div', 'row');
@@ -417,14 +482,24 @@ $('showSearch').addEventListener('submit', async (ev) => {
 });
 
 function renderOptions() {
-  const sections = Object.fromEntries(state.options.map(s => [s.id, s]));
-  const fill = (container, id) => {
-    container.innerHTML = '';
-    const sec = sections[id]; if (!sec) return;
-    sec.options.filter(o => o.visible).forEach(o => container.append(renderOption(o)));
-  };
-  document.querySelectorAll('section[data-opts]').forEach(s => fill(s.querySelector('.opts'), s.dataset.opts));
-  document.querySelectorAll('[data-opts-inner]').forEach(c => fill(c, c.dataset.optsInner));
+  const all = state.options.flatMap(sec => sec.options);
+  const byId = Object.fromEntries(all.map(o => [o.id, o]));
+  // What each group shows first, in its order (optionally only one section's), then each section's others.
+  document.querySelectorAll('[data-basics]').forEach(c => {
+    c.innerHTML = '';
+    const only = c.dataset.section;
+    (state.basics[c.dataset.basics] || []).map(id => byId[id])
+      .filter(o => o && o.visible && (!only || o.section === only))
+      .forEach(o => c.append(renderOption(o)));
+    c.classList.toggle('hidden', !c.children.length);
+  });
+  document.querySelectorAll('[data-more]').forEach(c => {
+    c.innerHTML = '';
+    const sec = state.options.find(x => x.id === c.dataset.more); if (!sec) return;
+    sec.options.filter(o => o.visible && !o.basic).forEach(o => c.append(renderOption(o)));
+  });
+  // A card with nothing in it right now (the background's details for a plain colour) stays out of the way.
+  document.querySelectorAll('section[data-hide-empty]').forEach(sec => sec.classList.toggle('hidden', !sec.querySelector('.opts').children.length));
 }
 
 // ---- rendering
@@ -500,6 +575,7 @@ function render() {
   renderExtras();
 
   $('alarmCard').classList.toggle('hidden', !s.room.bedroom);
+  $('alarmMore').classList.toggle('hidden', !s.room.bedroom);
   const a = s.alarm;
   $('alarmOn').checked = a.enabled;
   $('alarmTime').value = `${String(a.hour).padStart(2, '0')}:${String(a.minute).padStart(2, '0')}`;
@@ -610,8 +686,9 @@ $('haSave').addEventListener('click', async () => {
   $('haToken').value = '';
 });
 $('roomSave').addEventListener('click', () => save({
-  roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value, bedroomExtras: $('bedroom').checked,
+  roomName: $('roomName').value, haArea: $('area').value, weatherEntity: $('weather').value,
 }));
+$('bedroom').addEventListener('change', () => save({ bedroomExtras: $('bedroom').checked }, $('bedroom').checked ? 'Bedroom features on' : 'Bedroom features off'));
 $('resetLook').addEventListener('click', () => {
   if (!confirm("Put colours, fonts, sizes, focus and the home screen's rows back to how Haven came?")) return;
   save({ resetLook: true }, 'Back to Haven\'s own look');

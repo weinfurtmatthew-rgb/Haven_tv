@@ -59,8 +59,10 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   background layer and Spotlight publish backdrops. The grown-up PIN is checked at the screen level in
   `HavenRoot` (Settings, Profiles) and with `HomeCtx.guard` for app menus.
 - A new choice for people goes in the options registry (`data/Options.kt`): a field in the data class with
-  `toJson`/`fromJson`, then one `Opt` entry. The TV's Settings and the phone page (`/api/options`) both pick it up;
-  `Preview.Look` / `Preview.Background` make it preview live. Only things that aren't a pick from a list (Home
+  `toJson`/`fromJson`, then one `Opt` entry in a section (each section belongs to one of the six `OptGroup`s). Add
+  its id to `Options.basics` only if most people will want it; otherwise it sits under More options. The TV's
+  Settings (left/right steps it in place, `OptionRow`) and the phone page (`/api/options`) both pick it up;
+  `Preview.Look` / `Preview.Background` make its full list preview live. Only things that aren't a pick from a list (Home
   Assistant, teams, uploads) need their own UI in `SettingsScreen.kt`, `setup/SetupServer.kt` and `assets/setup.html`.
 - Home Assistant: REST with a long-lived token (`ha/HomeAssistant.kt`). Areas come from `POST /api/template`
   (admin token needed); without areas Haven shows every entity. The room's entities = area entities minus

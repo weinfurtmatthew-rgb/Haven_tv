@@ -57,7 +57,8 @@ fun MenuFrame(h: HomeCtx, section: HomeSection, onSection: (HomeSection) -> Unit
             if (me != null) {
                 Row(Modifier.padding(start = 16.dp, bottom = 28.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     ProfileButton(me, h.req("menu:profile"), h.track("menu:profile"), size = 72.dp) { h.guard { h.nav.go(Screen.Profiles) } }
-                    Txt(me.name, T.Title, maxLines = 1)
+                    Txt(me.name, T.Title, Modifier.weight(1f), maxLines = 1)
+                    BackgroundButton(h, "menu:background")
                 }
             }
             for (sec in h.s.look.sections) {
@@ -136,6 +137,8 @@ fun TabsFrame(h: HomeCtx, section: HomeSection, onSection: (HomeSection) -> Unit
             }
             Box(Modifier.weight(1f))
             if (look.clock != ClockStyle.Hidden) Txt(formatTime(now, use24, withAmPm = !use24), T.Title, Modifier.padding(end = 28.dp), C.Linen)
+            BackgroundButton(h)
+            Spacer(width = 16.dp)
             if (me != null) ProfileButton(me, h.req("top:profile"), h.track("top:profile")) { h.guard { h.nav.go(Screen.Profiles) } }
             Spacer(width = 16.dp)
             IconButton(Icons.Settings, { h.guard { h.nav.go(Screen.Settings) } }, focusRequester = h.req("top:settings"), onFocus = h.track("top:settings"), glass = Look.glass)

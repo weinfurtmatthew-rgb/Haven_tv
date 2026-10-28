@@ -259,7 +259,7 @@ private fun NeedsHa(h: HomeCtx, row: HomeRow): Boolean {
     val status by Haven.ha.status.collectAsState()
     if (status == HaStatus.NotConfigured) {
         InfoCard(h, row, Icons.House, "Connect Home Assistant", "Scan the code in Settings with your phone to add your Home Assistant") {
-            openSettings(h, "HomeAssistant")
+            openSettings(h, "SmartHome")
         }
         return true
     }
@@ -369,7 +369,7 @@ private fun MediaRow(h: HomeCtx, row: HomeRow, list: MediaList) {
         items == null && tmdb && h.s.background.tmdbKey.isBlank() -> InfoCard(
             h, row, Icons.Film, "Add your free TMDB key",
             "Movie lists come from TMDB. Paste your key on the phone page: Settings, then scan the code",
-        ) { openSettings(h, "Background") }
+        ) { openSettings(h, "HomeScreen") }
         items == null -> Txt(
             if (tmdb && status != null) status!! else "Loading…", T.Body,
             Modifier.padding(start = h.start, top = 16.dp, bottom = 24.dp), C.Stone,

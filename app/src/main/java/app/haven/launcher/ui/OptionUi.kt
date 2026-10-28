@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
@@ -17,6 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.haven.launcher.Haven
 import app.haven.launcher.bedroom.AlarmTone
@@ -73,7 +79,11 @@ fun SettingRow(
     }
 }
 
-/** One registry option as a settings row. Switches flip on OK; everything else opens [onOpen]. */
+/**
+ * One registry option as a settings row. A pick from a list changes with left and right, previewed and saved at
+ * once; OK steps on to the next value, or opens the whole list when it's long (layouts, fonts, colours, photos).
+ * Switches flip with OK, left or right. Orders and text open their editors; phone-only options point at the phone.
+ */
 @Composable
 fun OptionRow(
     opt: Opt,
@@ -83,23 +93,111 @@ fun OptionRow(
     onPhone: (String) -> Unit,
     onOpen: (Opt) -> Unit,
 ) {
-    val value = when {
-        opt.toggle -> opt.help.orEmpty()
-        opt.secret -> opt.label(s)
-        opt.text && opt.phoneOnly -> if (opt.value(s).isBlank()) "Not set. Add it on your phone" else "Saved"
-        opt.text -> opt.value(s).ifBlank { "Not set" }
-        else -> listOfNotNull(opt.label(s), opt.help?.takeIf { opt.order != null }).joinToString(". ")
+    val stepped = !opt.text && !opt.phoneOnly && opt.order == null
+    if (!stepped) {
+        val value = when {
+            opt.secret -> opt.label(s)
+            opt.text && opt.phoneOnly -> if (opt.value(s).isBlank()) "Not set. Add it on your phone" else "Saved"
+            opt.text -> opt.value(s).ifBlank { "Not set" }
+            else -> listOfNotNull(opt.label(s), opt.help?.takeIf { opt.order != null }).joinToString(". ")
+        }
+        SettingRow(opt.title, value, modifier, phoneOnly = opt.phoneOnly, focusRequester = focusRequester) {
+            if (opt.phoneOnly) onPhone(opt.title) else onOpen(opt)
+        }
+        return
     }
-    SettingRow(
-        opt.title, value, modifier,
+    val choices = opt.choices(s)
+    val at = choices.indexOfFirst { it.value == opt.value(s) }
+    val long = choices.size > 6 || choices.any { it.note != null }
+    // Read the newest settings when a key comes in: a held key can arrive before the row has redrawn.
+    fun step(dir: Int, wrap: Boolean = false) {
+        val cur = Haven.settings.value
+        val list = opt.choices(cur)
+        if (list.isEmpty()) return
+        val i = list.indexOfFirst { it.value == opt.value(cur) }
+        val j = when {
+            i < 0 -> 0
+            wrap -> Math.floorMod(i + dir, list.size)
+            else -> (i + dir).coerceIn(0, list.lastIndex)
+        }
+        if (j == i) return
+        Haven.settings.update { opt.with(it, list[j].value) }
+        if (opt.preview == Preview.Sound) AlarmTone.preview(enumOr(list[j].value, AlarmSound.Chime))
+    }
+    val chosen = choices.getOrNull(at)
+    ValueRow(
+        title = opt.title,
+        help = chosen?.note ?: opt.help,
+        value = if (opt.toggle) null else opt.label(s),
         toggle = if (opt.toggle) opt.on(s) else null,
-        phoneOnly = opt.phoneOnly,
+        canLess = at > 0,
+        canMore = at in 0 until choices.lastIndex,
+        modifier = modifier,
         focusRequester = focusRequester,
-    ) {
-        when {
-            opt.toggle -> Haven.settings.update { opt.with(it, if (opt.on(it)) Opt.OFF else Opt.ON) }
-            opt.phoneOnly -> onPhone(opt.title)
-            else -> onOpen(opt)
+        // A switch: left is off, right is on.
+        onStep = { dir -> if (opt.toggle) Haven.settings.update { opt.with(it, if (dir > 0) Opt.ON else Opt.OFF) } else step(dir) },
+        onLeave = { if (opt.preview == Preview.Sound) AlarmTone.stopPreview() },
+        onClick = { if (long && !opt.toggle) onOpen(opt) else step(1, wrap = true) },
+    )
+}
+
+/**
+ * A row whose value changes in place: the title and a line of help on the left, the value (or a switch) on the
+ * right with arrows while it's focused. Left and right call [onStep]; they never move focus off the row.
+ */
+@Composable
+fun ValueRow(
+    title: String,
+    help: String?,
+    value: String?,
+    toggle: Boolean?,
+    canLess: Boolean,
+    canMore: Boolean,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    onStep: (Int) -> Unit,
+    onLeave: () -> Unit = {},
+    onClick: () -> Unit,
+) {
+    Focusable(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().heightIn(min = 104.dp),
+        color = C.Surface,
+        focusedScale = 1.03f,
+        focusRequester = focusRequester,
+        onFocus = { if (!it) onLeave() },
+        onKey = { ev ->
+            val dir = when (ev.key) {
+                Key.DirectionLeft -> -1
+                Key.DirectionRight -> 1
+                else -> 0
+            }
+            if (dir != 0 && ev.type == KeyEventType.KeyDown) onStep(dir)
+            dir != 0
+        },
+    ) { focused ->
+        Row(
+            Modifier.align(Alignment.CenterStart).fillMaxWidth().padding(start = 28.dp, end = 20.dp, top = 20.dp, bottom = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Txt(title, T.CardTitle, color = ink(focused), maxLines = 2)
+                if (!help.isNullOrBlank()) Txt(help, T.Label, color = inkMuted(focused), maxLines = 2)
+            }
+            if (toggle != null) {
+                Toggle(toggle, focused)
+            } else if (value != null) {
+                Row(Modifier.widthIn(max = 400.dp), verticalAlignment = Alignment.CenterVertically) {
+                    val arrow = if (lit(focused)) C.Ink else C.Linen
+                    if (focused) Icon(Icons.ChevronLeft, 32.dp, arrow.copy(alpha = if (canLess) 1f else 0.25f))
+                    Txt(
+                        value, T.Body, Modifier.weight(1f, fill = false).padding(horizontal = 8.dp),
+                        color = if (focused) ink(true) else C.Stone, maxLines = 2, align = TextAlign.End,
+                    )
+                    if (focused) Icon(Icons.ChevronRight, 32.dp, arrow.copy(alpha = if (canMore) 1f else 0.25f))
+                }
+            }
         }
     }
 }
@@ -112,8 +210,17 @@ fun LazyListScope.optionRows(
     firstRow: FocusRequester?,
     onPhone: (String) -> Unit,
     onOpen: (Opt) -> Unit,
+) = optionList(Options.of(section).filter { it.visible(s) }, s, rowModifier, firstRow, onPhone, onOpen)
+
+/** Adds [opts] to a settings list, the first one taking [firstRow]. */
+fun LazyListScope.optionList(
+    opts: List<Opt>,
+    s: Settings,
+    rowModifier: Modifier,
+    firstRow: FocusRequester?,
+    onPhone: (String) -> Unit,
+    onOpen: (Opt) -> Unit,
 ) {
-    val opts = Options.of(section).filter { it.visible(s) }
     for ((i, opt) in opts.withIndex()) {
         item(key = opt.id) {
             OptionRow(opt, s, rowModifier, if (i == 0) firstRow else null, onPhone, onOpen)

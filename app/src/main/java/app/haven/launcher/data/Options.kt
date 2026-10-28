@@ -1,22 +1,35 @@
 package app.haven.launcher.data
 
 /**
- * Every choice a profile can make, defined once. The TV's Settings screen shows each as a row that opens a list
- * (with a live preview for looks and backgrounds), and the phone page draws the same options from /api/options.
+ * Every choice a profile can make, defined once. The TV's Settings screen shows each as a row whose value changes
+ * with left and right (previewed and saved at once), and the phone page draws the same options from /api/options.
  * Adding an option here adds it to both.
  */
-enum class OptSection(val label: String) {
-    Layout("Layout"),
-    Look("Look"),
-    Home("Home screen"),
-    Background("Background"),
-    Art("Art mode"),
-    Alarm("Alarm"),
-    AlarmScreen("Alarm screen"),
-    Briefing("Morning briefing"),
+
+/** The groups Settings is organised in, on the TV and the phone page alike. */
+enum class OptGroup(val label: String) {
+    Profiles("Profiles"),
+    HomeScreen("Home screen"),
+    SmartHome("Smart home"),
     Sports("Sports"),
-    Alerts("Score alerts"),
-    Kids("Grown-up lock"),
+    ArtBedroom("Art & bedroom"),
+    ThisTv("This TV"),
+}
+
+/** A heading inside a group. */
+enum class OptSection(val label: String, val group: OptGroup) {
+    Layout("Layout", OptGroup.HomeScreen),
+    Look("Look", OptGroup.HomeScreen),
+    Home("Tiles and top bar", OptGroup.HomeScreen),
+    Background("Background", OptGroup.HomeScreen),
+    SmartHome("Rows", OptGroup.SmartHome),
+    Art("Art mode", OptGroup.ArtBedroom),
+    Alarm("Alarm", OptGroup.ArtBedroom),
+    AlarmScreen("Alarm screen", OptGroup.ArtBedroom),
+    Briefing("Morning briefing", OptGroup.ArtBedroom),
+    Sports("Sports", OptGroup.Sports),
+    Alerts("Score alerts", OptGroup.Sports),
+    Kids("Grown-up lock", OptGroup.Profiles),
 }
 
 /** What changing an option previews before it's saved. Layout previews the look and the background together. */
@@ -236,6 +249,7 @@ object Options {
     private val SP = OptSection.Sports
     private val SA = OptSection.Alerts
     private val K = OptSection.Kids
+    private val SH = OptSection.SmartHome
     private val haRows = setOf(
         HomeRow.Scenes, HomeRow.Lights, HomeRow.Climate, HomeRow.Cameras, HomeRow.Locks, HomeRow.Speakers, HomeRow.Sensors,
         HomeRow.Automations, HomeRow.NowPlaying,
@@ -307,7 +321,7 @@ object Options {
             visible = { it.look.hero == HeroKind.Spotlight },
         ),
         enumOpt(
-            "home.scope", LO, "Smart home rows show", HomeScope.values(), { it.label }, { it.homeScope }, { s, v -> s.copy(homeScope = v) },
+            "home.scope", SH, "Smart home rows show", HomeScope.values(), { it.label }, { it.homeScope }, { s, v -> s.copy(homeScope = v) },
             visible = { s -> s.look.hero == HeroKind.HomeStatus || s.look.rows.any { it in haRows } },
         ),
         Opt(
@@ -381,10 +395,6 @@ object Options {
         boolOpt("use24h", H, "24-hour clock", { it.use24h }, { s, v -> s.copy(use24h = v) }),
         boolOpt("look.showWeather", H, "Weather in the top bar", { it.look.showWeather }, { s, v -> s.withLook { l -> l.copy(showWeather = v) } }),
         boolOpt("look.showRoomChip", H, "Room button in the top bar", { it.look.showRoomChip }, { s, v -> s.withLook { l -> l.copy(showRoomChip = v) } }),
-        intOpt(
-            "artIdleMin", H, "Start art mode", listOf(0, 5, 10, 15, 30, 60),
-            { if (it == 0) "Only when I choose it" else "After $it min on the home screen" }, { it.artIdleMin }, { s, v -> s.copy(artIdleMin = v) },
-        ),
 
         // ---- background
         enumOpt("bg.kind", B, "Background", BgKind.values(), { it.label }, { it.background.kind }, { s, v -> s.withBg { b -> b.copy(kind = v) } }, preview = Preview.Background),
@@ -445,6 +455,10 @@ object Options {
 
         // ---- art mode
         enumOpt("artSource", A, "Show", ArtSource.values(), { it.label }, { it.artSource }, { s, v -> s.copy(artSource = v) }),
+        intOpt(
+            "artIdleMin", A, "Start art mode", listOf(0, 5, 10, 15, 30, 60),
+            { if (it == 0) "Only when I choose it" else "After $it min on the home screen" }, { it.artIdleMin }, { s, v -> s.copy(artIdleMin = v) },
+        ),
         enumOpt("art.style", A, "Style", ArtStyle.values(), { it.label }, { it.artCare.style }, { s, v -> s.care { c -> c.copy(style = v) } }),
         intOpt("artIntervalMin", A, "Change the picture every", listOf(1, 5, 15, 30, 60), ::minutes, { it.artIntervalMin }, { s, v -> s.copy(artIntervalMin = v) }),
         enumOpt(
@@ -581,6 +595,34 @@ object Options {
     operator fun get(id: String): Opt? = byId[id]
 
     fun of(section: OptSection): List<Opt> = all.filter { it.section == section }
+
+    /**
+     * What each group shows first, in this order: the choices most people change. Everything else in the group sits
+     * behind "More options", under its section's heading.
+     */
+    val basics: Map<OptGroup, List<String>> = mapOf(
+        OptGroup.Profiles to listOf("kids.pin", "kids.apps", "kids.bedtime"),
+        OptGroup.HomeScreen to listOf(
+            "home.layout", "look.theme", "look.accent", "bg.kind", "bg.color", "bg.gradient", "bg.photo", "bg.posters",
+            "look.textScale", "look.favSize", "home.rows",
+        ),
+        OptGroup.SmartHome to listOf("home.scope"),
+        OptGroup.Sports to listOf("sports.noSpoilers", "sports.homeTile", "sports.alerts"),
+        OptGroup.ArtBedroom to listOf("artSource", "artIdleMin", "art.style", "alarm.sound", "alarm.sunrise", "brief.when", "brief.sections"),
+        OptGroup.ThisTv to emptyList(),
+    )
+
+    fun isBasic(o: Opt): Boolean = o.id in basics[o.section.group].orEmpty()
+
+    /** A group's first options that show now, in order. */
+    fun basicsOf(g: OptGroup, s: Settings): List<Opt> = basics[g].orEmpty().mapNotNull { byId[it] }.filter { shown(it, s) }
+
+    /** A section's other options that show now: what "More options" opens. */
+    fun moreOf(section: OptSection, s: Settings): List<Opt> = of(section).filter { !isBasic(it) && shown(it, s) }
+
+    /** Whether an option shows now: its own condition, and the alarm only where the room has bedroom features. */
+    fun shown(o: Opt, s: Settings): Boolean =
+        o.visible(s) && (s.bedroomExtras || (o.section != OptSection.Alarm && o.section != OptSection.AlarmScreen))
 
     fun hex(argb: Long): String = "#" + (argb and 0xFFFFFF).toString(16).padStart(6, '0').uppercase()
 }

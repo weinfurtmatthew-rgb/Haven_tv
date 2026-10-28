@@ -35,7 +35,12 @@ design, with features that depend on the room the TV is in.
   warm wall. It can start after the home screen sits idle, and it can be the system screensaver.
 - **Phone setup**: scan a QR code in Settings to connect Home Assistant, pick the room's lights, upload photos and
   set the alarm from your phone, with no typing on the remote.
-- **Updates in the app**: Settings › Updates downloads the newest build from this repo's releases.
+- **Updates in the app**: Settings › This TV › Updates downloads the newest build from this repo's releases.
+- **Settings in six groups**: Profiles, Home screen, Smart home, Sports, Art & bedroom and This TV. Each starts with
+  what most people change, with the rest under More options in the same list. Left and right change a setting right
+  on its row, previewed and saved at once; OK opens the whole list for long ones (layouts, fonts, photos). Back goes
+  from the list to the groups. The phone page has the same groups. The background also changes straight from the
+  home screen: the picture button in the top bar opens a strip of backgrounds that you try on as you move along it.
 
 - **Art mode styles and screen care**: full screen, thin frame or gallery. It protects against burn-in with pixel shift,
   captions that fade, stronger protection on OLED, optional dimming, quiet hours (dim or black), an optional
@@ -47,7 +52,7 @@ design, with features that depend on the room the TV is in.
   messages. Choose cards, a list or a big scoreboard, hide scores until you hold OK on a game (no spoilers), team
   logos and colours, and where alerts appear, how long, how big and whether they chime.
 
-**Bedroom features** (turn on in Settings › Bedroom features)
+**Bedroom features** (turn on in Settings › Art & bedroom › Bedroom features)
 - **Alarm** with snooze, chosen days, and *sunrise lights* that fade the room's lights up before it rings. Every
   profile has its own. Pick its sound (chime, bells, marimba, digital beeps, a gentle rise, or silent), how loud
   and how gently it starts, how many snoozes, how it's stopped (a press, holding OK, or solving a sum), what comes
@@ -95,9 +100,9 @@ them slightly differently.
 
 ### Updating
 
-Haven › Settings › **Updates** checks this repo for a newer build, downloads it and opens the installer. The first
-time, Android asks you to allow Haven to install apps. Haven also shows an **Update ready** chip on the home screen
-when there is one.
+Haven › Settings › This TV › **Updates** checks this repo for a newer build, downloads it and opens the installer.
+The first time, Android asks you to allow Haven to install apps. Haven also shows an **Update ready** chip on the
+home screen when there is one.
 
 ### Connecting Home Assistant
 
@@ -145,7 +150,7 @@ over ADB. Haven works around this instead of replacing the DIRECTV app:
   goes to Haven, and Home twice goes to DIRECTV's home.
 - Installing the DIRECTV app from Google Play isn't needed (and is reportedly not offered on DIRECTV's own boxes).
   **Don't disable the built-in DIRECTV app** with ADB to "make room" for Haven; that removes live TV.
-- If something misbehaves, Settings › Home button › **Recent screens** lists which apps and screens opened.
+- If something misbehaves, Settings › This TV › More options › **Recent screens** lists which apps and screens opened.
   That tells us exactly how DIRECTV's screens are named on your box.
 
 ## What to know

@@ -14,6 +14,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -49,6 +50,9 @@ import kotlin.random.Random
 /** A background being tried in Settings: shown instead of the saved one until it's kept or let go. */
 object BgPreview {
     var value: BackgroundConfig? by mutableStateOf(null)
+
+    /** Bumped by "Next picture": a background that takes turns moves on to its next picture now. */
+    var next by mutableIntStateOf(0)
 }
 
 /**
@@ -88,14 +92,15 @@ private fun PictureBackground(cfg: BackgroundConfig, bounds: Rect) {
     // What's playing changes with Home Assistant, so this reads the entities itself (CLAUDE.md).
     val entities by Haven.ha.entities.collectAsState()
     val playing = if (cfg.kind == BgKind.NowPlaying) remember(entities, s.haArea) { Haven.backgrounds.nowPlaying(s) } else null
-    val image by produceState<ImageBitmap?>(null, cfg, playing) {
-        var turn = Random.nextInt(1000)
+    // Where the turns are: "Next picture" starts the loop again from here, so it always moves on.
+    val turns = remember { intArrayOf(Random.nextInt(1000)) }
+    val image by produceState<ImageBitmap?>(null, cfg, playing, BgPreview.next) {
         while (true) {
-            val src = runCatching { Haven.backgrounds.pick(cfg, s, turn) }.getOrNull()
+            val src = runCatching { Haven.backgrounds.pick(cfg, s, turns[0]) }.getOrNull()
             val img = src?.let { runCatching { Haven.backgrounds.load(it, cfg.blur) }.getOrNull() }
             // Keep the last picture while a download fails; clear it when the source has nothing at all.
             if (img != null || src == null) value = img
-            turn++
+            turns[0]++
             if (cfg.kind == BgKind.NowPlaying) break // runs again when the cover changes
             val wait = if (cfg.kind == BgKind.Daily) 3 * 3600_000L else cfg.everyMin * 60_000L
             delay(if (src != null && img == null) 60_000L else wait)
