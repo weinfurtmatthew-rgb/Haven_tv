@@ -80,7 +80,7 @@ sleep 2
 shot 28-layout-dialog-preview
 key BACK
 sleep 1
-key DPAD_DOWN DPAD_CENTER
+key DPAD_DOWN DPAD_DOWN DPAD_CENTER
 sleep 1
 shot 33-look-scheme-dialog
 key DPAD_DOWN DPAD_DOWN

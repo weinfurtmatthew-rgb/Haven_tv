@@ -64,12 +64,15 @@ its own setting, so layouts mix. The tokens, type scale and focus rules above ho
   carries on down the whole page, darkening as it goes, and the rows and their glass sit on that.
 - **Scrolling never stops halfway into an end.** Anything that fits on a page's first screen shows the page's very
   top; anything on its last screen shows its very bottom. In between, the page moves as little as it can while
-  keeping a row's name in view above what has focus, and the top bar is whole or gone, never half off the screen.
+  keeping a row's name in view above what has focus, and the top of the page (the top bar and the hero) is whole
+  or gone, never half off the screen.
 - **Each layout keeps its changes.** Switching away and back brings them back; "Start over" puts a layout back to
   its recipe, and "Save as your own layout" keeps the current one under a name, in the layout list with the nine.
 - **Where focus starts**: on the hero's main button when the hero is the point of the page (the game on now, the
-  song playing), else on the first thing in the first row. Featured movies and shows keep changing, so focus
-  starts below them. A new layout always starts there; coming back to the same one returns to where you were.
+  song playing, the featured movie or show), else on the first thing in the first row. A featured movie or show
+  moves on every 12 seconds; with focus on it, only after half a minute with no key pressed, so what you're about
+  to pick doesn't change under you. A new layout always starts there; coming back to the same one returns to
+  where you were.
 - **Glass** is a surface that lets the background through: a blurred copy of the picture behind it, darkened as
   the background is, under a light tint (11% white on dark schemes, 55% on the light one) and a hairline edge.
   It's for tiles, cards, chips and the side menu, over pictures; dialogs stay solid.

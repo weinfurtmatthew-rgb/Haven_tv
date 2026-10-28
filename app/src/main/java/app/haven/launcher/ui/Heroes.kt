@@ -3,6 +3,7 @@ package app.haven.launcher.ui
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.SystemClock
 import android.text.format.DateFormat
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
@@ -108,11 +109,11 @@ fun heroKey(hero: HeroKind): String? = when (hero) {
 }
 
 /**
- * Where a page starts when its hero is the point of it: the game on now, the song playing. Featured movies and shows
- * change every few seconds, so their pages start on the row below and leave them free to change.
+ * Where a page starts when its hero is the point of it: the game on now, the song playing, the featured movie or
+ * show (which moves on while nobody's pressing anything).
  */
 fun heroStart(hero: HeroKind): String? = when (hero) {
-    HeroKind.Scoreboard, HeroKind.NowPlaying -> heroKey(hero)
+    HeroKind.Scoreboard, HeroKind.NowPlaying, HeroKind.Movie, HeroKind.Show -> heroKey(hero)
     else -> null
 }
 
@@ -248,14 +249,21 @@ private fun FeatureHero(h: HomeCtx, kind: MediaKind) {
     }
     var index by remember { mutableIntStateOf(0) }
     var holding by remember { mutableStateOf(false) }
-    LaunchedEffect(items.size, holding) {
-        while (items.size > 1 && !holding && !Look.reduced) {
+    val heldAt = remember { LongArray(1) }
+    // A new one every 12 seconds. With focus on it, only after half a minute with no key pressed and no move onto
+    // it, so what you're about to pick doesn't change under you.
+    LaunchedEffect(items.size) {
+        while (items.size > 1 && !Look.reduced) {
             delay(12_000)
-            index = (index + 1) % items.size
+            val quiet = SystemClock.uptimeMillis() - maxOf(HomeFocus.lastKeyAt, heldAt[0])
+            if (!holding || quiet > 30_000) index = (index + 1) % items.size
         }
     }
     val item = items.getOrNull(index % maxOf(1, items.size))
-    val hold: (Boolean) -> Unit = { holding = it }
+    val hold: (Boolean) -> Unit = {
+        holding = it
+        if (it) heldAt[0] = SystemClock.uptimeMillis()
+    }
     Box(Modifier.fillMaxWidth().height(640.dp)) {
         if (item == null) {
             Column(Modifier.padding(start = h.start, top = 80.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

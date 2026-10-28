@@ -5,8 +5,8 @@ package app.haven.launcher.ui
  * ([screen] tall), with the page scrolled [now] out of at most [max]. Anything that fits on the page's first screen
  * ([edge] clear of the screen's bottom) shows the page's very top, and anything on its last screen (its row's name
  * too) the very bottom, so neither end is left half cut off. In between, the page moves as little as it can while
- * keeping [margin] clear above (the row's name) and below, and the page's [head] (the top bar) is whole or gone.
- * Pure, so it's tested.
+ * keeping [margin] clear above (the row's name) and below, and the page's [head] (its top bar and hero) is whole
+ * or gone. Pure, so it's tested.
  */
 fun pageScrollBy(now: Float, offset: Float, size: Float, screen: Float, max: Float, margin: Float, edge: Float, head: Float): Float {
     val top = offset + now

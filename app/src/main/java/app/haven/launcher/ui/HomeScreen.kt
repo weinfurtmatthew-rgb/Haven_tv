@@ -82,6 +82,9 @@ internal object HomeFocus {
 
     /** The layout [lastKey] belongs to: another layout starts from its own first focus. */
     var layout: String? = null
+
+    /** When a key was last pressed on the home screen (uptime): a featured hero waits for a quiet spell to move on. */
+    var lastKeyAt = 0L
 }
 
 /** The home screen's side margin (DESIGN.md, "Layout"). */
@@ -316,7 +319,10 @@ fun HomeScreen(nav: Nav) {
 
     Box(
         Modifier.fillMaxSize().onPreviewKeyEvent {
-            if (it.type == KeyEventType.KeyDown) keyPressed[0] = true
+            if (it.type == KeyEventType.KeyDown) {
+                keyPressed[0] = true
+                HomeFocus.lastKeyAt = SystemClock.uptimeMillis()
+            }
             false
         },
     ) {
@@ -352,7 +358,7 @@ enum class PageChrome { TopBar, Clock, None }
 @Composable
 fun HomePage(h: HomeCtx, hero: HeroKind, rows: List<HomeRow>, scroll: ScrollState, chrome: PageChrome) {
     val rowScroll = LocalBringIntoViewSpec.current
-    // How tall the page's head (the top bar or the clock) is: whole or gone when the page scrolls.
+    // How tall the top of the page (the top bar or clock, and the hero) is: whole or gone when the page scrolls.
     val head = remember { mutableFloatStateOf(0f) }
     val pageScroll = if (hero == HeroKind.Spotlight) spotlightScroll(scroll) else homeScroll(scroll, head)
     // Spotlight's photo, blurred and carried down the page, stays behind everything on it (glass included), so
@@ -396,14 +402,15 @@ private fun PageContent(
                     }
                 }
             } else {
-                Box(Modifier.onSizeChanged { head.floatValue = it.height.toFloat() }) {
+                // The top of the page, whole or gone when the page scrolls: the top bar or clock, and the hero.
+                Column(Modifier.onSizeChanged { head.floatValue = it.height.toFloat() }) {
                     when (chrome) {
                         PageChrome.TopBar -> Box(Modifier.padding(top = 48.dp)) { TopBar(h) }
                         PageChrome.Clock -> ClockLine(h)
                         PageChrome.None -> Spacer(height = 16.dp)
                     }
+                    Hero(h, hero)
                 }
-                Hero(h, hero)
                 for (row in rows) HomeRowView(h, row, page = rows)
             }
         }

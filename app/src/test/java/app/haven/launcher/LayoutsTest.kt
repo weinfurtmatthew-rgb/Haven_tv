@@ -290,8 +290,8 @@ class LayoutsTest {
 
     @Test
     fun pagesNeverStopHalfwayIntoTheirEnds() {
-        // 1080 tall, the page 3080 long (2000 to scroll), 120 kept clear, 64 at the bottom edge, a top bar 160
-        // tall; things are 160 tall.
+        // 1080 tall, the page 3080 long (2000 to scroll), 120 kept clear, 64 at the bottom edge, the top bar and
+        // hero 160 tall; things are 160 tall.
         fun by(now: Float, top: Float) = pageScrollBy(now, top - now, 160f, 1080f, 2000f, 120f, 64f, 160f)
         // The top bar or a row near the top, from anywhere: the whole top shows.
         assertEquals(-300f, by(300f, 40f), 0.01f)
@@ -299,7 +299,7 @@ class LayoutsTest {
         assertEquals(-1000f, by(1000f, 500f), 0.01f)
         // Low on the first screen, but whole on it: the top still shows.
         assertEquals(0f, by(0f, 850f), 0.01f)
-        // Just past the first screen: the top bar goes altogether rather than half of it.
+        // Just past the first screen: the top of the page goes altogether rather than half of it.
         assertEquals(160f, by(0f, 900f), 0.01f)
         // Further down: as little as it can, with room below.
         assertEquals(340f, by(160f, 1300f), 0.01f)
