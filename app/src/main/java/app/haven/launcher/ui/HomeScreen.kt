@@ -288,13 +288,13 @@ fun HomeScreen(nav: Nav) {
         }
         keyPressed[0] = false
         val wanted = listOfNotNull(HomeFocus.lastKey) + firstFocus
-        // Ask until the most wanted one has focus: the window may hand its first focus to the top bar after this
-        // runs, and a row that's still loading takes focus once it arrives (the next one on the page has it till
-        // then). A key press ends it.
-        for (attempt in 0 until 100) {
+        // Keep the most wanted one that's on the page focused while the page settles: the window may hand its
+        // first focus to the top bar after this runs, a row that's still loading takes focus once it arrives (the
+        // next one on the page has it till then), and a placeholder that gets replaced takes focus with it.
+        // Asking the focused one again changes nothing. A key press ends it.
+        for (attempt in 0 until 150) {
             if (attempt > 0 && keyPressed[0]) break
-            val target = wanted.firstOrNull { k -> HomeFocus.current == k || runCatching { req(k).requestFocus() }.isSuccess }
-            if (target == wanted.first() && HomeFocus.current == target) break
+            for (k in wanted) if (runCatching { req(k).requestFocus() }.isSuccess) break
             delay(if (attempt == 0) 30L else 100L)
         }
     }

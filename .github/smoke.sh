@@ -253,7 +253,7 @@ opt "home.layout=GameDay"
 home 10
 shot 106-layout-game-day
 opt "home.layout=Cinema"
-home 10
+home 14
 shot 107-layout-cinema
 key DPAD_CENTER
 sleep 2
