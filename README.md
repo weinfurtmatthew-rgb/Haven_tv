@@ -21,7 +21,8 @@ design, with features that depend on the room the TV is in.
   automations); **Music** (what's playing, big, with controls and every speaker); and **Kids** (huge friendly
   tiles with only the apps a grown-up picked, a grown-up PIN and a bedtime). Each part of a layout (how you get
   around, the top of the screen, the rows, the look) is its own setting, so layouts mix: Spotlight's photo with
-  Game day's rows, or the side menu on any of them.
+  Game day's rows, or the side menu on any of them. Each layout keeps your changes when you switch away and back,
+  and **Save as your own layout** keeps one under your own name, in the layout list next to the nine.
 - **Make it yours**: every part of Haven is a choice, set on the TV (with a live preview) or from your phone.
   Eight colour schemes (one light) and ten accent colours; seven heading fonts and six text fonts; text size,
   tile sizes, spacing and corners; how focus looks (a light fill, a frame or a coloured frame), zoom and motion;

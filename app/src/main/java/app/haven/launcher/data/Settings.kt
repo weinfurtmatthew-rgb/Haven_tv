@@ -122,6 +122,10 @@ data class Settings(
     val region: String = "",
     val shows: List<FollowedShow> = emptyList(),
     val kids: KidsConfig = KidsConfig(),
+    /** Layouts saved under the profile's own names, to pick again like the built-in ones. */
+    val savedLayouts: List<SavedLayout> = emptyList(),
+    /** Each built-in layout as it was last left, so switching away and back keeps its changes. */
+    val layoutMemory: Map<HomeLayout, SavedLayout> = emptyMap(),
     // Home button
     val homeOverride: Boolean = true,
     // Bedroom
@@ -162,6 +166,8 @@ data class Settings(
         .put("region", region)
         .put("shows", FollowedShow.listToJson(shows))
         .put("kids", kids.toJson())
+        .put("savedLayouts", JSONArray(savedLayouts.map { it.toJson() }))
+        .put("layoutMemory", JSONObject().also { j -> for ((l, v) in layoutMemory) j.put(l.name, v.toJson()) })
         .put("homeOverride", homeOverride)
         .put("alarm", alarm.toJson())
         .put("sleepLightsOff", sleepLightsOff)
@@ -196,6 +202,13 @@ data class Settings(
                 region = o.optString("region", d.region).trim().uppercase().take(2),
                 shows = FollowedShow.listFromJson(o.optJSONArray("shows")),
                 kids = KidsConfig.fromJson(o.optJSONObject("kids")),
+                savedLayouts = o.optJSONArray("savedLayouts").let { a ->
+                    if (a == null) emptyList() else (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(SavedLayout::fromJson) }
+                },
+                layoutMemory = o.optJSONObject("layoutMemory").let { m ->
+                    if (m == null) emptyMap()
+                    else HomeLayout.values().mapNotNull { l -> m.optJSONObject(l.name)?.let { l to SavedLayout.fromJson(it) } }.toMap()
+                },
                 homeOverride = o.optBoolean("homeOverride", d.homeOverride),
                 alarm = o.optJSONObject("alarm")?.let { alarmFromJson(it) } ?: d.alarm,
                 sleepLightsOff = o.optBoolean("sleepLightsOff", d.sleepLightsOff),

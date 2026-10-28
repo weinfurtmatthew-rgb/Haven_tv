@@ -205,6 +205,8 @@ data class LookConfig(
     val spotClock: SpotClock = SpotClock.Behind,
     /** In Spotlight, the photo follows the streaming app you're on (with a TMDB key). */
     val spotFollow: Boolean = true,
+    /** The id of the saved layout this is (Settings.savedLayouts), or empty for one of the built-in layouts. */
+    val saved: String = "",
 ) {
     val rows: List<HomeRow> get() = rowOrder.filter { it in rowsShown }
     val sections: List<HomeSection> get() = sectionOrder.filter { it in sectionsShown }
@@ -242,6 +244,7 @@ data class LookConfig(
         .put("spotSource", spotSource.name)
         .put("spotClock", spotClock.name)
         .put("spotFollow", spotFollow)
+        .put("saved", saved)
 
     companion object {
         fun fromJson(o: JSONObject?): LookConfig {
@@ -280,6 +283,7 @@ data class LookConfig(
                 spotSource = enumOr(o.optString("spotSource"), d.spotSource),
                 spotClock = enumOr(o.optString("spotClock"), d.spotClock),
                 spotFollow = o.optBoolean("spotFollow", d.spotFollow),
+                saved = o.optString("saved", d.saved),
             )
         }
     }

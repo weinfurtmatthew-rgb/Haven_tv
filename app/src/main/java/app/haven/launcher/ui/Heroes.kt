@@ -28,8 +28,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,14 +41,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -536,10 +539,14 @@ object SpotFocus {
     var app: TvApp? by mutableStateOf(null)
 }
 
-/** Spotlight's photo, ready to draw: the clock's place, and the scenery to draw over the clock. */
+/**
+ * Spotlight's photo, ready to draw: the clock's place, the scenery to draw over the clock, and [stage]: the photo
+ * blurred and carried down the whole page, for behind the rows.
+ */
 private class SpotPhoto(
     val photo: ImageBitmap,
     val frost: ImageBitmap,
+    val stage: ImageBitmap,
     val place: DepthMask.Placement,
     val cut: ImageBitmap?,
     val cutX: Int,
@@ -556,7 +563,7 @@ private const val CLOCK_SIZE = 260
  * along the photo's bottom; on a streaming app, the photo shows what's popular there instead (with a TMDB key).
  */
 @Composable
-fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> Unit)?) {
+fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> Unit)?, stage: MutableState<ImageBitmap?>) {
     val ctx = LocalContext.current
     val look = h.s.look
     val density = LocalDensity.current
@@ -590,12 +597,11 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
         value = runCatching { Haven.media.onService(app) }.getOrNull()?.firstOrNull()
     }
 
-    var bounds by remember { mutableStateOf(Rect.Zero) }
-    val backdrop = spot?.let { GlassBackdrop(it.frost, bounds, 0.3f) }
+    // The page draws the photo's blurred continuation behind everything, so the photo and the rows are one piece.
+    LaunchedEffect(spot) { stage.value = spot?.stage }
     // Beside the side menu the page is narrower than the screen: the photo is cut to the page's own width.
     Box(
         Modifier.fillMaxWidth().height(SPOT_H.dp).onGloballyPositioned {
-            bounds = it.boundsInRoot()
             spotW = (it.size.width / density.density).roundToInt().coerceAtLeast(800)
         },
     ) {
@@ -603,15 +609,15 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
         Crossfade(targetState = service, animationSpec = motion(700), label = "spot") { svc ->
             Box(Modifier.fillMaxSize()) {
                 if (svc?.backdrop != null) {
-                    AsyncImage(svc.backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f))))
+                    AsyncImage(svc.backdrop, null, Modifier.fillMaxSize().fadeDown(), contentScale = ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.6f))).fadeDown())
                     Column(Modifier.padding(start = h.start, top = 360.dp).width(1100.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Eyebrow("Popular on ${app?.label.orEmpty()}", Color.White)
                         Txt(svc.title, T.Headline, size = 80, color = Color.White, maxLines = 2)
                     }
                 } else if (shown != null) {
-                    Image(shown.photo, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.6f))))
+                    // The photo melts into its own blurred continuation below it (the page's stage).
+                    Image(shown.photo, null, Modifier.fillMaxSize().fadeDown(), contentScale = ContentScale.FillBounds)
                     if (look.spotClock != SpotClock.Hidden) {
                         val baseline = shown.place.baseline
                         val textTop = baseline - firstBaseline
@@ -632,16 +638,12 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
                             )
                         }
                     }
-                } else {
-                    Box(Modifier.fillMaxSize().background(C.Surface))
                 }
             }
         }
         if (chrome == PageChrome.TopBar) Box(Modifier.padding(top = 40.dp)) { TopBar(h, overPhoto = true) }
         if (firstRow != null) {
-            CompositionLocalProvider(LocalGlass provides backdrop) {
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) { firstRow() }
-            }
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) { firstRow() }
         }
     }
 }
@@ -663,7 +665,40 @@ fun spotlightScroll(scroll: ScrollState): BringIntoViewSpec {
 @OptIn(ExperimentalFoundationApi::class)
 private class PastThePhoto(private val scroll: ScrollState, private val photo: Float, private val title: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
-        spotlightScrollBy(scroll.value.toFloat(), offset, size, containerSize, photo, title)
+        spotlightScrollBy(scroll.value.toFloat(), offset, size, containerSize, photo, title, scroll.maxValue.toFloat())
+}
+
+/** Fades what this draws away to nothing over its lowest third, so what's behind shows through there. */
+private fun Modifier.fadeDown(): Modifier = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(Brush.verticalGradient(0.68f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+    }
+
+/** The screen's height in design pixels: the stage behind a Spotlight page fills it. */
+private const val SCREEN_H = 1080
+
+/**
+ * The photo blurred and carried down the whole page: [frost] (the photo, blurred) where the photo is, its bottom edge
+ * stretched on below it, darkening towards the bottom so the rows on it read. [photoW] is the photo's width.
+ */
+private fun stageOf(frost: ImageBitmap, photoW: Int): ImageBitmap {
+    val f = frost.asAndroidBitmap()
+    val w = f.width
+    val photoH = f.height
+    val h = maxOf(photoH + 1, (w.toFloat() * SCREEN_H / photoW).roundToInt())
+    val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val c = android.graphics.Canvas(out)
+    val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+    c.drawBitmap(f, null, android.graphics.Rect(0, 0, w, photoH), p)
+    c.drawBitmap(f, android.graphics.Rect(0, photoH - 1, w, photoH), android.graphics.Rect(0, photoH, w, h), p)
+    val shade = android.graphics.Paint().apply {
+        shader = android.graphics.LinearGradient(
+            0f, photoH * 0.6f, 0f, h.toFloat(), 0x00000000, 0xA6000000.toInt(), android.graphics.Shader.TileMode.CLAMP,
+        )
+    }
+    c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), shade)
+    return out.asImageBitmap()
 }
 
 /** Finds the photo's scenery and places the clock; a no-depth placement when the photo has no sky to use. */
@@ -700,5 +735,6 @@ private fun analyse(bmp: Bitmap, clockW: Int, capH: Int, behind: Boolean): SpotP
         }
     }
     val photo = bmp.asImageBitmap()
-    return SpotPhoto(photo, Glass.frost(photo), place, cut, cx, cy)
+    val frost = Glass.frost(photo)
+    return SpotPhoto(photo, frost, stageOf(frost, fw), place, cut, cx, cy)
 }

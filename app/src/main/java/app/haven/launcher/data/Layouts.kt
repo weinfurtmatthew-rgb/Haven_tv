@@ -1,5 +1,7 @@
 package app.haven.launcher.data
 
+import org.json.JSONObject
+
 // Layouts: whole home screens to start from. A layout is a recipe of parts (how you get around, what fills the
 // top of the screen, which rows, and a look); picking one sets all of them, and each part stays its own setting,
 // so parts from different layouts mix. The parts live in LookConfig, so they follow the profile.
@@ -210,6 +212,7 @@ object Layouts {
     /** [look] with [r]'s parts: rows, menu, top of the screen, grid and surface. */
     private fun withParts(look: LookConfig, l: HomeLayout, r: Recipe): LookConfig = look.copy(
         layout = l,
+        saved = "",
         nav = r.nav,
         hero = r.hero,
         rowOrder = completeOrder(r.rows + look.rowOrder.filter { it !in r.rows }),
@@ -237,6 +240,79 @@ object Layouts {
         )
         return s.copy(look = withParts(look, l, r), background = r.background(s.background))
     }
+
+    /** The layout list's value for what's on now: a built-in layout's name, or [SAVED] and a saved layout's id. */
+    fun current(s: Settings): String =
+        if (s.look.saved.isNotBlank() && s.savedLayouts.any { it.id == s.look.saved }) SAVED + s.look.saved else s.look.layout.name
+
+    /**
+     * Moves to layout [target] (a built-in layout's name, or [SAVED] and an id). What the current one was changed to
+     * is kept first, so coming back to it brings the changes back; a built-in layout seen for the first time starts
+     * from its recipe.
+     */
+    fun switchTo(s: Settings, target: String): Settings {
+        if (target == current(s)) return s
+        val kept = keep(s)
+        if (target.startsWith(SAVED)) {
+            val saved = kept.savedLayouts.firstOrNull { it.id == target.removePrefix(SAVED) } ?: return kept
+            return restore(kept, saved.look.copy(saved = saved.id), saved.background)
+        }
+        val l = HomeLayout.values().firstOrNull { it.name == target } ?: return kept
+        val base = kept.copy(look = kept.look.copy(saved = ""))
+        val mem = kept.layoutMemory[l] ?: return apply(base, l)
+        return restore(base, mem.look.copy(layout = l, saved = ""), mem.background)
+    }
+
+    /** The current layout's state kept where it belongs: in its saved layout, or in its built-in layout's memory. */
+    fun keep(s: Settings): Settings {
+        val look = s.look
+        if (look.saved.isNotBlank() && s.savedLayouts.any { it.id == look.saved }) {
+            return s.copy(savedLayouts = s.savedLayouts.map { if (it.id == look.saved) it.copy(look = look, background = s.background) else it })
+        }
+        return s.copy(layoutMemory = s.layoutMemory + (look.layout to SavedLayout(look.layout.name, look.layout.label, look.copy(saved = ""), s.background)))
+    }
+
+    /** Shows [look] and [bg]: all of it when layouts bring their look, otherwise only its parts. The profile colour stays. */
+    private fun restore(s: Settings, look: LookConfig, bg: BackgroundConfig): Settings {
+        val cur = s.look
+        if (!cur.layoutLook) return s.copy(look = partsOf(cur, look))
+        return s.copy(look = look.copy(avatar = cur.avatar, layoutLook = true), background = bg)
+    }
+
+    /** [look] with [from]'s parts: which layout, the rows, menu, top of the screen, grid, surface and Spotlight's photo. */
+    private fun partsOf(look: LookConfig, from: LookConfig): LookConfig = look.copy(
+        layout = from.layout, saved = from.saved, nav = from.nav, hero = from.hero,
+        rowOrder = from.rowOrder, rowsShown = from.rowsShown, sectionOrder = from.sectionOrder, sectionsShown = from.sectionsShown,
+        appGrid = from.appGrid, surface = from.surface, spotSource = from.spotSource, spotClock = from.spotClock, spotFollow = from.spotFollow,
+    )
+
+    /** Keeps what's on now as a new layout called [name] (the oldest goes past [MAX_SAVED]), and switches to it. */
+    fun save(s: Settings, name: String): Settings {
+        val kept = keep(s)
+        var n = kept.savedLayouts.size + 1
+        while (kept.savedLayouts.any { it.id == "l$n" }) n++
+        val id = "l$n"
+        val title = name.trim().ifBlank { "My " + s.look.layout.label }.take(40)
+        val look = kept.look.copy(saved = id)
+        return kept.copy(savedLayouts = (kept.savedLayouts + SavedLayout(id, title, look, kept.background)).takeLast(MAX_SAVED), look = look)
+    }
+
+    /** Removes a saved layout. When it's the one on now, it stays on screen as its built-in layout, changed. */
+    fun delete(s: Settings, id: String): Settings =
+        s.copy(savedLayouts = s.savedLayouts.filter { it.id != id }, look = if (s.look.saved == id) s.look.copy(saved = "") else s.look)
+
+    /** A built-in layout back to how it came, its changes forgotten. A saved layout stays as it is. */
+    fun startOver(s: Settings): Settings {
+        if (s.look.saved.isNotBlank()) return s
+        val l = s.look.layout
+        return apply(s.copy(layoutMemory = s.layoutMemory - l), l)
+    }
+
+    /** A saved layout's own name, or "Game day" / "Game day, changed". */
+    fun label(s: Settings): String = s.savedLayouts.firstOrNull { it.id == s.look.saved }?.name ?: label(s.look)
+
+    const val SAVED = "saved:"
+    const val MAX_SAVED = 12
 
     /** True while the profile's parts are still exactly its layout's recipe. */
     fun matches(look: LookConfig): Boolean {
@@ -266,4 +342,16 @@ object Layouts {
     /** Sections that do something instead of showing a page. */
     fun isAction(section: HomeSection): Boolean =
         section == HomeSection.LiveTv || section == HomeSection.Search || section == HomeSection.Settings
+}
+
+/** A layout as someone left it or saved it: the whole look and the background. */
+data class SavedLayout(val id: String, val name: String, val look: LookConfig, val background: BackgroundConfig) {
+    fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name).put("look", look.toJson()).put("background", background.toJson())
+
+    companion object {
+        fun fromJson(o: JSONObject): SavedLayout = SavedLayout(
+            o.optString("id"), o.optString("name"),
+            LookConfig.fromJson(o.optJSONObject("look")), BackgroundConfig.fromJson(o.optJSONObject("background")),
+        )
+    }
 }

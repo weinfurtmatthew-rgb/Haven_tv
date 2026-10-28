@@ -263,10 +263,17 @@ object Options {
 
     val all: List<Opt> = listOf(
         // ---- layout
-        enumOpt(
-            "home.layout", LO, "Layout", HomeLayout.values(), { it.label }, { it.look.layout }, { s, v -> Layouts.apply(s, v) },
-            help = "A whole home screen to start from. Every part of it can be changed below",
-            preview = Preview.Layout, note = { it.note }, labelOf = { Layouts.label(it.look) },
+        Opt(
+            "home.layout", LO, "Layout",
+            choices = { s ->
+                HomeLayout.values().map { OptChoice(it.name, it.label, it.note) } +
+                    s.savedLayouts.map { OptChoice(Layouts.SAVED + it.id, it.name, "Your layout, from ${it.look.layout.label}") }
+            },
+            get = { Layouts.current(it) },
+            set = { s, v -> Layouts.switchTo(s, v) },
+            help = "A whole home screen to start from. Every part of it can be changed below, and each layout keeps its changes",
+            preview = Preview.Layout,
+            labelOf = { Layouts.label(it) },
         ),
         boolOpt(
             "home.layoutLook", LO, "Layouts bring their colours and fonts", { it.look.layoutLook },

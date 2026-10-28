@@ -50,7 +50,9 @@ apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. 
   alerts, Home Assistant) belong in `Haven.init`'s `settings.onChange`, which sees every profile's changes.
 - Layouts (`data/Layouts.kt`) are recipes over parts kept in `LookConfig` (nav, hero, rows, sections, grid,
   surface, Spotlight's photo and clock). `Layouts.apply` sets a recipe's parts (and its look and background when
-  `layoutLook` is on); never special-case a layout by name in the UI: render the parts. The home screen is
+  `layoutLook` is on); never special-case a layout by name in the UI: render the parts. Switching goes through
+  `Layouts.switchTo`, which keeps the layout being left (`Settings.layoutMemory`, or its `SavedLayout` when it's
+  one of the profile's own) so changes survive switching away and back. The home screen is
   `HomeScreen.kt` (pages, focus, data loads) with `HomeRows.kt` (one composable per `HomeRow`; focus keys are
   "Row:index"), `Heroes.kt`, `HomeFrames.kt` (side menu, tabs) and `HomeDialogs.kt`. Rows that need the internet
   declare it in `needsOf` so the page loads and refreshes it. A page starts on its hero's main button (`heroStart`)

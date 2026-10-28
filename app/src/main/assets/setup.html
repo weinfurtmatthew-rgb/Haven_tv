@@ -127,8 +127,15 @@ a{color:var(--lamp)}
   <h2 class="group" id="g-HomeScreen">Home screen</h2>
   <section>
     <h3 class="card">Layout, look and background</h3>
-    <div class="sub">The TV changes as soon as you pick.</div>
-    <div class="opts" data-basics="HomeScreen"></div>
+    <div class="sub">The TV changes as soon as you pick. Each layout keeps your changes when you switch away and back.</div>
+    <div class="opts" data-basics="HomeScreen" data-only="home.layout"></div>
+    <div class="row">
+      <input type="text" id="layoutName" class="grow" placeholder="Name it to keep it as your own layout" aria-label="Name for this layout">
+      <button id="layoutSave">Save layout</button>
+    </div>
+    <div id="savedLayouts" class="list"></div>
+    <div class="row hidden" id="layoutResetRow"><button class="small" id="layoutReset">Start this layout over</button></div>
+    <div class="opts" data-basics="HomeScreen" data-except="home.layout"></div>
     <div id="bgPhotos" class="hidden">
       <h3>Background photos</h3>
       <div class="sub">Shared by every profile on this TV. Each profile picks one, or takes turns through them all.</div>
@@ -441,6 +448,32 @@ function renderOption(o) {
   return box;
 }
 
+// ---- saved layouts
+async function layoutAction(body, msg) {
+  try { take(await api('layouts', { method: 'POST', body: JSON.stringify(body) })); toast(msg); } catch (e) { showError(e); }
+}
+function renderLayouts() {
+  const l = state.layouts || { saved: [] };
+  const list = $('savedLayouts'); list.innerHTML = '';
+  l.saved.forEach(x => {
+    const row = el('div', 'item');
+    row.append(el('span', 'grow', `${x.name} · from ${x.from}`));
+    const b = el('button', 'small danger', 'Delete');
+    b.addEventListener('click', () => { if (confirm(`Delete the layout ${x.name}?`)) layoutAction({ action: 'delete', id: x.id }, `Deleted ${x.name}`); });
+    row.append(b); list.append(row);
+  });
+  $('layoutResetRow').classList.toggle('hidden', !l.changed);
+  $('layoutReset').textContent = `Start ${l.name} over`;
+}
+$('layoutSave').addEventListener('click', () => {
+  const name = $('layoutName').value.trim();
+  layoutAction({ action: 'save', name }, 'Layout saved');
+  $('layoutName').value = '';
+});
+$('layoutReset').addEventListener('click', () => {
+  if (confirm('Put this layout back to how it came: its rows, menu, top of the screen and look?')) layoutAction({ action: 'startOver' }, 'Started over');
+});
+
 // ---- shows
 function renderShows() {
   const list = $('showList'); list.innerHTML = '';
@@ -488,11 +521,14 @@ function renderOptions() {
   document.querySelectorAll('[data-basics]').forEach(c => {
     c.innerHTML = '';
     const only = c.dataset.section;
+    const ids = c.dataset.only ? c.dataset.only.split(',') : null;
+    const except = c.dataset.except ? c.dataset.except.split(',') : [];
     (state.basics[c.dataset.basics] || []).map(id => byId[id])
-      .filter(o => o && o.visible && (!only || o.section === only))
+      .filter(o => o && o.visible && (!only || o.section === only) && (!ids || ids.includes(o.id)) && !except.includes(o.id))
       .forEach(o => c.append(renderOption(o)));
     c.classList.toggle('hidden', !c.children.length);
   });
+  renderLayouts();
   document.querySelectorAll('[data-more]').forEach(c => {
     c.innerHTML = '';
     const sec = state.options.find(x => x.id === c.dataset.more); if (!sec) return;

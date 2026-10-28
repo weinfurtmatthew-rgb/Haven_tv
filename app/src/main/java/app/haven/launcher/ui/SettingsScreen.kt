@@ -49,6 +49,7 @@ import app.haven.launcher.Screen
 import app.haven.launcher.bedroom.Bedroom
 import app.haven.launcher.data.Accent
 import app.haven.launcher.data.BgKind
+import app.haven.launcher.data.Layouts
 import app.haven.launcher.data.LookConfig
 import app.haven.launcher.data.Opt
 import app.haven.launcher.data.OptGroup
@@ -222,6 +223,13 @@ fun SettingsScreen(nav: Nav) {
             onYes = { Haven.settings.update { it.copy(look = LookConfig(avatar = it.look.avatar)) } },
             onDismiss = { dialog = null },
         )
+        "startOver" -> ConfirmDialog(
+            "Start ${s.look.layout.label} over?",
+            "Its rows, menu, top of the screen and look go back to how the layout came. Your saved layouts stay as they are.",
+            "Start over",
+            onYes = { Haven.settings.update { Layouts.startOver(it) } },
+            onDismiss = { dialog = null },
+        )
         "remove" -> ConfirmDialog(
             "Remove ${profiles.firstOrNull { it.active }?.name}?",
             "Their look, apps, alarm, briefing and teams go with them. Photos and pictures uploaded for everyone stay.",
@@ -229,6 +237,15 @@ fun SettingsScreen(nav: Nav) {
             onYes = { Haven.settings.removeProfile(Haven.settings.activeId) },
             onDismiss = { dialog = null },
         )
+        else -> s.savedLayouts.firstOrNull { "deleteLayout:${it.id}" == dialog }?.let { l ->
+            ConfirmDialog(
+                "Delete ${l.name}?",
+                "It goes from the layout list. What's on the TV now stays as it is.",
+                "Delete",
+                onYes = { Haven.settings.update { Layouts.delete(it, l.id) } },
+                onDismiss = { dialog = null },
+            )
+        }
     }
 }
 
@@ -352,11 +369,25 @@ private class SettingsUi(
     }
 
     fun LazyListScope.homeScreenRows() {
-        opts(basics(OptGroup.HomeScreen), first = true)
-        moreRow("How you get around, fonts, corners, focus, tile sizes, the clock and the background's details")
+        val first = basics(OptGroup.HomeScreen)
+        // The layout, then keeping it as your own, then the rest of the basics.
+        opts(first.take(1), first = true)
+        row("Save as your own layout", "Keeps this layout under a name, to pick again from the list") {
+            edit(TextEdit("Name this layout", "", "My ${s.look.layout.label}") { v -> Haven.settings.update { Layouts.save(it, v) } })
+        }
+        opts(first.drop(1))
+        moreRow("How you get around, your saved layouts, fonts, corners, focus, tile sizes, the clock and the background's details")
         if (!expanded) return
         heading(OptSection.Layout.label)
         more(OptSection.Layout)
+        if (s.look.saved.isBlank() && (!Layouts.matches(s.look) || s.layoutMemory.containsKey(s.look.layout))) {
+            row("Start ${s.look.layout.label} over", "Back to how the layout came: its rows, menu, top of the screen and look") { openDialog("startOver") }
+        }
+        for (l in s.savedLayouts) {
+            item(key = "saved:${l.id}") {
+                SettingRow(l.name, "Your layout, from ${l.look.layout.label}. Select to delete it", rowModifier) { openDialog("deleteLayout:${l.id}") }
+            }
+        }
         if (s.shows.isNotEmpty()) {
             row("Shows you follow", s.shows.joinToString(", ") { it.name } + ". Follow more from a show's details or your phone", phoneOnly = true)
         }

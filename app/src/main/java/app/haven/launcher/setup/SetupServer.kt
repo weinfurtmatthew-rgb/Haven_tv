@@ -11,6 +11,7 @@ import app.haven.launcher.art.ArtRepository
 import app.haven.launcher.data.AppLook
 import app.haven.launcher.data.AppStyle
 import app.haven.launcher.data.FollowedShow
+import app.haven.launcher.data.Layouts
 import app.haven.launcher.data.ArtCare
 import app.haven.launcher.data.BriefConfig
 import app.haven.launcher.data.LookConfig
@@ -134,6 +135,19 @@ class SetupServer(private val context: Context) {
                     json(out, 200, state(req.profile))
                 }
                 "POST /api/profiles" -> json(out, 200, state(profileAction(req.profile, JSONObject(readBody(req)))))
+                "POST /api/layouts" -> {
+                    // Keep what's on now as a named layout, delete a saved one, or start a built-in layout over.
+                    val o = JSONObject(readBody(req))
+                    Haven.settings.updateProfile(req.profile) { s ->
+                        when (o.optString("action")) {
+                            "save" -> Layouts.save(s, o.optString("name"))
+                            "delete" -> Layouts.delete(s, o.optString("id"))
+                            "startOver" -> Layouts.startOver(s)
+                            else -> s
+                        }
+                    }
+                    json(out, 200, state(req.profile))
+                }
                 "POST /api/test" -> {
                     val o = JSONObject(readBody(req))
                     val token = o.optString("token").ifBlank { Haven.settings.settingsOf(req.profile).haToken }
@@ -301,6 +315,14 @@ class SetupServer(private val context: Context) {
             .put("askOnStart", Haven.settings.meta.value.askOnStart)
             .put("options", optionsJson(s))
             .put("basics", basicsJson())
+            .put(
+                "layouts",
+                JSONObject()
+                    .put("saved", JSONArray(s.savedLayouts.map { JSONObject().put("id", it.id).put("name", it.name).put("from", it.look.layout.label) }))
+                    .put("onSaved", s.look.saved.isNotBlank())
+                    .put("name", s.look.layout.label)
+                    .put("changed", s.look.saved.isBlank() && (!Layouts.matches(s.look) || s.layoutMemory.containsKey(s.look.layout))),
+            )
             .put("shows", JSONArray(s.shows.map { it.toJson() }))
             .put(
                 "room",

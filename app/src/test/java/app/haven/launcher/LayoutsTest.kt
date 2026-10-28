@@ -2,6 +2,7 @@ package app.haven.launcher
 
 import android.content.pm.ApplicationInfo
 import app.haven.launcher.bg.DepthMask
+import app.haven.launcher.data.AppGrid
 import app.haven.launcher.data.AppKind
 import app.haven.launcher.data.AppKinds
 import app.haven.launcher.data.FollowedShow
@@ -20,6 +21,7 @@ import app.haven.launcher.data.Surface
 import app.haven.launcher.data.ThemePreset
 import app.haven.launcher.media.MediaKind
 import app.haven.launcher.media.MediaParse
+import app.haven.launcher.ui.pageScrollBy
 import app.haven.launcher.ui.spotlightScrollBy
 import org.json.JSONArray
 import org.json.JSONObject
@@ -270,17 +272,68 @@ class LayoutsTest {
 
     @Test
     fun spotlightKeepsThePhotoWholeOrGone() {
-        // 1080 tall, the photo 860, row names 100; things are 160 tall at a place on the page.
-        fun by(now: Float, top: Float) = spotlightScrollBy(now, top - now, 160f, 1080f, 860f, 100f)
+        // 1080 tall, the photo 860, row names 100, the page 3080 long; things are 160 tall at a place on the page.
+        fun by(now: Float, top: Float) = spotlightScrollBy(now, top - now, 160f, 1080f, 860f, 100f, 2000f)
         // On the photo (the dock, the top bar): back to the top.
         assertEquals(0f, by(0f, 620f), 0.01f)
         assertEquals(-860f, by(860f, 620f), 0.01f)
         // The first row below it: the photo slides all the way away.
         assertEquals(860f, by(0f, 940f), 0.01f)
-        // Further down: as little as it can.
-        assertEquals(320f, by(860f, 2100f), 0.01f)
+        // Further down: as little as it can, with room for the next row's name.
+        assertEquals(120f, by(860f, 1800f), 0.01f)
         // Back up, on screen with its row's name: no move. The first row again: the first screen below the photo.
         assertEquals(0f, by(1180f, 1500f), 0.01f)
         assertEquals(-320f, by(1180f, 940f), 0.01f)
+        // In the last screenful: all the way to the bottom.
+        assertEquals(800f, by(1200f, 2300f), 0.01f)
+    }
+
+    @Test
+    fun pagesNeverStopHalfwayIntoTheirEnds() {
+        // 1080 tall, the page 3080 long (2000 to scroll), 120 kept clear; things are 160 tall.
+        fun by(now: Float, top: Float) = pageScrollBy(now, top - now, 160f, 1080f, 2000f, 120f)
+        // The top bar or the first row, from anywhere: the whole top shows.
+        assertEquals(-300f, by(300f, 40f), 0.01f)
+        assertEquals(0f, by(0f, 700f), 0.01f)
+        // A row just past the first screen: as little as it can, with room below.
+        assertEquals(100f, by(0f, 900f), 0.01f)
+        // Already on screen with room around it: no move.
+        assertEquals(0f, by(1000f, 1600f), 0.01f)
+        // In the last screenful: all the way to the bottom.
+        assertEquals(500f, by(1500f, 2900f), 0.01f)
+    }
+
+    @Test
+    fun layoutsKeepTheirChanges() {
+        val layout = Options["home.layout"]!!
+        var s = layout.with(Settings(), HomeLayout.Spotlight.name)
+        s = Options["home.grid"]!!.with(s, AppGrid.Three.name)
+        // Away to another layout and back: Spotlight still has its change.
+        s = layout.with(s, HomeLayout.GameDay.name)
+        assertEquals(HomeLayout.GameDay, s.look.layout)
+        s = layout.with(s, HomeLayout.Spotlight.name)
+        assertEquals(AppGrid.Three, s.look.appGrid)
+        assertEquals("Spotlight, changed", Layouts.label(s))
+        // Saved under a name: in the list, and back as it was after going elsewhere.
+        s = Layouts.save(s, "Movie nights")
+        val id = s.look.saved
+        assertEquals("Movie nights", Layouts.label(s))
+        assertTrue(layout.choices(s).any { it.value == Layouts.SAVED + id })
+        s = layout.with(s, HomeLayout.Standard.name)
+        assertEquals(AppGrid.Rows, s.look.appGrid)
+        s = layout.with(s, Layouts.SAVED + id)
+        assertEquals(AppGrid.Three, s.look.appGrid)
+        assertEquals(Layouts.SAVED + id, layout.value(s))
+        val back = Settings.fromJson(JSONObject(s.toJson().toString()))
+        assertEquals(s.savedLayouts, back.savedLayouts)
+        assertEquals(s.layoutMemory, back.layoutMemory)
+        assertEquals(s.look, back.look)
+        // Starting a built-in layout over forgets its changes; deleting a saved one takes it off the list.
+        s = layout.with(s, HomeLayout.Spotlight.name)
+        s = Layouts.startOver(s)
+        assertTrue(Layouts.matches(s.look))
+        assertEquals("Spotlight", Layouts.label(s))
+        s = Layouts.delete(s, id)
+        assertTrue(layout.choices(s).none { it.value == Layouts.SAVED + id })
     }
 }
