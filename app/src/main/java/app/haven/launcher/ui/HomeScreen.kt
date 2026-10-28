@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings as AndroidSettings
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
@@ -360,7 +361,9 @@ fun HomePage(h: HomeCtx, hero: HeroKind, rows: List<HomeRow>, scroll: ScrollStat
     var pageBounds by remember { mutableStateOf(Rect.Zero) }
     val glass = if (hero == HeroKind.Spotlight) stage.value?.let { GlassBackdrop(it, pageBounds, 0f) } else null
     Box(Modifier.fillMaxSize().onGloballyPositioned { pageBounds = it.boundsInRoot() }) {
-        if (glass != null) Image(glass.image, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        Crossfade(targetState = glass?.image, animationSpec = motion(700), label = "stage") { image ->
+            if (image != null) Image(image, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        }
         CompositionLocalProvider(LocalBringIntoViewSpec provides pageScroll, LocalGlass provides (glass ?: LocalGlass.current)) {
             PageContent(h, hero, rows, scroll, chrome, rowScroll, stage, head)
         }

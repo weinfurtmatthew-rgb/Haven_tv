@@ -597,8 +597,16 @@ fun SpotlightHero(h: HomeCtx, chrome: PageChrome, firstRow: (@Composable () -> U
         value = runCatching { Haven.media.onService(app) }.getOrNull()?.firstOrNull()
     }
 
+    // A streaming app's picture melts into the page the same way, on its own blurred continuation.
+    val serviceStage by produceState<ImageBitmap?>(null, service?.backdrop, spotW) {
+        value = null
+        val url = service?.backdrop ?: return@produceState
+        val bmp = runCatching { Haven.backgrounds.loadCrop(url, spotW, SPOT_H) }.getOrNull() ?: return@produceState
+        value = withContext(Dispatchers.Default) { stageOf(Glass.frost(bmp.asImageBitmap()), bmp.width) }
+    }
+
     // The page draws the photo's blurred continuation behind everything, so the photo and the rows are one piece.
-    LaunchedEffect(spot) { stage.value = spot?.stage }
+    LaunchedEffect(spot, serviceStage) { stage.value = serviceStage ?: spot?.stage }
     // Beside the side menu the page is narrower than the screen: the photo is cut to the page's own width.
     Box(
         Modifier.fillMaxWidth().height(SPOT_H.dp).onGloballyPositioned {
