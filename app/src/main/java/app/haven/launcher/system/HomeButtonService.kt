@@ -14,6 +14,8 @@ import android.widget.Toast
 import app.haven.launcher.Haven
 import app.haven.launcher.MainActivity
 import app.haven.launcher.bedroom.Bedroom
+import app.haven.launcher.data.AppKind
+import app.haven.launcher.media.TvPlayback
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -70,6 +72,7 @@ class HomeButtonService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         if (pkg == packageName) return
         remember(pkg, event.className?.toString())
+        if (Haven.apps.apps.value.any { it.pkg == pkg && AppKind.Music in it.kinds }) TvPlayback.lastMusicApp = pkg
         if (pkg !in stockHomes) {
             stockAllowed = false
             return

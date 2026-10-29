@@ -62,6 +62,7 @@ import app.haven.launcher.ha.HaArea
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.setup.SetupServer
 import app.haven.launcher.sports.ScorePopup
+import app.haven.launcher.media.TvPlayback
 import app.haven.launcher.system.Device
 import app.haven.launcher.system.HomeButtonService
 import app.haven.launcher.update.Updater
@@ -86,6 +87,7 @@ fun SettingsScreen(nav: Nav) {
     val status by Haven.ha.status.collectAsState()
     val areas by Haven.ha.areas.collectAsState()
     val serviceOn by HomeButtonService.running.collectAsState()
+    val playingAccess by TvPlayback.access.collectAsState()
     val updateState by Haven.updater.state.collectAsState()
     val bgStatus by Haven.backgrounds.status.collectAsState()
     val scope = rememberCoroutineScope()
@@ -131,6 +133,7 @@ fun SettingsScreen(nav: Nav) {
         status = status,
         areas = areas,
         serviceOn = serviceOn,
+        playingAccess = playingAccess,
         updateState = updateState,
         bgStatus = bgStatus,
         scope = scope,
@@ -267,6 +270,7 @@ private class SettingsUi(
     val status: HaStatus,
     val areas: List<HaArea>,
     val serviceOn: Boolean,
+    val playingAccess: Boolean,
     val updateState: Updater.State,
     val bgStatus: String?,
     val scope: CoroutineScope,
@@ -564,6 +568,12 @@ private class SettingsUi(
         switch("Open Haven when Home is pressed", "Press Home twice quickly for the original home screen", s.homeOverride) { on ->
             Haven.settings.update { it.copy(homeOverride = on) }
         }
+        row(
+            "What's playing on this TV",
+            if (playingAccess) "On. Music shows the song, artist and cover from any app on this TV"
+            else "Off. Select, then allow \"Haven now playing\". Without it, Haven only knows that music is playing",
+            toggle = playingAccess,
+        ) { openSystem(Haven.app, AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
         if (!serviceOn) {
             row("Switch keeps turning itself off?", "Select to reinstall Haven through Android's installer, then try the switch again") {
                 scope.launch { Haven.updater.checkAndInstall(reinstall = true) }

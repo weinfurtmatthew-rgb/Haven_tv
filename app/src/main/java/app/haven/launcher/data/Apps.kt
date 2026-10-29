@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import app.haven.launcher.media.TvPlayback
 import app.haven.launcher.system.HomeButtonService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -128,6 +129,7 @@ class AppsRepository(private val context: Context, private val scope: CoroutineS
         try {
             context.startActivity(app.launchIntent)
             markUsed(app.pkg)
+            if (AppKind.Music in app.kinds) TvPlayback.lastMusicApp = app.pkg
         } catch (e: Exception) {
             Toast.makeText(context, "Couldn't open ${app.label}", Toast.LENGTH_SHORT).show()
         }

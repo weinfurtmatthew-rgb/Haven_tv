@@ -201,6 +201,11 @@ over ADB. Haven works around this instead of replacing the DIRECTV app:
   (the Smart home layout's Cameras row).
 - **The alarm** needs the box to be able to wake the TV. Leave the box plugged in, keep HDMI-CEC on, and try the
   alarm once (Alarm › Try the alarm now) before relying on it.
+- **Music playing on the TV itself** (Amazon Music, Spotify, YouTube Music…) shows on the Music page and the Now
+  playing row. To see the song, artist and cover, allow it once: Settings › This TV › **What's playing on this
+  TV** › turn on **Haven now playing**. If your TV has no such screen, run
+  `adb shell cmd notification allow_listener app.haven.launcher/app.haven.launcher.system.MediaListener` from a
+  computer. Without it Haven still shows that music is playing, with play, pause and skip.
 - **Sleep timer** needs the Home button service on to put the box to sleep (Android 9+). Without it, Haven still
   pauses playback and turns off the lights.
 - **The setup page** runs only while Haven's Settings screen is open, and only accepts requests carrying the code

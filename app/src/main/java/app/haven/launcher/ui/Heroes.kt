@@ -72,6 +72,8 @@ import app.haven.launcher.ha.HaEntity
 import app.haven.launcher.media.MediaItem
 import app.haven.launcher.media.MediaKind
 import app.haven.launcher.media.MediaList
+import app.haven.launcher.media.TvPlayback
+import app.haven.launcher.media.TvTrack
 import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.Watch
@@ -363,8 +365,15 @@ fun watchShow(ctx: android.content.Context, item: MediaItem) {
 @Composable
 private fun NowPlayingHero(h: HomeCtx) {
     Haven.ha.entities.collectAsState().value
+    val tv by TvPlayback.track.collectAsState()
     val scope = rememberCoroutineScope()
     val e = leadSpeaker(h)
+    // Music in an app on this TV comes first, unless it's paused and a speaker is playing.
+    val onTv = tv?.takeIf { it.playing || e?.state != "playing" }
+    if (onTv != null) {
+        TvNowPlaying(h, onTv)
+        return
+    }
     Box(Modifier.fillMaxWidth().height(600.dp)) {
         if (e == null) {
             Column(Modifier.padding(start = h.start, top = 96.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -406,6 +415,51 @@ private fun NowPlayingHero(h: HomeCtx) {
     }
 }
 
+/** Music in an app on this TV: its cover, the song, and the app's own controls (or the remote's media keys). */
+@Composable
+private fun TvNowPlaying(h: HomeCtx, t: TvTrack) {
+    val access by TvPlayback.access.collectAsState()
+    val where = if (t.pkg.isBlank()) "on this TV" else "in ${t.app}"
+    Box(Modifier.fillMaxWidth().height(600.dp)) {
+        Row(Modifier.padding(start = h.start, end = h.end, top = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(480.dp).clip(L.panelShape).background(C.Raised), contentAlignment = Alignment.Center) {
+                val art = t.art
+                if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                else Icon(Icons.Music, 160.dp, C.Stone)
+            }
+            Column(Modifier.padding(start = 72.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Eyebrow((if (t.playing) "Playing " else "Paused ") + where)
+                Txt(t.title.ifBlank { if (t.playing) "Music is playing" else "Music is paused" }, T.Headline, size = 88, maxLines = 2)
+                if (t.artist.isNotBlank()) Txt(t.artist, T.Title, color = C.Stone)
+                if (t.album.isNotBlank()) Txt(t.album, T.Body, color = C.Dust)
+                if (t.title.isBlank() && !access) {
+                    Txt("To see the song and its cover, allow it in Settings › This TV › What's playing on this TV", T.Body, color = C.Dust)
+                }
+                if (t.durationMs > 0) {
+                    val now by produceState(SystemClock.elapsedRealtime(), t) {
+                        while (t.playing) {
+                            value = SystemClock.elapsedRealtime()
+                            delay(1000)
+                        }
+                    }
+                    SongBar(t.elapsedMs(now) / 1000.0, t.durationMs / 1000.0)
+                }
+                Row(Modifier.padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    IconButton(Icons.SkipBack, { TvPlayback.previous() }, size = 88.dp, glass = Look.glass)
+                    IconButton(
+                        if (t.playing) Icons.Pause else Icons.Play, { TvPlayback.playPause() },
+                        size = 120.dp, focusRequester = h.req("hero:play"), onFocus = h.track("hero:play"), glass = Look.glass,
+                    )
+                    IconButton(Icons.SkipForward, { TvPlayback.next() }, size = 88.dp, glass = Look.glass)
+                    Spacer(width = 40.dp)
+                    IconButton(Icons.Minus, { TvPlayback.volume(up = false) }, size = 72.dp, glass = Look.glass)
+                    IconButton(Icons.Plus, { TvPlayback.volume(up = true) }, size = 72.dp, glass = Look.glass)
+                }
+            }
+        }
+    }
+}
+
 /** How far into the song, from Home Assistant's position and when it was reported, ticking while it plays. */
 @Composable
 private fun Progress(e: HaEntity) {
@@ -420,6 +474,12 @@ private fun Progress(e: HaEntity) {
         }
     }
     val elapsed = if (e.state == "playing" && at != null) pos + Duration.between(at, now).toMillis() / 1000.0 else pos
+    SongBar(elapsed, duration)
+}
+
+/** A song's progress bar, with the time so far and its length. */
+@Composable
+private fun SongBar(elapsed: Double, duration: Double) {
     val t = elapsed.coerceIn(0.0, duration)
     fun mmss(s: Double) = "%d:%02d".format((s / 60).toInt(), (s % 60).toInt())
     Column(Modifier.padding(top = 16.dp).width(1000.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -96,6 +96,16 @@
         </service>
 
         <service
+            android:name=".system.MediaListener"
+            android:exported="true"
+            android:label="@string/media_label"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".art.ArtDreamService"
             android:exported="true"
             android:label="@string/dream_label"

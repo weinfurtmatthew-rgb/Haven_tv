@@ -81,6 +81,8 @@ Haven must stay usable opened from the apps row.
   paintings, TMDB with the user's own key, Home Assistant cover art). App pictures are uploaded from the phone into
   `filesDir/appimages`. Spotlight's depth clock: `bg/DepthMask.kt` (pure, unit tested; test it on real photos with
   kotlinc before changing thresholds).
+- Now playing: Home Assistant's media players plus music in an app on the TV itself (`media/TvPlayback.kt`:
+  media sessions through notification access, `system/MediaListener.kt`; without it, only that music plays).
 - Movies and TV: `media/Media.kt` (TVmaze, keyless; TMDB with the profile's key, cached per list) and the pure
   parsers in `media/MediaParse.kt`. The demo household (`demo/Demo.kt`) supplies invented titles with painted
   posters, so CI screenshots need no key and no network for them.

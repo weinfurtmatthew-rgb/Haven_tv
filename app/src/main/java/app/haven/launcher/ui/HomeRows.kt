@@ -1,6 +1,7 @@
 package app.haven.launcher.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +50,7 @@ import app.haven.launcher.ha.HaEntity
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.media.MediaItem
 import app.haven.launcher.media.MediaList
+import app.haven.launcher.media.TvPlayback
 import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.NewsItem
@@ -122,7 +124,7 @@ fun rowCount(h: HomeCtx, row: HomeRow, d: RowData): Int {
         HomeRow.Speakers -> ha.devices(s, "media_player").size
         HomeRow.Sensors -> ha.sensorsFor(s).size
         HomeRow.Automations -> ha.devices(s, "automation").size
-        HomeRow.NowPlaying -> if (leadSpeaker(h) != null) 1 else 0
+        HomeRow.NowPlaying -> if (leadSpeaker(h) != null || TvPlayback.track.value != null) 1 else 0
         HomeRow.Weather, HomeRow.Calendar, HomeRow.Headlines -> 0
         else -> MEDIA_ROWS[row]?.let { maxOf(1, d.media[it].orEmpty().size) } ?: 0
     }
@@ -728,6 +730,30 @@ private fun AutomationsRow(h: HomeCtx, row: HomeRow) {
 @Composable
 private fun NowPlayingRow(h: HomeCtx, row: HomeRow) {
     Haven.ha.entities.collectAsState().value
+    val tv by TvPlayback.track.collectAsState()
+    val onTv = tv?.takeIf { it.playing || leadSpeaker(h)?.state != "playing" }
+    if (onTv != null) {
+        // Music in an app on this TV: OK plays or pauses it.
+        CardRow(h, row, listOf(onTv), { "tv" }) { t, k ->
+            Tile(h, k, 960.dp, 220.dp, onClick = { TvPlayback.playPause() }) { focused ->
+                Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(220.dp).background(C.Raised), contentAlignment = Alignment.Center) {
+                        val art = t.art
+                        if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        else Icon(Icons.Music, 80.dp, C.Stone)
+                    }
+                    Column(Modifier.padding(horizontal = 32.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Txt(t.title.ifBlank { if (t.playing) "Music is playing" else "Music is paused" }, T.Title, color = ink(focused), maxLines = 2)
+                        if (t.artist.isNotBlank()) Txt(t.artist, T.Body, color = inkMuted(focused))
+                        val where = if (t.pkg.isBlank()) "on this TV" else "in ${t.app}"
+                        Txt((if (t.playing) "Playing " else "Paused ") + where, T.Label, color = if (!lit(focused)) C.Lamp else inkMuted(focused))
+                    }
+                    Icon(if (t.playing) Icons.Pause else Icons.Play, 56.dp, inkIcon(focused), Modifier.padding(end = 40.dp))
+                }
+            }
+        }
+        return
+    }
     if (NeedsHa(h, row)) return
     val scope = rememberCoroutineScope()
     val e = leadSpeaker(h)

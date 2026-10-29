@@ -10,6 +10,7 @@ import app.haven.launcher.data.OptionSources
 import app.haven.launcher.data.SettingsStore
 import app.haven.launcher.ha.HomeAssistant
 import app.haven.launcher.media.Media
+import app.haven.launcher.media.TvPlayback
 import app.haven.launcher.sports.ScoreAlerts
 import app.haven.launcher.sports.SportsRepository
 import app.haven.launcher.system.CrashReport
@@ -59,6 +60,7 @@ object Haven {
         sports = SportsRepository(settings)
         backgrounds = Backgrounds(context, art)
         media = Media(settings)
+        TvPlayback.start(context)
         OptionSources.backgrounds = { backgrounds.files().map { it.name } }
         OptionSources.apps = { apps.apps.value.map { it.pkg to it.label } }
 
