@@ -149,7 +149,7 @@ object Layouts {
         )
         HomeLayout.Cinema -> Recipe(
             NavStyle.Rows, HeroKind.Movie,
-            listOf(HomeRow.TrendingMovies, HomeRow.InTheaters, HomeRow.MovieApps, HomeRow.ComingSoon, HomeRow.TopMovies, HomeRow.Favorites),
+            listOf(HomeRow.TrendingMovies, HomeRow.ContinueWatching, HomeRow.InTheaters, HomeRow.MovieApps, HomeRow.ComingSoon, HomeRow.TopMovies, HomeRow.Favorites),
             look = {
                 LookConfig().copy(
                     theme = ThemePreset.Black, accent = Accent.Gold, headingFont = HeadingFont.Playfair, textFont = TextFont.Inter,
@@ -160,7 +160,7 @@ object Layouts {
         )
         HomeLayout.Shows -> Recipe(
             NavStyle.Tabs, HeroKind.Show,
-            listOf(HomeRow.YourShows, HomeRow.Tonight, HomeRow.NewStreaming, HomeRow.TvApps, HomeRow.TrendingShows, HomeRow.Favorites),
+            listOf(HomeRow.YourShows, HomeRow.ContinueWatching, HomeRow.Tonight, HomeRow.NewStreaming, HomeRow.TvApps, HomeRow.TrendingShows, HomeRow.Favorites),
             sections = listOf(HomeSection.Home, HomeSection.LiveTv, HomeSection.Movies, HomeSection.Sports, HomeSection.Music, HomeSection.Apps),
             look = {
                 LookConfig().copy(

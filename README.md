@@ -195,8 +195,11 @@ over ADB. Haven works around this instead of replacing the DIRECTV app:
 
 ## What to know
 
-- **Continue watching isn't possible** for a third-party launcher: Android only lets the built-in home screen read
-  other apps' watch progress. The top row is your favorite apps instead, with when you last opened them.
+- **Continue watching** is Haven's own: Android keeps the stock home screen's row private, so Haven remembers what
+  your video apps say they're playing (title, picture, how far in) while you watch, once **What's playing on this
+  TV** is on (Settings › This TV). It starts empty and fills as you watch, per profile; finished titles drop off.
+  Selecting one opens it where it plays if the app still has it open, otherwise the app, which usually picks up
+  where you were. Hold OK to take one off. Add the row in Settings › Home screen › Rows (Cinema and Shows have it).
 - **HDMI inputs** from the mockups are left out: the box has no HDMI inputs. Cameras show through Home Assistant
   (the Smart home layout's Cameras row).
 - **The alarm** needs the box to be able to wake the TV. Leave the box plugged in, keep HDMI-CEC on, and try the

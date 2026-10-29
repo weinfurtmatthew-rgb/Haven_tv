@@ -134,6 +134,7 @@ enum class RowGroup(val label: String) {
 enum class HomeRow(val label: String, val group: RowGroup, val note: String = "") {
     Favorites("Favorites", RowGroup.Apps, "Apps you pinned"),
     Recent("Recently used", RowGroup.Apps, "Apps you opened from Haven"),
+    ContinueWatching("Continue watching", RowGroup.Movies, "What you were watching in your apps"),
     Apps("All apps", RowGroup.Apps, "Every app on this TV"),
     Room("This room", RowGroup.Room, "Lights, speakers, alarm, art mode and your teams"),
     TvApps("TV apps", RowGroup.Apps, "Live TV and channel apps"),

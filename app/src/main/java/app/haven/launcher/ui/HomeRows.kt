@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,6 +52,8 @@ import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.media.MediaItem
 import app.haven.launcher.media.MediaList
 import app.haven.launcher.media.TvPlayback
+import app.haven.launcher.media.WatchList
+import app.haven.launcher.media.Watched
 import app.haven.launcher.sports.Game
 import app.haven.launcher.sports.GameState
 import app.haven.launcher.sports.NewsItem
@@ -113,6 +116,7 @@ fun rowCount(h: HomeCtx, row: HomeRow, d: RowData): Int {
         HomeRow.Favorites, HomeRow.Recent, HomeRow.Apps, HomeRow.KidsApps, HomeRow.TvApps, HomeRow.MovieApps,
         HomeRow.SportsApps, HomeRow.MusicApps, HomeRow.Games -> appsOf(h, row).size
         HomeRow.Room -> 3
+        HomeRow.ContinueWatching -> maxOf(if (TvPlayback.access.value) 0 else 1, WatchList.shown(TvPlayback.watched.value, Haven.settings.activeId, System.currentTimeMillis()).size)
         HomeRow.YourTeams -> maxOf(1, d.games.size)
         HomeRow.LiveScores -> d.boards.size
         HomeRow.SportsNews -> d.news.size
@@ -178,6 +182,7 @@ fun HomeRowView(h: HomeCtx, row: HomeRow, onPhoto: Boolean = false, page: List<H
         HomeRow.Sensors -> SensorsRow(h, row)
         HomeRow.Automations -> AutomationsRow(h, row)
         HomeRow.NowPlaying -> NowPlayingRow(h, row)
+        HomeRow.ContinueWatching -> ContinueRow(h, row)
         HomeRow.Weather -> WeatherRow(h, row)
         HomeRow.Calendar -> CalendarRow(h, row)
         HomeRow.Headlines -> HeadlinesRow(h, row)
@@ -419,6 +424,68 @@ fun PosterCard(h: HomeCtx, item: MediaItem, k: String) {
         Txt(item.title, T.Label, Modifier.padding(top = 16.dp), if (focused) C.Linen else C.Stone)
         val line = item.note.ifBlank { listOfNotNull(item.year.ifBlank { null }, item.rating?.let { "★ %.1f".format(it) }).joinToString(" · ") }
         if (line.isNotBlank()) Txt(line, T.Label, color = C.Dust)
+    }
+}
+
+/**
+ * Continue watching: what video apps said they were playing, for the profile on the TV. OK opens it (where it plays
+ * if the app still has it open, otherwise the app); hold OK takes it off the row.
+ */
+@Composable
+private fun ContinueRow(h: HomeCtx, row: HomeRow) {
+    val all by TvPlayback.watched.collectAsState()
+    val access by TvPlayback.access.collectAsState()
+    val list = WatchList.shown(all, Haven.settings.activeId, System.currentTimeMillis())
+    when {
+        list.isEmpty() && !access -> InfoCard(
+            h, row, Icons.Play, "Let Haven see what you watch",
+            "Turn on What's playing on this TV in Settings, under This TV. What you start in your apps then shows up here",
+        ) { openSettings(h, "ThisTv") }
+        list.isEmpty() -> Txt("Shows and films you start in your apps show up here.", T.Body, Modifier.padding(start = h.start, top = 16.dp, bottom = 32.dp), C.Stone)
+        else -> CardRow(h, row, list, { it.key }, gap = L.gap(24)) { w, k -> WatchedCard(h, w, k) }
+    }
+}
+
+@Composable
+private fun WatchedCard(h: HomeCtx, w: Watched, k: String) {
+    val ctx = LocalContext.current
+    val width = L.fav(400)
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.width(width)) {
+        Focusable(
+            onClick = { TvPlayback.open(ctx, w) },
+            onLongClick = {
+                TvPlayback.forget(w)
+                Toast.makeText(ctx, "Taken off Continue watching", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.size(width, L.fav(225)),
+            color = C.Surface,
+            style = FocusStyle.Picture,
+            focusedScale = 1.06f,
+            focusRequester = h.req(k),
+            onFocus = {
+                focused = it
+                h.track(k)(it)
+            },
+        ) {
+            val pic = TvPlayback.picture(w)
+            if (pic != null) {
+                AsyncImage(pic, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.BottomStart) {
+                    Txt(w.title, T.CardTitle, maxLines = 3)
+                }
+            }
+            w.progress?.let { p ->
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(8.dp).background(C.Hearth.copy(alpha = 0.6f))) {
+                    Box(Modifier.fillMaxWidth(p).fillMaxHeight().background(C.Lamp))
+                }
+            }
+        }
+        Txt(w.title, T.Label, Modifier.padding(top = 16.dp), if (focused) C.Linen else C.Stone, maxLines = 1)
+        val app = Haven.apps.apps.value.firstOrNull { it.pkg == w.pkg }?.label.orEmpty()
+        val line = listOf(w.subtitle, app).filter { it.isNotBlank() }.joinToString(" · ")
+        if (line.isNotBlank()) Txt(line, T.Label, color = C.Dust, maxLines = 1)
     }
 }
 
