@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.SystemClock
@@ -17,10 +18,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Makes Haven the home screen on boxes that don't let you change the default launcher:
+ * Makes Haven the home screen on boxes that don't let you change the default launcher (the DIRECTV box, Google TV,
+ * Fire TV):
  * - the remote's Home button opens Haven (press it twice quickly for the original home screen);
  * - after boot, Haven opens once the service starts;
- * - if Google's own home screen opens anyway (for example when an app closes), Haven is brought back.
+ * - if Google's or Amazon's own home screen opens anyway (for example when an app closes), Haven is brought back.
  *
  * TV-provider home apps are never redirected: on the DIRECTV STREAM box the "launcher" is the DIRECTV app
  * itself (live TV, guide, DVR), so Haven only steps in when Home is pressed.
@@ -72,7 +74,7 @@ class HomeButtonService : AccessibilityService() {
             stockAllowed = false
             return
         }
-        // Only Google's plain home screens are replaced automatically; a provider's home app is also its TV app.
+        // Only Google's and Amazon's plain home screens are replaced automatically; a provider's home app is also its TV app.
         if (pkg !in GENERIC_LAUNCHERS) return
         if (!Haven.settings.value.homeOverride || stockAllowed || recentlyCrashed()) return
         openHaven()
@@ -128,13 +130,14 @@ class HomeButtonService : AccessibilityService() {
         /** The last few app screens that opened (package / activity), newest first, for troubleshooting. */
         val recentScreens: StateFlow<List<String>> = _recentScreens
 
-        /** Google's stock Android TV / Google TV home screens: plain launchers that are safe to replace. */
+        /** The stock Android TV, Google TV and Fire TV home screens: plain launchers that are safe to replace. */
         val GENERIC_LAUNCHERS = setOf(
             "com.google.android.tvlauncher",
             "com.google.android.apps.tv.launcherx",
             "com.google.android.leanbacklauncher",
             "com.android.launcher",
             "com.android.launcher3",
+            "com.amazon.tv.launcher",
         )
 
         /** Puts the box to sleep (and the TV, through HDMI-CEC). Needs the service to be on and Android 9+. */
@@ -155,8 +158,14 @@ class HomeButtonService : AccessibilityService() {
 
         fun openStockHome(ctx: Context) {
             val pm = ctx.packageManager
+            // The box's own home screen first: a system app, and a known stock launcher before any other.
             val homes = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_ALL)
                 .filter { it.activityInfo.packageName != ctx.packageName && !it.activityInfo.packageName.contains("settings", true) }
+                .sortedWith(
+                    compareByDescending<android.content.pm.ResolveInfo> { (it.activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 }
+                        .thenByDescending { it.activityInfo.packageName.contains("directv", true) }
+                        .thenByDescending { it.activityInfo.packageName in GENERIC_LAUNCHERS },
+                )
             val target = homes.firstOrNull() ?: run {
                 Toast.makeText(ctx, "No other home screen found", Toast.LENGTH_SHORT).show()
                 return

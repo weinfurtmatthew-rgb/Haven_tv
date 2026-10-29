@@ -62,6 +62,7 @@ import app.haven.launcher.ha.HaArea
 import app.haven.launcher.ha.HaStatus
 import app.haven.launcher.setup.SetupServer
 import app.haven.launcher.sports.ScorePopup
+import app.haven.launcher.system.Device
 import app.haven.launcher.system.HomeButtonService
 import app.haven.launcher.update.Updater
 import com.google.zxing.BarcodeFormat
@@ -524,8 +525,12 @@ private class SettingsUi(
             else Haven.ha.entities.value[c.presenceEntity]?.name ?: c.presenceEntity,
             phoneOnly = true,
         )
-        row("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
-            openSystem(Haven.app, AndroidSettings.ACTION_DREAM_SETTINGS)
+        if (Device.of(Haven.app) == Device.FireTv) {
+            row("Use art mode as the screensaver", "Fire TV only offers Amazon's screen savers. Art mode still starts on Haven's home screen", phoneOnly = true)
+        } else {
+            row("Use art mode as the screensaver", "Choose \"Haven art\" in Android's screen saver settings") {
+                openSystem(Haven.app, AndroidSettings.ACTION_DREAM_SETTINGS)
+            }
         }
         if (s.bedroomExtras) {
             heading(OptSection.Alarm.label)
@@ -578,7 +583,14 @@ private class SettingsUi(
         row("Android settings", "Network, display, sound and accessibility") { openSystem(Haven.app, AndroidSettings.ACTION_SETTINGS) }
         moreRow("The original home screen, recent screens for troubleshooting, and credits")
         if (!expanded) return
-        row("Open the original home screen", "On the DIRECTV box this is the DIRECTV app") { HomeButtonService.openStockHome(Haven.app) }
+        row(
+            "Open the original home screen",
+            when (Device.of(Haven.app)) {
+                Device.Directv -> "On the DIRECTV box this is the DIRECTV app"
+                Device.FireTv -> "Fire TV's own home screen"
+                Device.AndroidTv -> "Google's home screen that came with the TV"
+            },
+        ) { HomeButtonService.openStockHome(Haven.app) }
         row("Recent screens", "For troubleshooting: which apps and screens opened lately") { showScreens() }
         row(
             "Credits",

@@ -1,7 +1,7 @@
 # Haven TV launcher
 
-Haven is a home screen (launcher) for Android TV boxes, built for the DIRECTV STREAM box but usable on any
-Android TV / Google TV device running Android 8 or newer. It follows the Haven mockups in `concept/`: one shared
+Haven is a home screen (launcher) for Android TV boxes, built for the DIRECTV STREAM box and also at home on
+Google TV and Fire TV (any Android TV device on Android 8 or newer, Fire OS 7 or newer). It follows the Haven mockups in `concept/`: one shared
 design, with features that depend on the room the TV is in.
 
 **On every TV**
@@ -137,6 +137,45 @@ Follow a show by pressing OK on it anywhere on the TV and choosing Follow, or se
 "TV shows you follow". The Kids layout shows only the apps picked under Profiles › Grown-up lock › Kids' apps (or
 the kids' apps Haven recognises); a PIN set there is asked before Settings, switching profiles, app menus and
 changing the layout, and a bedtime says goodnight and starts a five-minute sleep timer.
+
+## Install on Google TV
+
+Chromecast with Google TV, Google TV Streamer and TVs with Google TV built in (Sony, TCL, Hisense and others).
+
+1. **Install Downloader** (by AFTVnews) from the Google Play Store.
+2. **Allow it to install apps.** Settings › Apps › Security & restrictions › Unknown sources › turn on
+   **Downloader**. If that switch isn't there, turn on developer options first: Settings › System › About ›
+   select **Android TV OS build** seven times, then look again.
+3. **Download Haven** in Downloader from the same address as above
+   (`https://github.com/weinfurtmatthew-rgb/haven_tv/releases/latest/download/haven.apk`) and choose **Install**.
+4. **Make the Home button open Haven.** Settings › System › Accessibility › **Haven Home button** › turn it on.
+   If it's greyed out, Settings › Apps › Haven › **Allow restricted settings** first. Press Home twice quickly
+   for Google TV's own home screen, which also comes back on its own when you leave it.
+5. Set it up from your phone as in step 6 above.
+
+Google TV hides other screen savers from its settings. To use art mode as the screen saver anyway, run this
+once from a computer with adb: `adb shell settings put secure screensaver_components app.haven.launcher/.art.ArtDreamService`.
+
+## Install on Fire TV
+
+Fire TV sticks, cubes and Fire TV televisions on **Fire OS 7 or newer** (most models from 2020 on). Older ones
+on Fire OS 6 can't run Haven.
+
+1. **Install Downloader** from the Amazon Appstore (search "Downloader").
+2. **Allow it to install apps.** Settings › My Fire TV › About › select your Fire TV's name seven times to turn on
+   developer options. Then Settings › My Fire TV › Developer options › **Install unknown apps** › turn on
+   **Downloader**.
+3. **Download Haven** in Downloader from the address above and choose **Install**.
+4. **The Home button.** Amazon has been blocking replacement home screens on recent Fire OS versions. Try
+   Settings › Accessibility › **Haven Home button**; if your Fire TV offers it, Home opens Haven and pressing it
+   twice quickly opens Fire TV's home. If it doesn't, Home stays Amazon's: open Haven from **Your Apps & Games**
+   and move it to the front of your apps row (hold the menu button on it › Move to front), so it's one click
+   from Home.
+5. Set it up from your phone as in step 6 above.
+
+On Fire TV, art mode can't be the system screen saver (Fire TV only offers Amazon's), but it still starts on
+Haven's own home screen after the time you choose. Without the Home button service, the sleep timer pauses
+playback and turns off the lights but can't put the stick to sleep.
 
 ## DIRECTV on its own box
 

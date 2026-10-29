@@ -10,6 +10,9 @@ catches the Home key. Double Home opens the stock home screen. On that box the s
 app itself (live TV, guide, DVR), so the service must never redirect away from a provider's home app: automatic
 redirects only apply to Google's plain launchers (`GENERIC_LAUNCHERS`). The DIRECTV home app is listed in Haven's
 apps (HOME-category query in `data/Apps.kt`) and is the default first favorite. Never suggest disabling it.
+It also runs on Google TV and Fire TV (Fire OS 7+): `system/Device.kt` tells them apart where wording differs, and
+their stock launchers are in `GENERIC_LAUNCHERS`. Amazon may block the Home button service on newer Fire OS, so
+Haven must stay usable opened from the apps row.
 
 ## Build and verify
 - CI (`.github/workflows/build.yml`) is the reference build: `testDebugUnitTest` then `assembleRelease`, then a
