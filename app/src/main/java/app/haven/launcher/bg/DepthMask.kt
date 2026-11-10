@@ -27,6 +27,9 @@ object DepthMask {
     /** How far either side of a light the line under it is fitted, in pixels. */
     private const val SIDE = 32
 
+    /** How much further down an unclear column looks for the scenery's real top, in pixels. */
+    private const val LOWER = 64
+
     /** Columns where the edge is unclear, filled in from their neighbours when the gap is at most [GAP] pixels. */
     private const val UNSURE = -1
     private const val GAP = 48
@@ -89,13 +92,16 @@ object DepthMask {
                     else -> if (y > 0) p - w else -1
                 }
                 if (q < 0 || sky[q]) continue
+                // Light in the sky (a street lamp's glow, the sun, the bright band over the horizon) brightens it
+                // smoothly, a little faster than a sky darkens: part of the sky, not in front of it.
+                val brighter = cr[q] + cg[q] + cb[q] > cr[p] + cg[p] + cb[p]
+                val step = if (brighter) STEP * 2 else STEP
                 // A soft edge spread over two pixels is still an edge: check against the step before too.
-                if (dist(p, q) >= STEP || dist(parent[p], q) >= STEP * 1.6f) continue
+                if (dist(p, q) >= step || dist(parent[p], q) >= step * 1.6f) continue
                 val dr = cr[q] - rr[p]
                 val dg = cg[q] - rg[p]
                 val db = cb[q] - rb[p]
-                // Far from the sky's colour stops the fill, unless it's the sky growing smoothly brighter: light in
-                // the sky (a street lamp's glow, the sun, a lit cloud) is part of it, not in front of it.
+                // Far from the sky's colour stops the fill, unless the sky is growing brighter.
                 if (sqrt(dr * dr + dg * dg + db * db) >= JOIN && dr + dg + db < 0f) continue
                 sky[q] = true
                 parent[q] = p
@@ -203,24 +209,29 @@ object DepthMask {
             if (y1 < y0) return@IntArray fh
             val d = FloatArray(y1 - y0 + 1) { step(x, y0 + it) }
             val most = d.max()
-            // A soft change (a cloud's edge, a lamp's glow) isn't something standing in front of the sky. Unsure
-            // columns get their neighbours' edge below, when there are sure ones close by on both sides.
-            if (most < EDGE) return@IntArray UNSURE
+            // A soft change (a cloud's edge, a lamp's glow, the sky brightening) isn't something standing in front of
+            // the sky; the scenery's real top may be a little lower (a railing under a bright horizon). Still unsure:
+            // the column gets its neighbours' edge below, when there are sure ones close by on both sides.
+            if (most < EDGE) return@IntArray ((y1 + 1)..min(fh - 4, y1 + LOWER)).firstOrNull { step(x, it) >= EDGE } ?: UNSURE
             // The top of the scenery is the first strong change from above, not the strongest (a lit window).
             y0 + d.indexOfFirst { it >= most * 0.6f }
         }
         return median(lightsGone(filled(out, fh, GAP), full, fw, fh), 5)
     }
 
-    /** The colour change across row [y] of column [x], three rows above against three below: a skyline is a step, grain isn't. */
+    /**
+     * How sharp a change there is across row [y] of column [x]: three rows above against three below, counted only
+     * when most of it happens right at [y]. A skyline is a step; a sunset brightening towards the horizon (however
+     * fast) and grain aren't.
+     */
     private fun step(full: IntArray, fw: Int, x: Int, y: Int): Float {
-        var d = 0f
-        for (k in 1..3) {
+        fun diff(k: Int): Float {
             val up = full[(y - k) * fw + x]
             val dn = full[(y + k) * fw + x]
-            d += abs(r(up) - r(dn)) + abs(g(up) - g(dn)) + abs(b(up) - b(dn))
+            return abs(r(up) - r(dn)) + abs(g(up) - g(dn)) + abs(b(up) - b(dn))
         }
-        return d / 3
+        val wide = diff(3)
+        return if (diff(1) >= wide * 0.5f) wide else 0f
     }
 
     /** Unsure columns: in a gap narrower than [gap] between sure ones, the edge runs straight across; else no scenery. */

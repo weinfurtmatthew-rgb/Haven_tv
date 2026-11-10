@@ -292,6 +292,30 @@ class LayoutsTest {
         assertEquals(rail.toDouble(), edge[fw / 4].toDouble(), 6.0)
     }
 
+    /** A dusk sky that brightens fast over the last stretch above a dark railing at [rail] (a fraction of the height). */
+    private fun brightHorizon(w: Int, h: Int, rail: Float): IntArray = IntArray(w * h) { i ->
+        val y = i / w
+        val top = (rail * h).toInt()
+        if (y >= top) return@IntArray 0xFF2A2420.toInt()
+        val t = y.toFloat() / h
+        val start = top - 0.05f * h
+        val k = if (y > start) (y - start) / (0.05f * h) else 0f
+        val r = (40 + 60 * t + 200 * k).toInt().coerceIn(0, 255)
+        val g = (60 + 50 * t + 130 * k).toInt().coerceIn(0, 255)
+        val b = (140 - 10 * t + 40 * k).toInt().coerceIn(0, 255)
+        (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+    }
+
+    @Test
+    fun aBrightHorizonIsSky() {
+        val scene = DepthMask.scene(brightHorizon(480, 215, 0.6f), 480, 215)!!
+        val fw = 1920
+        val fh = 860
+        val edge = DepthMask.edge(scene, brightHorizon(fw, fh, 0.6f), fw, fh)
+        // The sky brightening fast just above the railing is still sky (it was taken for scenery 40 pixels up).
+        assertEquals((0.6f * fh).toDouble(), edge[fw / 2].toDouble(), 6.0)
+    }
+
     @Test
     fun theSunFloatsBehindTheClock() {
         val w = 480
