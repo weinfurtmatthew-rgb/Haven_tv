@@ -58,7 +58,8 @@ its own setting, so layouts mix. The tokens, type scale and focus rules above ho
 - **Spotlight's clock** sits in the photo's sky. When scenery rises into it (mountains, buildings, trees), the
   clock goes a little behind: the scenery covers about a fifth of the digits and never more than about three
   fifths of any one, so it always reads as a time. Flat horizons, photos without a sky and things floating in
-  the sky (the sun, clouds) leave the clock in front. The photo is whole or gone: while focus is on it (the top
+  the sky (the sun, clouds, a street lamp's glow) leave the clock in front, and it's only cut along a clear edge,
+  never in open sky. The photo is whole or gone: while focus is on it (the top
   bar, the dock of apps along its bottom) the page sits at the top; moving below it slides it away and the rows
   take the screen, as on Apple TV. It's never a box: its lowest third melts into a blurred copy of itself that
   carries on down the whole page, darkening as it goes, and the rows and their glass sit on that.

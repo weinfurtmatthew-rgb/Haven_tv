@@ -805,7 +805,7 @@ private fun analyse(bmp: Bitmap, clockW: Int, capH: Int, behind: Boolean): SpotP
                 val ht = capH + 60
                 cx = fw / 2 - w / 2
                 cy = place.baseline - capH - 30
-                val px = DepthMask.cutout(full, fw, fh, scene, edge, cx, cy, w, ht)
+                val px = DepthMask.cutout(full, fw, fh, edge, cx, cy, w, ht)
                 cut = Bitmap.createBitmap(px, w, ht, Bitmap.Config.ARGB_8888).asImageBitmap()
             }
         }

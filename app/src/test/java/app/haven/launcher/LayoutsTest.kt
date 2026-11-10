@@ -236,7 +236,7 @@ class LayoutsTest {
         assertEquals(332.0, edge[fw / 2].toDouble(), 3.0)
         val p = DepthMask.place(edge, fw / 2, 600, 190, 380, 530)
         assertTrue(p.depth)
-        val cut = DepthMask.cutout(full, fw, fh, scene, edge, fw / 2 - 300, p.baseline - 190, 600, 190)
+        val cut = DepthMask.cutout(full, fw, fh, edge, fw / 2 - 300, p.baseline - 190, 600, 190)
         assertTrue("the peak covers part of the clock", cut.any { it ushr 24 > 0 })
         assertTrue("the sky stays clear", cut.any { it == 0 })
     }
@@ -256,6 +256,40 @@ class LayoutsTest {
         val rnd = java.util.Random(3)
         val leaves = IntArray(w * h) { (0xFF shl 24) or (rnd.nextInt(60) shl 16) or ((60 + rnd.nextInt(120)) shl 8) or rnd.nextInt(50) }
         assertNull(DepthMask.scene(leaves, w, h))
+    }
+
+    /** A dusk sky over a dark railing at [rail] (a fraction of the height), with a street lamp glowing on it. */
+    private fun lampOnARailing(w: Int, h: Int, rail: Float): IntArray = IntArray(w * h) { i ->
+        val x = i % w
+        val y = i / w
+        val top = (rail * h).toInt()
+        // The lamp: a glaring bulb a little above the railing, its glow fading out over a few bulb sizes.
+        val lx = w * 0.5f
+        val ly = top - h * 0.03f
+        val d = kotlin.math.hypot(x - lx, y - ly) / (h * 0.02f)
+        when {
+            y >= top -> 0xFF2A2420.toInt()
+            d < 1f -> 0xFFFFF4D8.toInt()
+            else -> {
+                val glow = (1f / (d * d)).coerceAtMost(1f)
+                val s = sky(y, h)
+                fun mix(c: Int, to: Int) = (c + (to - c) * glow).toInt().coerceIn(0, 255)
+                (0xFF shl 24) or (mix(s shr 16 and 0xFF, 255) shl 16) or (mix(s shr 8 and 0xFF, 200) shl 8) or mix(s and 0xFF, 120)
+            }
+        }
+    }
+
+    @Test
+    fun aStreetLampsGlowIsntScenery() {
+        val scene = DepthMask.scene(lampOnARailing(480, 215, 0.6f), 480, 215)!!
+        val fw = 1920
+        val fh = 860
+        val edge = DepthMask.edge(scene, lampOnARailing(fw, fh, 0.6f), fw, fh)
+        // Under the lamp the edge is the railing's top, as it is either side of it: the glow doesn't cover the clock
+        // (it used to, 50 pixels up in the glow).
+        val rail = (0.6f * fh).toInt()
+        assertEquals(rail.toDouble(), edge[fw / 2].toDouble(), 6.0)
+        assertEquals(rail.toDouble(), edge[fw / 4].toDouble(), 6.0)
     }
 
     @Test
